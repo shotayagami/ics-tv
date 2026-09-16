@@ -1,0 +1,53 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}配信プリセット — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>配信プリセット <span class="muted">YouTube 番組専用枠 (#23)</span></h1>
+<p class="muted">Studio の配信設定 (タイトル/カテゴリ/タグ/公開設定/サムネ等) を登録し、番組専用枠の作成時に再利用します。
+  API で設定できない項目 (AI 開示・チャット詳細等) は配信ごとの手動チェックリストとして残ります。</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <p class="{% if m.tags == 'error' %}err{% else %}ok{% endif %}">{{ m }}</p>
+  {% endfor %}
+{% endif %}
+
+<p><a class="btn" href="{% url 'core:preset_new' %}">＋ 新規プリセット</a></p>
+
+<section class="card">
+  {% if presets %}
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid #444;color:#888">
+          <th style="text-align:left;padding:.3rem">名称</th>
+          <th style="text-align:left;padding:.3rem">チャンネル</th>
+          <th style="text-align:left;padding:.3rem">公開</th>
+          <th style="text-align:left;padding:.3rem">カテゴリ</th>
+          <th style="text-align:left;padding:.3rem">遅延</th>
+          <th style="text-align:left;padding:.3rem">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in presets %}
+          <tr style="border-bottom:1px solid #2a2a2a">
+            <td style="padding:.3rem"><a href="{% url 'core:preset_edit' p.id %}" style="color:#aaf">{{ p.name }}</a></td>
+            <td style="padding:.3rem">{{ p.channel.name|default:"（全ch共通）" }}</td>
+            <td style="padding:.3rem">{{ p.privacy }}</td>
+            <td style="padding:.3rem">{{ p.category_id|default:"-" }}</td>
+            <td style="padding:.3rem">{{ p.latency }}</td>
+            <td style="padding:.3rem;white-space:nowrap">
+              <a class="btn" href="{% url 'core:preset_edit' p.id %}" style="font-size:.78rem;padding:.1rem .5rem">編集</a>
+              <form method="post" action="{% url 'core:preset_delete' p.id %}" style="display:inline"
+                    onsubmit="return confirm('プリセット「{{ p.name }}」を削除しますか？');">
+                {% csrf_token %}
+                <button class="btn warn" style="font-size:.78rem;padding:.1rem .5rem">削除</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">まだプリセットがありません。「＋ 新規プリセット」から作成してください。</p>
+  {% endif %}
+</section>
+{% endblock %}

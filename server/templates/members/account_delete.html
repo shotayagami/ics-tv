@@ -1,0 +1,20 @@
+{% extends "members/base_members.html" %}
+{% block title %}退会 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>退会（アカウント削除）</h1>
+  <p class="mhint">退会すると、登録情報（メールアドレス・ニックネーム・生年月・性別・郵便番号・2段階認証設定）はすべて削除され、元に戻せません。</p>
+  <form class="mform" method="post" action="/members/delete/" novalidate>
+    {% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="merr">{{ e }}</div>{% endfor %}
+    {% include "members/_field.html" with field=form.password %}
+    <label class="agree">
+      {{ form.confirm }}
+      <span>退会して全データを削除することに同意します</span>
+    </label>
+    {% for e in form.confirm.errors %}<div class="merr">{{ e }}</div>{% endfor %}
+    <button class="btn" type="submit" style="background:var(--live);color:#fff;">退会する</button>
+  </form>
+  <div class="mlinks"><a href="/members/">マイページに戻る</a></div>
+</div>
+{% endblock %}

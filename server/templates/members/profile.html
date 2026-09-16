@@ -1,0 +1,31 @@
+{% extends "members/base_members.html" %}
+{% block title %}マイページ — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>マイページ</h1>
+  <ul class="mlist">
+    <li><span class="k">ニックネーム</span><span>{{ member.nickname }}</span></li>
+    <li><span class="k">メールアドレス</span><span>{{ member.email }} <a href="/members/email/" style="color: var(--accent); font-size: 13px;">変更</a></span></li>
+    <li><span class="k">生年月</span><span>{{ member.birth_year }}年{{ member.birth_month }}月</span></li>
+    <li><span class="k">性別</span><span>{{ member.get_gender_display }}</span></li>
+    <li><span class="k">お住まいの国</span><span>{{ member.country_label }}</span></li>
+    <li><span class="k">郵便番号</span><span>{{ member.postal_code|default:"—" }}</span></li>
+    <li>
+      <span class="k">本人確認</span>
+      <span>{% if member.is_verified %}<span class="mbadge ok">確認済</span>{% else %}<span class="mbadge ng">未確認</span>{% endif %}</span>
+    </li>
+    <li><span class="k">2段階認証</span><span>{{ member.get_two_factor_method_display }}</span></li>
+    <li><span class="k">サブスク</span><span>{% if is_subscriber %}<span class="mbadge ok">加入中</span>{% else %}未加入{% endif %}</span></li>
+  </ul>
+  <a class="btn ghost" href="/members/edit/">プロフィールを編集</a>
+  <a class="btn ghost" href="/subscriptions/">プラン・サブスク</a>
+  <a class="btn ghost" href="/members/fanclub/">ファンクラブ・会員証</a>
+  <a class="btn ghost" href="/members/2fa/">2段階認証を設定</a>
+  <a class="btn ghost" href="/members/password/">パスワードを変更</a>
+  <form method="post" action="/members/logout/" style="margin: 0;">
+    {% csrf_token %}
+    <button class="btn ghost" type="submit">ログアウト</button>
+  </form>
+  <div class="mlinks" style="margin-top: 18px;"><a href="/members/delete/" style="color: var(--live-text);">退会（アカウント削除）</a></div>
+</div>
+{% endblock %}

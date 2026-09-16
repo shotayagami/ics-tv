@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- Lバー / 番組情報テロップ常設 (CG layer 1-30、casparcg.md §3.4)。
+     ADD play-on-load=1 で番組頭に常設し、UPDATE で時計/番組名を差し替える。CM 中は STOP で退避。
+     契約: play()/stop()/update(data)/next()/remove()。data 例 {"channel":"ICS-TV","clock":true}。-->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #lbar { position:absolute; left:0; bottom:0; width:100%; height:64px;
+          background:linear-gradient(90deg, rgba(12,18,32,.9), rgba(12,18,32,.55));
+          color:#fff; display:flex; align-items:center; gap:24px; padding:0 28px; box-sizing:border-box;
+          opacity:0; transition:opacity 400ms ease-in-out; }
+  #lbar.show { opacity:1; }
+  .logo { font-weight:700; font-size:28px; letter-spacing:.08em; color:#7fd0ff; }
+  #title { font-size:26px; font-weight:600; }
+  .sep { flex:1; }
+  #clock { font-variant-numeric:tabular-nums; font-size:30px; letter-spacing:.05em; }
+</style>
+</head>
+<body>
+  <div id="lbar">
+    <span class="logo" id="logo">ICS-TV</span>
+    <span id="title"></span>
+    <span class="sep"></span>
+    <span id="clock"></span>
+  </div>
+<script>
+  "use strict";
+  var el = document.getElementById("lbar"), logo = document.getElementById("logo"),
+      titleEl = document.getElementById("title"), clockEl = document.getElementById("clock");
+  var clockOn = false, timer = null;
+  function tick(){ if(!clockOn){clockEl.textContent="";return;}
+    // 送出ノードは UTC 運用のため new Date().getHours() だと UTC 表示になる。
+    // 視聴者向けは JST 固定なので Asia/Tokyo で明示整形する (CEF=Chromium で Intl 利用可)。
+    clockEl.textContent = new Date().toLocaleTimeString("en-GB", {hour12:false, timeZone:"Asia/Tokyo"}); }
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if(o.channel) logo.textContent=o.channel; if(o.title!=null) titleEl.textContent=o.title;
+      if("clock" in o) clockOn=!!o.clock; tick(); }catch(e){} }
+  function play(){ el.classList.add("show"); if(!timer){ timer=setInterval(tick,1000); tick(); } }
+  function stop(){ el.classList.remove("show"); }   // CM 中の退避 (常設なので remove はしない)
+  function next(){}
+  function remove(){ el.classList.remove("show"); if(timer){clearInterval(timer);timer=null;} }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){ update('{"channel":"ICS-TV","clock":true}'); setTimeout(play,300); }
+</script>
+</body>
+</html>

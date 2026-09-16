@@ -1,0 +1,34 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}{{ channel.slug }} YouTube — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>YouTube 配信 <span class="muted">— {{ channel.name }} <code>{{ channel.slug }}</code></span></h1>
+
+<section class="card">
+  <h2>接続状態</h2>
+  <p>OAuth 連携: {% if connected %}<span class="ok">● 接続済み</span>{% else %}<span class="err">未接続</span>{% endif %}</p>
+  <p>永続 liveStream (本線): <code>{{ channel.youtube_livestream_id|default:"未作成" }}</code></p>
+  <p>2 本目 liveStream (専用枠): <code>{{ channel.youtube_livestream_id_2|default:"未作成" }}</code></p>
+  <p class="muted">OAuth 連携 / 永続 liveStream の作成・再認可は <a href="{% url 'core:channel_settings' channel.slug %}">設定</a> で行います。</p>
+</section>
+
+<section class="card">
+  <h2>枠ダッシュボード (2h×12 rolling)</h2>
+  <p><a class="btn" href="{% url 'core:slot_dashboard' channel.slug %}">枠ダッシュボードを開く</a></p>
+  <p class="muted">Celery beat が 10 分周期で rolling 生成し、1 分周期で transition(live/complete) する。</p>
+</section>
+
+<section class="card">
+  <h2>配信プリセット</h2>
+  <p><a class="btn" href="{% url 'core:preset_list' %}">配信プリセットを管理</a> <span class="muted">登録 {{ preset_count }} 件</span></p>
+  <p class="muted">番組専用枠 (#23) で再利用する配信設定 (タイトル/カテゴリ/タグ/サムネ等) のテンプレート。</p>
+</section>
+
+<section class="card">
+  <h2>番組専用枠 (#23)</h2>
+  <p><a class="btn" href="{% url 'core:program_broadcast_dashboard' channel.slug %}">番組専用枠ダッシュボード</a> <span class="muted">{{ dedicated_count }} 枠</span></p>
+  <p class="muted">rolling 枠と並行する番組単位の専用配信枠。手動作成 / Go Live / 終了 / チェックリスト。</p>
+  {% if not has_second_stream %}
+    <p class="muted">※ 専用枠には 2 本目 liveStream が必要です (beat が自動プロビジョン、または送出ノードの tee 設定)。</p>
+  {% endif %}
+</section>
+{% endblock %}

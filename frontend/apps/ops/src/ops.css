@@ -1,0 +1,430 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* 🔴 放送コンソール (リファクタ Phase 1.1)。モバイルファースト: 縦 1 カラム・親指リーチ・
+   タップしやすい余白。デスクトップは max-width で中央寄せ。色トークンは @icstv/studio-ui の
+   tokens.css を継承 (var(--…))、未定義時はフォールバック値で動く。 */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: var(--font-sans, system-ui, "Noto Sans JP", sans-serif);
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 上部バー: チャンネル切替を常設・sticky。 */
+.ops-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-elev, #111a24);
+  border-bottom: 1px solid var(--line, #22303c);
+}
+.ops-brand {
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.05rem;
+}
+.ops-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--live, #e5484d);
+  box-shadow: 0 0 0.4rem var(--live, #e5484d);
+}
+.ops-poll {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--muted, #8b98a5);
+}
+
+.ops-main {
+  padding: 0.8rem;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.ops-card {
+  background: var(--bg-elev, #111a24);
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+}
+.ops-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ops-kv {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.ops-kv > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.ops-kv dt {
+  margin: 0;
+  color: var(--muted, #8b98a5);
+  font-size: 0.85rem;
+}
+.ops-kv dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-list {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.ops-list li {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--line-weak, #1a2530);
+}
+.ops-list li:last-child {
+  border-bottom: 0;
+}
+.ops-time {
+  color: var(--muted, #8b98a5);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ops-muted {
+  color: var(--muted, #8b98a5);
+}
+.ops-warn {
+  color: var(--warn, #f5a524);
+}
+.ops-live {
+  color: var(--live, #e5484d);
+  margin: 0.3rem 0 0;
+}
+.ops-onair {
+  margin: 0;
+}
+.ops-sev {
+  color: var(--warn, #f5a524);
+}
+.ops-badge {
+  background: var(--live, #e5484d);
+  color: #fff;
+  border-radius: 1rem;
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+}
+.ops-foot {
+  color: var(--muted, #8b98a5);
+  font-size: 0.78rem;
+  margin: 0.2rem 0 2rem;
+}
+
+/* --- 送出操作 (P1.2): 親指リーチの大ボタン・最小タップ 44px --- */
+.ops-toast {
+  position: sticky;
+  top: 3rem;
+  z-index: 9;
+  margin: 0.5rem 0.8rem 0;
+  padding: 0.5rem 0.8rem;
+  background: var(--accent, #2d7ff9);
+  color: var(--accent-on, #04101a);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.ops-toast--err {
+  background: var(--danger, #e5484d);
+  color: #fff;
+}
+.ops-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ops-timing {
+  margin-top: 0.5rem;
+}
+.ops-btn {
+  flex: 1 1 7rem;
+  min-height: 44px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.5rem;
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ops-btn:active {
+  transform: translateY(1px);
+}
+.ops-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ops-btn--warn {
+  background: var(--warn, #f5a524);
+  color: #1a1205;
+  border-color: var(--warn, #f5a524);
+}
+.ops-btn--toggle {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.ops-btn--toggle.is-on {
+  background: var(--accent, #2d7ff9);
+  color: var(--accent-on, #04101a);
+  border-color: var(--accent, #2d7ff9);
+}
+.ops-btn--sm {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.ops-ack {
+  margin-left: 0.4rem;
+}
+.ops-cm {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.ops-cm select {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 0.4rem;
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.5rem;
+}
+.ops-cm .ops-btn {
+  flex: 0 0 auto;
+}
+.ops-field {
+  margin-bottom: 0.5rem;
+}
+.ops-field input,
+.ops-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+}
+.ops-field input[type="file"] {
+  padding: 0.4rem 0.5rem;
+}
+
+/* フル CG op: 位置 (x/y/w%) 入力を 3 列に並べる。 */
+.ops-cg-pos {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.ops-cg-pos label {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--muted, #93a1ad);
+}
+.ops-cg-pos input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+}
+
+/* 配信枠の遷移ボタン (go-live 等) は行内・状態行の下にぶら下げる。 */
+.ops-slot-ops {
+  margin-top: 0.35rem;
+}
+
+/* 生入力 ingest URL カード (読み取り・コピー)。 */
+.ops-src {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line, #22303c);
+}
+.ops-src:first-child {
+  border-top: 0;
+}
+.ops-src-name {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.ops-src-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.2rem 0;
+}
+.ops-src-k {
+  flex: 0 0 2.6rem;
+  font-size: 0.75rem;
+  color: var(--muted, #93a1ad);
+}
+.ops-src-row code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  font-size: 0.78rem;
+  color: var(--fg, #e6edf3);
+}
+.ops-copy {
+  flex: 0 0 auto;
+}
+
+/* ---- タイムキーパー (Phase 0) ---- */
+.ops-tk-hero { text-align: center; padding: 1rem 0.8rem; }
+.ops-tk-big {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: clamp(2.6rem, 14vw, 4.5rem);
+  line-height: 1;
+}
+.ops-tk-big--ok { color: var(--bs-success); }
+.ops-tk-big--warn { color: var(--bs-warning); }
+.ops-tk-big--danger { color: var(--bs-danger); }
+.ops-tk-big--neutral { color: var(--muted, #8b98a5); }
+.ops-tk-big--over { filter: invert(1); border-radius: 0.4rem; }
+
+/* CM/VT 中の全画面カウントダウン (§7・Phase 3 A)。通常カード群を伏せ、画面中央に
+   「◯明けまで」大カウントダウン + 今すぐ本線復帰 大ボタンだけを残す。 */
+.ops-tk-cmmode { justify-content: center; }
+.ops-tk-cmfull {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.6rem 0.8rem;
+}
+.ops-tk-cmlabel {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+}
+.ops-tk-cmfull .ops-tk-big { font-size: clamp(3.4rem, 20vw, 6.5rem); }
+.ops-tk-cmrem { margin: 0; }
+.ops-btn--xl {
+  width: 100%;
+  min-height: 64px;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.ops-tk-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-elev, #111a24);
+  border-top: 1px solid var(--line, #22303c);
+}
+
+/* 壁時計 (ヒーロー上段・常に中立色)・footer 内 select (bundle 選択)。 */
+.ops-tk-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  color: var(--muted, #8b98a5);
+  margin-bottom: 0.3rem;
+}
+.ops-tk-post {
+  font-size: 1.1rem;
+}
+.ops-tk-footer select {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 0.4rem;
+  background: var(--bg, #0b1118);
+  color: var(--fg, #e6edf3);
+  border: 1px solid var(--line, #22303c);
+  border-radius: 0.5rem;
+}
+
+/* 今/次の kind インジケータ (line=本線/cm=CM/filler=フィラー/slate=SLATE/none=無し)。
+   Bootstrap 5 の意味色変数を直接使う (ops.css 既存の --warn は実際には赤系エイリアスなので不使用)。 */
+.ops-tk-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+.ops-tk-dot--line { background: var(--bs-success); }
+.ops-tk-dot--cm { background: var(--bs-danger); }
+.ops-tk-dot--filler { background: var(--bs-warning); }
+.ops-tk-dot--slate,
+.ops-tk-dot--none { background: var(--muted, #8b98a5); }
+.ops-tk-dot--vt { background: var(--bs-info); }
+
+/* 進行表 (LiveRundown/LiveCue・Phase 1)。ops-list (OpsConsole.tsx) と同系統だが、
+   aired/skipped の減光状態と行内アクション (ops-actions + ops-btn--sm) を持つ専用リスト。 */
+.ops-rundown {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ops-rundown li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line, #22303c);
+  flex-wrap: wrap;
+}
+.ops-rundown li:last-child {
+  border-bottom: 0;
+}
+.ops-rundown--aired {
+  opacity: 0.5;
+}
+.ops-rundown--skipped {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+.ops-chip {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-elev, #111a24);
+  border: 1px solid var(--line, #22303c);
+}

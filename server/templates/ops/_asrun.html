@@ -1,0 +1,21 @@
+<h2>AS-RUN ライブログ <span class="muted">(新しい順)</span></h2>
+{% if rows %}
+  <table>
+    <tr><th>時刻</th><th>action</th><th>status</th><th>番組</th><th>note</th></tr>
+    {% for e in rows %}
+      <tr>
+        <td>{{ e.scheduled_at|date:"H:i:s" }}</td>
+        <td class="kind">{{ e.action }}</td>
+        <td>
+          {% if e.status == "failed" %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">{{ e.status }}</span>
+          {% elif e.status == "done" %}<span class="badge live">{{ e.status }}</span>
+          {% else %}{{ e.status }}{% endif %}
+        </td>
+        <td>{{ e.program.title|default:"—" }}</td>
+        <td class="muted">{{ e.note|default:"" }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted">ログなし</p>
+{% endif %}

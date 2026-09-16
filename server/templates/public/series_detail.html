@@ -1,0 +1,288 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ series.title }} — ICS-TV{% endblock %}
+{% block og_type %}video.tv_show{% endblock %}
+{% block og_title %}{{ series.title }} — ICS-TV{% endblock %}
+{% block og_description %}{{ series.description|default:series.channel.name|truncatechars:120 }}{% endblock %}
+{% block meta_description %}{{ series.description|default:series.channel.name|truncatechars:120 }}{% endblock %}
+{% block og_image %}{% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}{% endblock %}
+{% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+
+{% block extra_css %}
+  /* ===== シリーズ詳細ページ ===== */
+  .sd { max-width: 980px; margin: 0 auto; padding: 0 0 64px; }
+
+  /* ヒーローバナー */
+  .sd-hero { position: relative; width: 100%; aspect-ratio: 16/6; overflow: hidden;
+    background: radial-gradient(120% 110% at 50% 0%, #16204a 0%, #0a0f24 60%, #070b1c 100%); }
+  .sd-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .sd-hero .hero-overlay { position: absolute; inset: 0;
+    background: linear-gradient(to right, rgba(7,11,28,.88) 0%, rgba(7,11,28,.55) 55%, rgba(7,11,28,.2) 100%); }
+  .sd-hero-body { position: absolute; bottom: 0; left: 0; padding: clamp(16px,4vw,40px); max-width: 60%; }
+  .sd-hero-body .nm { font-size: 12px; font-weight: 700; color: var(--dim); letter-spacing: .04em; margin-bottom: 6px; }
+  .sd-hero-body h1 { font-size: clamp(20px,4vw,38px); font-weight: 800; line-height: 1.18; margin: 0 0 10px; }
+  .sd-hero-body .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .sd-hero-back { position: absolute; top: 14px; left: 14px; color: rgba(255,255,255,.7); font-size: 13px;
+    font-weight: 700; text-decoration: none; }
+  .sd-hero-back:hover { color: #fff; }
+
+  /* メタ情報エリア */
+  .sd-meta { padding: clamp(16px,3vw,28px) var(--pad) 0; }
+  .sd-meta h2 { font-size: 14px; font-weight: 800; color: var(--bright); margin: 0 0 6px; }
+  .sd-meta .desc { color: var(--bright2); line-height: 1.85; white-space: pre-wrap; margin-bottom: 20px; }
+  .sd-meta .cast { color: var(--bright2); line-height: 1.7; white-space: pre-wrap; margin-bottom: 20px; }
+
+  /* 放送回リスト */
+  .sd-eps { padding: 0 var(--pad); }
+  .sd-eps h2 { font-size: 15px; font-weight: 800; color: var(--bright); margin: 24px 0 12px; }
+  .sd-ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+  .ep-card { display: block; text-decoration: none; color: inherit;
+    border-radius: 10px; overflow: hidden; border: 1px solid var(--line);
+    background: var(--card); transition: border-color .15s; }
+  .ep-card:hover { border-color: var(--accent); }
+  .ep-thumb { position: relative; aspect-ratio: 16/9; background: #0d1530; overflow: hidden; }
+  .ep-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .ep-thumb .ph { display: flex; align-items: center; justify-content: center;
+    height: 100%; font-weight: 800; font-size: clamp(14px,3vw,22px); color: rgba(255,255,255,.12); }
+  .ep-thumb .badge-live { position: absolute; top: 8px; left: 8px; }
+  .ep-thumb .badge-vod { position: absolute; top: 8px; right: 8px;
+    background: rgba(56,189,248,.18); color: var(--accent); font-size: 11px; font-weight: 700;
+    border-radius: 4px; padding: 2px 6px; }
+  .ep-body { padding: 10px 12px 12px; }
+  .ep-body .ep-title { font-size: 13px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
+  .ep-body .ep-meta { font-size: 12px; color: var(--dim); font-weight: 600; }
+  .ep-body .ep-state-upcoming { color: var(--accent); }
+  .ep-body .ep-state-live { color: #4ade80; }
+
+  /* 投稿リスト */
+  .sd-posts { padding: 0 var(--pad); margin-top: 8px; }
+  .sd-posts h2 { font-size: 15px; font-weight: 800; color: var(--bright); margin: 24px 0 12px; }
+  .post-list { list-style: none; padding: 0; margin: 0; }
+  .post-list li { border-bottom: 1px solid var(--line-thin); }
+  .post-list a { display: flex; align-items: center; gap: 12px; padding: 12px 2px;
+    text-decoration: none; color: inherit; }
+  .post-list a:hover .post-title { color: var(--accent); }
+  .post-list .post-kind { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 7px;
+    background: rgba(56,189,248,.14); color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+  .post-list .post-kind.campaign {
+    background: rgba(251,191,36,.14); color: #fbbf24; }
+  .post-list .post-title { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+  .post-list .post-date { font-size: 12px; color: var(--dim); white-space: nowrap; flex-shrink: 0; }
+  .post-list .lock { font-size: 12px; flex-shrink: 0; }
+
+  /* ファンクラブ カード */
+  .sd-fc { padding: 0 var(--pad); margin-top: 24px; }
+  .sd-fc-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .sd-fc-card .fc-name { font-size: 13px; font-weight: 800; color: var(--bright); margin-bottom: 4px; }
+  .sd-fc-card .fc-desc { font-size: 12px; color: var(--dim); line-height: 1.6; }
+  .sd-fc-card .fc-joined { font-size: 13px; font-weight: 700; color: #4ade80; }
+  .sd-fc-card .btn-join { font-weight: 800; font-size: 14px; border-radius: 999px; padding: 10px 22px;
+    text-decoration: none; background: var(--accent); color: #06131f; border: none; cursor: pointer; }
+  .sd-fc-card .btn-leave { font-weight: 700; font-size: 12px; border-radius: 999px; padding: 6px 14px;
+    background: transparent; color: var(--dim); border: 1px solid var(--line); cursor: pointer; }
+  .sd-fc-upgrade { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .sd-fc-tier { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: var(--bright2); }
+  .sd-fc-tier .btn-join { font-size: 12px; padding: 5px 14px; }
+  .sd-fc-tier .fc-current { font-size: 12px; font-weight: 700; color: #4ade80; white-space: nowrap; }
+  .sd-fc-pending { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border: 1px dashed var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: var(--dim); }
+  .fc-legal-link { display: block; margin-top: 6px; font-size: 11px; color: var(--dim); text-decoration: none; }
+  .sd-messages { padding: 0 var(--pad); margin: 12px 0 0; }
+  .sd-messages .msg { border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600;
+    margin-bottom: 8px; }
+  .sd-messages .msg.success { background: rgba(74,222,128,.12); color: #4ade80; }
+  .sd-messages .msg.error { background: rgba(248,113,113,.12); color: #f87171; }
+  .sd-messages .msg.info { background: rgba(56,189,248,.12); color: var(--accent); }
+
+  /* SNS リンク行 */
+  .sd-sns { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; margin-bottom: 16px; align-items: center; }
+  .sd-sns-link { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600;
+    color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 20px;
+    padding: 4px 12px; transition: border-color .15s, background .15s; }
+  .sd-sns-link:hover { border-color: var(--accent); background: rgba(56,189,248,.08); }
+  .sd-sns-link.hashtag { color: #a78bfa; border-color: rgba(167,139,250,.3); }
+  .sd-sns-link.hashtag:hover { border-color: #a78bfa; background: rgba(167,139,250,.08); }
+  .sd-sns-link.share { color: var(--dim); font-size: 12px; }
+
+  /* フォーム島コンテナ (island が自前スタイルを注入) */
+  #series-form-island { margin-top: 32px; padding: 0 var(--pad); }
+
+  /* モバイル */
+  @media (max-width: 768px) {
+    .sd-hero { aspect-ratio: 16/9; }
+    .sd-hero-body { max-width: 90%; padding: 16px; }
+    .sd-ep-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  }
+  @media (max-width: 480px) {
+    .sd-ep-grid { grid-template-columns: 1fr; }
+    .sd-hero-body h1 { font-size: 18px; }
+  }
+{% endblock %}
+
+{% block content %}
+<div class="sd">
+  {% if messages %}
+  <div class="sd-messages">
+    {% for message in messages %}
+    <div class="msg {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ヒーロー #}
+  <div class="sd-hero">
+    {% if series.thumbnail_url %}<img src="{{ series.thumbnail_url }}" alt="{{ series.title }}">{% endif %}
+    <div class="hero-overlay"></div>
+    <a class="sd-hero-back" href="{{ public_base_url }}/browse/">‹ ジャンルへ</a>
+    <div class="sd-hero-body">
+      <div class="nm">{{ series.channel.name }}</div>
+      <h1>{{ series.title }}</h1>
+      <div class="chips">
+        {% if series.genre %}<span class="chip genre">{{ series.genre }}</span>{% endif %}
+        {% if series.rating %}<span class="chip" style="background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger-text)">{{ series.get_rating_display }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ファンクラブ カード #}
+  {% if creator %}
+  <div class="sd-fc">
+    {% if creator.status == "suspended" %}
+    <div class="sd-fc-card">
+      <div>
+        <div class="fc-name">{{ creator.name }} ファンクラブ</div>
+        <div class="fc-desc">現在休止中です。</div>
+      </div>
+    </div>
+    {% elif my_level is not None %}
+    <div class="sd-fc-card">
+      <div>
+        <div class="fc-name"><a href="{{ public_base_url }}/fc/{{ creator.slug }}/" style="color:inherit;text-decoration:none">{{ creator.name }} ファンクラブ ›</a></div>
+        <div class="fc-joined">✓ 会員です{% if my_level > 0 %} (ティア{{ my_level }}){% else %} (無料会員){% endif %}</div>
+      </div>
+      <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/leave/">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn-leave">{% if my_level > 0 %}ご契約を管理する{% else %}退会する{% endif %}</button>
+      </form>
+    </div>
+    {% if member %}{% include "public/_fc_tiers.html" %}{% endif %}
+    <a href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tokushoho/" class="fc-legal-link">特定商取引法に基づく表記</a>
+    {% else %}
+    <div class="sd-fc-card">
+      <div>
+        <div class="fc-name"><a href="{{ public_base_url }}/fc/{{ creator.slug }}/" style="color:inherit;text-decoration:none">{{ creator.name }} ファンクラブ ›</a></div>
+        <div class="fc-desc">{{ creator.description|default:"無料で参加すると限定コンテンツが見られます。"|truncatechars:80 }}</div>
+      </div>
+      {% if member %}
+      <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/join/">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn-join">ファンクラブに参加(無料)</button>
+      </form>
+      {% else %}
+      <a class="btn-join" href="/members/login/?next={{ request.get_full_path|urlencode }}">ログインして参加</a>
+      {% endif %}
+    </div>
+    {% if member %}{% include "public/_fc_tiers.html" %}{% endif %}
+    <a href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tokushoho/" class="fc-legal-link">特定商取引法に基づく表記</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# あらすじ・出演者・SNS #}
+  {% if series.description or series.cast or series.x_handle or series.x_hashtag %}
+  <div class="sd-meta">
+    {% if series.description %}
+    <h2>番組について</h2>
+    <div class="desc">{{ series.description }}</div>
+    {% endif %}
+    {% if series.cast %}
+    <h2>出演者</h2>
+    <div class="cast">{{ series.cast }}</div>
+    {% endif %}
+    {% if series.x_handle or series.x_hashtag %}
+    <div class="sd-sns">
+      {% if series.x_handle %}
+      <a class="sd-sns-link" href="{{ series.x_url }}" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.636 5.905-5.636ZM17.083 20.25h1.833L7.084 4.126H5.117z"/></svg>
+        {{ series.x_handle_display }}
+      </a>
+      {% endif %}
+      {% if series.x_hashtag %}
+      <a class="sd-sns-link hashtag" href="{{ series.hashtag_url }}" target="_blank" rel="noopener">
+        {{ series.x_hashtag_display }}
+      </a>
+      {% endif %}
+      {% if series.x_hashtag %}
+      <a class="sd-sns-link share" href="https://x.com/intent/tweet?text={{ series.x_hashtag_display|urlencode }}%20{{ series.title|urlencode }}&url={{ request.build_absolute_uri }}" target="_blank" rel="noopener">
+        X でシェア
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# 放送回一覧 #}
+  <div class="sd-eps">
+    <h2>放送回</h2>
+    {% if programs %}
+    <div class="sd-ep-grid">
+      {% for p in programs %}
+      {% if p.id in vod_ids %}
+        <a class="ep-card" href="{{ public_base_url }}/vod/{{ p.id }}/">
+      {% else %}
+        <a class="ep-card" href="{{ public_base_url }}/program/{{ p.id }}/">
+      {% endif %}
+        <div class="ep-thumb">
+          {% if p.thumb_url %}<img src="{{ p.thumb_url }}" alt="" loading="lazy">{% else %}<div class="ph">ICS-TV</div>{% endif %}
+          {% if p.start_at <= now and p.end_at > now %}<span class="badge-live"><span class="pulse-dot"></span>ON AIR</span>{% endif %}
+          {% if p.id in vod_ids %}<span class="badge-vod">見逃し配信中</span>{% endif %}
+        </div>
+        <div class="ep-body">
+          <div class="ep-title">{{ p.title }}</div>
+          <div class="ep-meta tabnum{% if p.start_at <= now and p.end_at > now %} ep-state-live{% elif p.start_at > now %} ep-state-upcoming{% endif %}">
+            {{ p.start_at|date:"n/j(D) H:i" }}{% if p.start_at <= now and p.end_at > now %}・放送中{% elif p.start_at > now %}・放送予定{% else %}・放送終了{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--dim)">放送回はまだ登録されていません。</p>
+    {% endif %}
+  </div>
+
+  {# 投稿・キャンペーン #}
+  {% if posts %}
+  <div class="sd-posts">
+    <h2>お知らせ・キャンペーン</h2>
+    <ul class="post-list">
+      {% for post in posts %}
+      <li>
+        <a href="{{ public_base_url }}/series/{{ series.id }}/p/{{ post.id }}/">
+          {% if post.locked %}<span class="lock" title="ファンクラブ限定">🔒</span>{% endif %}
+          <span class="post-kind {% if post.kind == 'campaign' %}campaign{% endif %}">{{ post.get_kind_display }}</span>
+          <span class="post-title">{{ post.title }}</span>
+          {% if post.published_at %}<span class="post-date tabnum">{{ post.published_at|date:"n/j(D)" }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# 投書 / キャンペーン応募フォーム島 #}
+  {% if audience_forms %}
+  <div id="series-form-island"
+    data-series-id="{{ series.id }}"
+    data-csrf="{{ csrf_token }}">
+  </div>
+  <script type="module" src="{{ public_base_url }}/static/web/player/series-form.js" defer></script>
+  {% endif %}
+</div>
+{% endblock %}

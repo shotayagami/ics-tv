@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 手動フリーグラフィック (CG layer 1-45 等、cg-layers.md §B.3)。
+     data.elements[] を全要素描画する。各要素=1組: 画像 or alpha動画(単発/ループ) + 文字。
+     契約: play()/stop()/update(data)/next()/remove()。
+     data 例 {"elements":[{"media":"image","url":"https://tv.yagamin.net/t/...png",
+                            "text":"テロップ","x":5,"y":80,"w":40,"size":34,"color":"#fff","align":"left"}]}。
+     x/y/w は画面(1920x1080)に対する % 。media=video は <video autoplay [loop] muted>。
+     デザインは後付け前提の最小スタイル。 -->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #root { position:absolute; inset:0; opacity:0; transition:opacity 300ms ease-in-out; }
+  #root.show { opacity:1; }
+  .el { position:absolute; }
+  .el img, .el video { width:100%; height:auto; display:block; }
+  .el .txt { font-weight:700; line-height:1.25; text-shadow:0 2px 6px rgba(0,0,0,.6); white-space:pre-wrap; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+<script>
+  "use strict";
+  var root = document.getElementById("root");
+  function px(v, base){ return (typeof v === "number" ? v : parseFloat(v) || 0) * base / 100; }
+  function render(elements){
+    root.innerHTML = "";
+    (elements || []).forEach(function(o){
+      var box = document.createElement("div");
+      box.className = "el";
+      box.style.left = px(o.x || 0, 1920) + "px";
+      box.style.top = px(o.y || 0, 1080) + "px";
+      box.style.width = (o.w != null ? px(o.w, 1920) + "px" : "auto");
+      if (o.z != null) box.style.zIndex = o.z;
+      if (o.url){
+        var m;
+        if (o.media === "video"){ m = document.createElement("video"); m.src=o.url; m.autoplay=true; m.muted=true; m.loop=!!o.loop; m.playsInline=true; }
+        else { m = document.createElement("img"); m.src=o.url; }
+        box.appendChild(m);
+      }
+      if (o.text){
+        var t = document.createElement("div");
+        t.className = "txt";
+        t.textContent = o.text;
+        t.style.fontSize = (o.size || 32) + "px";
+        t.style.color = o.color || "#fff";
+        t.style.textAlign = o.align || "left";
+        box.appendChild(t);
+      }
+      root.appendChild(box);
+    });
+  }
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if ("elements" in o) render(o.elements); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); root.innerHTML=""; }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){
+    update('{"elements":[{"media":"image","url":"https://via.placeholder.com/400x120","text":"テスト組","x":5,"y":78,"w":25,"size":34}]}');
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

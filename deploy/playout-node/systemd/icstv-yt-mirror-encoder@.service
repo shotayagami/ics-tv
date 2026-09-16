@@ -1,0 +1,41 @@
+[Unit]
+Description=ICS-TV exposure_policy (#27) YTミラー「公開M」encoder (%i): CasparCG UDP -> h264_vaapi -> YouTube ONLY
+# テンプレートユニット: icstv-yt-mirror-encoder@<slug> (例 icstv-yt-mirror-encoder@ch1)。%i=<slug>=ICSTV_CHANNEL_SLUG。
+# 本線 icstv-encoder@.service と同じ VAAPI サイドカー構成だが tee ではなく単一出力 (YouTube のみ)。
+# 入力は casparcg.config の「公開ミラー M」channel (docs/site-only-broadcast.md §2・§4.6) の UDP 出力。
+# MirrorController (agent/icstv_agent/mirror.py) が同 channel の layer10 を通常時 route://本線、
+# フィラー系プリセット中は案内フィラーへ AMCP で切替える。CasparCG が内部でシームレスに切替えるため
+# この encoder / YouTube ingest 自体は再接続しない (方式B。docs §2)。
+# 入力枯渇の検知: udp の timeout=10000000 (10 秒) が無いと、CasparCG 停止時に ffmpeg が
+# 無限に入力待ちして active のまま停止する (Restart が発火しない)。詳細は icstv-encoder@.service。
+#
+# ** 本番未適用: このユニットを実際に enable+start する前に GPU 容量実測 (docs §5-1) が必須。
+#    UHD630 は本線+本チャンネルの2本で既に RCS ~90% (実測済み)。3本目 (メンバーP) まで同時稼働
+#    させる場合は専用 GPU 増設が実質前提。**
+# 未配備の理由: GPU 容量待ち。UHD630 は 2ch で RCS ~90% (docs/site-only-broadcast.md §5-1)。加えて実機の casparcg.config は 1ch 宣言なので入力 channel 3 が存在しない
+After=casparcg-server.service
+Wants=casparcg-server.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# UDP_PORT (公開ミラー channel の UDP。casparcg.config channel 3 の例では 5006) / YT_INGEST_URL
+# (本線 encoder-%i.env から移設した CF_INGEST_URL 相当。本番カットオーバー後の本線 tee から
+# YouTube leg を外した分、この unit が YouTube ingest 役を引き継ぐ) は EnvironmentFile から。
+EnvironmentFile=/etc/icstv/yt-mirror-encoder-%i.env
+ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel warning \
+  -fflags +genpts -thread_queue_size 1024 \
+  -i udp://127.0.0.1:${UDP_PORT}?fifo_size=1000000&overrun_nonfatal=1&timeout=10000000 \
+  -vaapi_device /dev/dri/renderD128 \
+  -vf format=nv12,hwupload \
+  -c:v h264_vaapi -b:v ${VBITRATE} -maxrate ${VBITRATE} -bufsize ${VBUFSIZE} -g ${GOP} -bf 0 \
+  -c:a aac -b:a 160k -ar 48000 \
+  -flags +global_header -map 0:v -map 0:a \
+  -f flv "${YT_INGEST_URL}"
+Restart=always
+RestartSec=2
+Environment=LIBVA_DRIVER_NAME=iHD
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 津波ミニマップ (CG layer 37, kind=graphic, template=map/tsunami-corner)。
+     画面右下に地図(沿岸の区分色)+凡例だけを常時表示する小型CG。layer38 のフルスクリーン地図
+     (map/tsunami) とは独立の layer なので、どちらか一方の show/update/clear は他方に影響しない。
+     LBAR (layer30, 画面下部 64px 帯) と重ならないよう bottom に余白を確保している。
+     契約: play()/stop()/update(data)/next()/remove()。data は map/tsunami.html と同一形式
+     ({"areas":[{"code","name","grade","arrival","height"}], "maxGrade", "hypocenter", ...}) を
+     そのまま受け付けるが、この CG は areas[].grade / code だけを使う (見出し・表・震源マーク・
+     訓練映像帯は表示しない = 地図と凡例のみ)。grade ∈ major|warning|advisory|forecast。出典: 気象庁。 -->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:"Noto Sans JP","Yu Gothic",sans-serif;}
+  /* 実況天気図/NHK系防災グラフィック風の白地図パネル (紺の背景は使わない)。 */
+  #root{position:absolute;right:40px;bottom:84px;width:460px;height:340px;
+    background:rgba(255,255,255,.96);border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.35);
+    border:1px solid rgba(0,0,0,.08);
+    opacity:0;transition:opacity 300ms ease-in-out;overflow:hidden;}
+  #root.show{opacity:1;}
+  #mapWrap{position:absolute;left:0;right:0;top:0;bottom:54px;}
+  svg{position:absolute;inset:0;width:100%;height:100%;}
+  /* 沿岸線をぼかし+太線で「面的な強調」に見せる (実ジオメトリは海岸線のみで領域面が無いため)。 */
+  .coastGlow{stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;
+    filter:url(#blob-blur);animation:blink 1.8s ease-in-out infinite;}
+  .coastCore{stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;
+    animation:blink 1.8s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.45}}
+  #legend{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+    justify-content:space-around;color:#222;font-size:17px;font-weight:700;
+    background:rgba(0,0,0,.04);border-top:1px solid rgba(0,0,0,.1);}
+  #legend .item{display:flex;align-items:center;gap:6px;}
+  #legend .sw{display:inline-block;width:22px;height:11px;border-radius:2px;}
+  /* 遠隔離島の別枠インセット (沖縄・奄美 / 小笠原)。中身は別レイヤの実況映像を想定した透過窓
+     (このCGはラベルのみを描く)。沖縄・奄美は対象区分が発表中なら枠色で示す (地図左上、南西方向)。
+     小笠原は東京都(本州から見て南東方向)のため地図右下に配置。枠囲いは不要でラベルのみ。 */
+  .inset{position:absolute;width:112px;height:76px;border-radius:6px;overflow:hidden;
+    background:transparent;}
+  .inset .label{position:absolute;left:0;right:0;top:0;padding:2px 0;font-size:11px;font-weight:700;
+    color:#fff;background:rgba(0,0,0,.6);text-align:center;line-height:1.3;}
+  #inset-okinawa{left:10px;top:10px;border:3px solid #9aa0aa;box-shadow:0 1px 5px rgba(0,0,0,.25);
+    transition:border-color 200ms ease;}
+  #inset-ogasawara{right:8px;bottom:8px;}
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="mapWrap">
+      <svg id="map" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <filter id="blob-blur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="10"/>
+          </filter>
+        </defs>
+        <rect x="0" y="0" width="1920" height="1080" fill="#f4f5f7"/>
+        <g id="base"></g>
+        <g id="coastGlow"></g>
+        <g id="coastCore"></g>
+      </svg>
+      <div id="inset-okinawa" class="inset"><div class="label">沖縄・奄美</div></div>
+      <div id="inset-ogasawara" class="inset"><div class="label">小笠原</div></div>
+    </div>
+    <div id="legend">
+      <span class="item"><span class="sw" style="background:#c026d3"></span>大津波警報</span>
+      <span class="item"><span class="sw" style="background:#ff2323"></span>津波警報</span>
+      <span class="item"><span class="sw" style="background:#ffdd00"></span>津波注意報</span>
+    </div>
+  </div>
+<script src="geo.js"></script>
+<script src="mapkit.js"></script>
+<script>
+  "use strict";
+  var M = window.ICSTV_MAP, root = document.getElementById("root");
+  var base = document.getElementById("base");
+  var coastGlow = document.getElementById("coastGlow"), coastCore = document.getElementById("coastCore");
+  var insetOkinawa = document.getElementById("inset-okinawa");
+  M.paintBase(base, {fill:"#e3e5e9", stroke:"#8a8f99", sw:1});
+  var RANK = {major:3, warning:2, advisory:1, forecast:0};
+  var INSET_BORDER_DEFAULT = "#9aa0aa";
+  // 沖縄・奄美 (津波予報区コード 800=沖縄本島地方/801=宮古島・八重山地方/802=大東島地方) の
+  // 発表中区分で枠色を変える。小笠原諸島は本ジオメトリに区分コードが無いため既定色の枠のみ
+  // (中身は実況映像窓。区分表示が要るなら別途コード確認のうえ同様に対応可)。
+  var OKINAWA_CODES = {"800":1,"801":1,"802":1};
+
+  function render(d){
+    d = d || {};
+    var areas = (d.areas||[]).slice().sort(function(a,b){return (RANK[b.grade]||0)-(RANK[a.grade]||0);});
+    // 沿岸線を「ぼかし太線(glow)+くっきり細線(core)」の2枚重ねで面的な強調表示に見せる
+    // (実ジオメトリは海岸線トレースのみで塗りつぶし可能な領域面が無いため)。
+    coastGlow.innerHTML = "";
+    coastCore.innerHTML = "";
+    areas.slice().reverse().forEach(function(a){
+      var col = M.gradeColor(a.grade);
+      var w = a.grade==="major"?26:a.grade==="warning"?22:a.grade==="advisory"?18:12;
+      M.paintTsunamiCoast(coastGlow, a.code, {stroke:col, "stroke-width":w, "class":"coastGlow", opacity:.55});
+      M.paintTsunamiCoast(coastCore, a.code, {stroke:col, "stroke-width":Math.max(3,w/5), "class":"coastCore"});
+    });
+    var okinawaArea = areas.filter(function(a){return OKINAWA_CODES[a.code];})[0];
+    insetOkinawa.style.borderColor = okinawaArea ? M.gradeColor(okinawaArea.grade) : INSET_BORDER_DEFAULT;
+  }
+
+  function update(data){ try{ render(typeof data==="string"?JSON.parse(data||"{}"):(data||{})); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+
+  if (location.search.indexOf("test")!==-1){
+    update({maxGrade:"major",
+      areas:[
+        {code:"550",name:"高知県",grade:"major"},
+        {code:"540",name:"愛媛県宇和海沿岸",grade:"warning"},
+        {code:"520",name:"和歌山県",grade:"warning"},
+        {code:"800",name:"沖縄本島地方",grade:"advisory"}
+      ]});
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

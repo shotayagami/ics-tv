@@ -1,0 +1,65 @@
+{% extends "public_base.html" %}
+{# 会員ページ共通レイアウト。公開ダークテーマ (public_base.html のトークン) を流用。 #}
+{% block extra_css %}
+  .mwrap { max-width: 560px; margin: 0 auto; }
+  .mcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: clamp(20px,4vw,32px); }
+  .mcard + .mcard { margin-top: 16px; }
+  .mcard h1 { font-size: 22px; font-weight: 800; margin: 0 0 18px; }
+  .mform label { display: block; font-size: 13px; font-weight: 700; color: var(--bright); margin: 14px 0 6px; }
+  .mform input:not([type=checkbox]), .mform select {
+    width: 100%; background: #0c1226; border: 1px solid var(--line); border-radius: 9px;
+    color: var(--fg); padding: 11px 12px; font-size: 15px; font-family: inherit;
+  }
+  .mform input:focus, .mform select:focus { outline: none; border-color: var(--accent); }
+  .mrow { display: flex; gap: 12px; }
+  .mrow > * { flex: 1; }
+  .mhint { color: var(--dim); font-size: 13px; margin-top: 6px; }
+  .merr { color: var(--danger-text); font-size: 13px; margin-top: 6px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--accent); color: var(--accent-on); border: none; border-radius: 999px;
+    font-weight: 800; font-size: 15px; padding: 12px 22px; cursor: pointer; text-decoration: none;
+    width: 100%; margin-top: 22px;
+  }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--bright); }
+  .agree { display: flex; gap: 9px; align-items: flex-start; margin-top: 18px; font-weight: 600; color: var(--bright2); }
+  .agree a { color: var(--accent); }
+  .msgs { margin-bottom: 16px; }
+  .msg { padding: 11px 14px; border-radius: 9px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .msg.success { background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.4); color: var(--bright); }
+  .msg.error { background: var(--danger-wash); border: 1px solid var(--danger-line); color: var(--danger-text); }
+  .mbanner { background: var(--danger-wash); border: 1px solid var(--danger-line); color: var(--bright2); padding: 13px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 18px; }
+  .mbanner strong { color: var(--danger-text); }
+  .mbanner a { color: var(--accent); font-weight: 700; }
+  .mlinks { margin-top: 18px; font-size: 14px; color: var(--dim); text-align: center; }
+  .mlinks a { color: var(--accent); text-decoration: none; }
+  /* 登録の価値訴求 (#7 会員登録 CTA 近傍に「登録で何ができるか」) */
+  .mbenefits { background: rgba(56,189,248,.06); border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px; margin-bottom: 20px; }
+  .mbenefits h2 { font-size: 14px; font-weight: 800; color: var(--bright); margin: 0 0 4px; }
+  .mbenefits .lead { color: var(--dim); font-size: 13px; margin: 0 0 10px; line-height: 1.5; }
+  .mbenefits ul { list-style: none; padding: 0; margin: 0; }
+  .mbenefits li { display: flex; gap: 9px; align-items: flex-start; padding: 4px 0; font-size: 14px; color: var(--bright2); font-weight: 600; }
+  .mbenefits li::before { content: "✓"; color: var(--accent); font-weight: 900; flex: none; }
+  .mlist { list-style: none; padding: 0; margin: 0 0 8px; }
+  .mlist li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-thin); font-size: 15px; }
+  .mlist li .k { color: var(--dim); }
+  .mbadge { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 6px; }
+  .mbadge.ok { background: rgba(56,189,248,.16); color: var(--accent); }
+  .mbadge.ng { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger-text); }
+  /* ===== モバイル対応(トークン不変/レイアウトのみ) ds-mobile.md commit6/6 ===== */
+  @media (max-width: 480px) {
+    .mrow { flex-direction: column; gap: 0; }   /* 生年月セレクト等を縦積み */
+    .mlist li { flex-direction: column; gap: 2px; align-items: flex-start; }
+  }
+{% endblock %}
+{% block content %}
+<main class="wrap" style="padding-top: 28px; padding-bottom: 72px;">
+  <div class="mwrap">
+    {% include "members/_unverified_banner.html" %}
+    {% if messages %}
+      <div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+    {% endif %}
+    {% block member_content %}{% endblock %}
+  </div>
+</main>
+{% endblock %}

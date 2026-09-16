@@ -1,0 +1,20 @@
+{% comment %}管理コンソール共通ナビ (#7 統一)。base.html / admin_ui / delivery(staff) で共有。
+channels/current_ch_slug は core.context_processors.nav_defaults が常時供給 (view が上書き可)。
+各 base の Bootstrap navbar flex コンテナ内に include する。{% endcomment %}
+<a href="{% url 'home' %}" class="nav-link py-0 px-1{% if active == 'home' %} active fw-semibold{% endif %}">運用</a>
+{% if current_ch_slug %}
+  <a href="{% url 'core:ops_dashboard' current_ch_slug %}" class="nav-link py-0 px-1{% if active == 'ops' %} active fw-semibold{% endif %}">運行</a>
+  <a href="{% url 'scheduling:timeline' current_ch_slug %}" class="nav-link py-0 px-1{% if active == 'timeline' %} active fw-semibold{% endif %}">編成</a>
+  <a href="{% url 'scheduling:series_list' current_ch_slug %}" class="nav-link py-0 px-1{% if active == 'series' %} active fw-semibold{% endif %}">週間編成</a>
+{% endif %}
+<a href="{% url 'medialib:dashboard' %}" class="nav-link py-0 px-1{% if active == 'medialib' %} active fw-semibold{% endif %}">素材・CM</a>
+<a href="{% url 'sales:allocation' %}" class="nav-link py-0 px-1{% if active == 'sales' %} active fw-semibold{% endif %}">営業</a>
+<a href="{% url 'billing:dashboard' %}" class="nav-link py-0 px-1{% if active == 'billing' %} active fw-semibold{% endif %}">請求</a>
+{% if current_ch_slug %}
+  <a href="{% url 'core:youtube_console' current_ch_slug %}" class="nav-link py-0 px-1{% if active == 'youtube' %} active fw-semibold{% endif %}">YouTube</a>
+  <a href="{% url 'core:channel_settings' current_ch_slug %}" class="nav-link py-0 px-1{% if active == 'settings' %} active fw-semibold{% endif %}">設定</a>
+  <a href="{% if public_base_url %}{{ public_base_url }}/ch/{{ current_ch_slug }}/{% else %}{% url 'core:public_epg' current_ch_slug %}{% endif %}" class="nav-link py-0 px-1" target="_blank" rel="noopener" title="公開ページを別タブで開く">公開↗</a>
+{% endif %}
+<a href="{% url 'core:channel_list' %}" class="nav-link py-0 px-1{% if active == 'channels' %} active fw-semibold{% endif %}">チャンネル</a>
+<a href="{% url 'members_admin:stats' %}" class="nav-link py-0 px-1{% if active == 'members' %} active fw-semibold{% endif %}">会員</a>
+<a href="/admin/" class="nav-link py-0 px-1{% if active == 'admin' %} active fw-semibold{% endif %}">admin</a>

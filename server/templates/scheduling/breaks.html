@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}CM割当 — {{ program.title }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>CM 割当 <span class="muted">/ {{ program.title }}</span></h1>
+<p><a class="muted" href="{% url 'scheduling:timeline' channel.slug %}">← 編成タイムラインへ戻る</a></p>
+<p class="muted" style="font-size:.82rem">
+  CM枠の位置・grid・尺は<strong>キューシート</strong>で定義し「キュー適用」で展開します。ここでは各枠に
+  <strong>流す CM を手動割当</strong>します（割当があればその枠は自動充填されず、指定どおり送出。残尺はフィラー）。
+  未割当の枠は送出時に在庫/出稿ルールで<strong>自動充填</strong>されます。
+</p>
+
+{% if rows %}
+  {% for row in rows %}
+    <section class="card">
+      <h2 style="font-size:1rem">
+        CM枠 <span class="muted">{{ row.br.get_grid_display }} · {{ row.dur_s }}s · 挿入 {{ row.offset_disp }}</span>
+        <span class="badge {% if row.remaining_ms > 0 %}{% else %}live{% endif %}">
+          {% if row.remaining_ms > 0 %}残尺 {{ row.remaining_ms }}ms（残りは自動/フィラー）{% else %}充填済{% endif %}
+        </span>
+      </h2>
+      {% if row.items %}
+        <table>
+          <tr><th>#</th><th>広告主</th><th>尺</th><th></th></tr>
+          {% for it in row.items %}
+            <tr>
+              <td class="muted">{{ forloop.counter }}</td>
+              <td>{{ it.cm_asset.advertiser }} <span class="muted">({{ it.cm_asset.get_grid_display }})</span></td>
+              <td style="white-space:nowrap">{{ it.cm_asset.asset.duration_display }}</td>
+              <td style="white-space:nowrap">
+                <form method="post" action="{% url 'scheduling:adbreak_item_delete' it.id %}" style="display:inline"
+                      onsubmit="return confirm('この CM を枠から外しますか？');">
+                  {% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.1rem .4rem">外す</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% else %}
+        <p class="muted" style="font-size:.85rem">未割当（送出時に自動充填されます）。</p>
+      {% endif %}
+      <form method="post" action="{% url 'scheduling:adbreak_item_add' row.br.id %}"
+            style="display:flex; gap:.5rem; align-items:center; margin-top:.5rem;">
+        {% csrf_token %}
+        <select name="cm_id">
+          {% for cm in row.cms %}<option value="{{ cm.asset_id }}">{{ cm.advertiser }} ({{ cm.asset.duration_display }})</option>{% empty %}<option value="" disabled>割当可能な {{ row.br.get_grid_display }} CM がありません</option>{% endfor %}
+        </select>
+        <button class="btn" type="submit" {% if not row.cms %}disabled{% endif %}>＋ この枠に追加</button>
+      </form>
+    </section>
+  {% endfor %}
+{% else %}
+  <section class="card">
+    <p class="muted">この番組には CM枠がありません。素材の<strong>キューシート</strong>で CM枠を定義し、
+      タイムラインのブロック詳細から<strong>「キュー適用」</strong>で展開してください。</p>
+  </section>
+{% endif %}
+{% endblock %}

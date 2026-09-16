@@ -1,0 +1,22 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}会員 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">会員</h1>
+<div class="card" style="max-width:420px">
+  <div style="font-size:2rem;font-weight:800;margin-bottom:1rem">{{ total }} 名</div>
+  <table style="width:100%">
+    <thead><tr><th>level</th><th style="text-align:right">会員数</th></tr></thead>
+    <tbody>
+      {% for level, count in by_level %}
+      <tr>
+        <td>{% if level == 0 %}無料会員{% else %}ティア{{ level }}{% endif %}</td>
+        <td style="text-align:right">{{ count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="font-size:.75rem;margin-top:1rem;margin-bottom:0">
+    個々の会員のメールアドレス等は表示しません。
+  </p>
+</div>
+{% endblock %}

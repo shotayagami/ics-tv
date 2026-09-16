@@ -1,0 +1,40 @@
+[Unit]
+Description=ICS-TV exposure_policy (#27) YTミラー「メンバーP」encoder (%i): CasparCG UDP -> h264_vaapi -> YouTube members-only ONLY
+# テンプレートユニット: icstv-yt-members-encoder@<slug> (例 icstv-yt-members-encoder@ch1)。
+# icstv-yt-mirror-encoder@.service (公開M) と同型だが、入力 channel と ingest 先が異なる。
+# 入力は casparcg.config の「メンバーミラー P」channel (docs/site-only-broadcast.md §2・§4.6) の UDP 出力。
+# ingest 先は YouTube Studio で事前に手動作成した永続 members-only ライブ配信の stream key
+# (docs §2「YouTube members-only 配信の用意」)。番組窓ごとの可視性制御はミラー P の
+# route/filler 切替 (MirrorController) で行うため、ingest 自体は常時 1 本・再接続しない。
+# 入力枯渇の検知: udp の timeout=10000000 (10 秒) が無いと、CasparCG 停止時に ffmpeg が
+# 無限に入力待ちして active のまま停止する (Restart が発火しない)。詳細は icstv-encoder@.service。
+#
+# ** 本番未適用: GPU 容量実測 (docs §5-1) 前に enable+start しないこと。UHD630 は本線+公開ミラーの
+#    2本で既に RCS ~90% のため、本ユニットまで含めた3本同時は専用 GPU 増設が実質前提。**
+# 未配備の理由: GPU 容量待ち。3本目は専用 GPU 増設が実質前提 (docs/site-only-broadcast.md §5-1)。加えて実機の casparcg.config は 1ch 宣言なので入力 channel 4 が存在しない
+After=casparcg-server.service
+Wants=casparcg-server.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# UDP_PORT (メンバーミラー channel の UDP。casparcg.config channel 4 の例では 5007) /
+# YT_MEMBERS_INGEST_URL (YouTube Studio で手動作成した永続 members-only 配信の RTMP ingest URL +
+# stream key) は EnvironmentFile から。
+EnvironmentFile=/etc/icstv/yt-members-encoder-%i.env
+ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel warning \
+  -fflags +genpts -thread_queue_size 1024 \
+  -i udp://127.0.0.1:${UDP_PORT}?fifo_size=1000000&overrun_nonfatal=1&timeout=10000000 \
+  -vaapi_device /dev/dri/renderD128 \
+  -vf format=nv12,hwupload \
+  -c:v h264_vaapi -b:v ${VBITRATE} -maxrate ${VBITRATE} -bufsize ${VBUFSIZE} -g ${GOP} -bf 0 \
+  -c:a aac -b:a 160k -ar 48000 \
+  -flags +global_header -map 0:v -map 0:a \
+  -f flv "${YT_MEMBERS_INGEST_URL}"
+Restart=always
+RestartSec=2
+Environment=LIBVA_DRIVER_NAME=iHD
+
+[Install]
+WantedBy=multi-user.target

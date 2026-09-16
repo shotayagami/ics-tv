@@ -1,0 +1,22 @@
+# ビルドコンテキスト = リポジトリルート (server/ + frontend/ を多stage Dockerfile が使う)。
+# 既定で全除外し、必要な server/ と frontend/ のみ含める (context を小さく保つ)。
+*
+!server
+!frontend
+!deploy/remotion-studio
+
+# server/ 内の不要物 (旧 server/.dockerignore 相当 + フロント同梱物)
+server/.venv/
+server/.env
+server/db.sqlite3
+server/staticfiles/
+server/frontend_dist/
+**/__pycache__/
+**/*.pyc
+
+# frontend/ 内の不要物 (node_modules/dist は Docker 内で生成、openapi.json は中間生成物)
+frontend/node_modules/
+frontend/**/dist/
+frontend/openapi.json
+
+.git/

@@ -1,0 +1,57 @@
+[Unit]
+Description=ICS-TV VAAPI sidecar encoder (%i): CasparCG UDP -> h264_vaapi -> tee: YouTube + local MediaMTX HLS
+# テンプレートユニット: icstv-encoder@<slug> (例 icstv-encoder@ch1)。%i=<slug>=ICSTV_CHANNEL_SLUG。
+# チャンネル別パラメータは EnvironmentFile=/etc/icstv/encoder-%i.env から: UDP_PORT (CasparCG channel N
+# の UDP 5004+(N-1)), ICSTV_CHANNEL_SLUG (= %i。HLS path に使う), CF_INGEST_URL, VBITRATE 等。
+# CasparCG の UDP 出力を iGPU で H.264 エンコードし、tee で 2 系統へ連続送出する:
+#   1) ${CF_INGEST_URL} = YouTube ingest (当面メインの公開配信)
+#   2) rtmp://127.0.0.1:1935/hls/${ICSTV_CHANNEL_SLUG} = ローカル MediaMTX (HLS 化 → tv.yagamin.net/hls/<slug> の自前プレイヤー)
+# 各出力は use_fifo=1 で独立スレッド分離 + fifo_options で自動再接続 (attempt_recovery/recover_any_error):
+#   片側 (YT/MediaMTX) が詰まる・落ちても他方を阻害せず、落ちた側は無限リトライで自己復帰する。
+#   (旧: onfail=ignore のみだと MediaMTX leg が一度落ちると再接続せず HLS が永久停止していた)。
+#   ただし fifo の自動復帰は「書き込み駆動」で、書くパケットが発生して初めて再接続を試みる。
+#   CasparCG が wedge して UDP 入力が枯れると書き込み自体が起きず、attempt_recovery も
+#   Restart=always も永久に発火しない (2026-08-18: 1h35m 無言のオンエア断。udp-rx スレッドが
+#   skb_wait_for_more_packet、fifo-consumer が futex_do_wait のまま ffmpeg は active/0%CPU)。
+#   対策として入力 URL に timeout=10000000 (10 秒) を付与する。udp の timeout 既定は 0 = 無限待ちで、
+#   これが無いと入力枯渇を検知できない。10 秒途切れたら ffmpeg をエラー終了させ Restart で拾わせる。
+# exposure_policy (#27、docs/site-only-broadcast.md §4.6) 導入チャンネルのカットオーバー:
+#   YTミラー (icstv-yt-mirror-encoder@<slug>) が YouTube ingest 役を引き継いだら、この共有テンプレート
+#   (全チャンネル共通) は変えず、そのチャンネルの instance だけ systemd drop-in で ExecStart を
+#   MediaMTX leg のみに上書きする (例: deploy/playout-node/systemd/icstv-encoder@ch1.service.d.example/
+#   参照。`systemctl edit icstv-encoder@ch1` で /etc/systemd/system/icstv-encoder@ch1.service.d/ へ配置)。
+#   YTミラー未導入の他チャンネル (ch2 等) は本テンプレートのまま = YouTube leg を維持し続ける。
+#   本番 YouTube 経路に触れるため、検証ノード(dev)で先に確認 → 本番は監視下でカットオーバーすること。
+# エンコードは 1 回 (tee は出力分岐のみ)。
+# -flags +global_header 必須: tee は offline format 扱いで encoder に global_header が伝播せず、
+#   flv シーケンスヘッダ(SPS/PPS 等の extradata)が欠落 → MediaMTX が "unable to parse H264 config" で publish 拒否する。
+# -bf 0 必須: VAAPI 既定の B-frame が出るとフレーム並び替えにより MediaMTX(:8888) の gohlslib HLS muxer が
+#   "unable to extract DTS: too many reordered frames" でクラッシュ → 同一 path の reader(icstv-hls-ladder)を
+#   巻き込み落とし、公開 /hls2 が flap する (実証: 2026-06-18 適用後1hで muxer crash 6回=ladder 再起動6回。
+#   readTimeout=30s で read i/o timeout は0になったが、この muxer crash が残存主因だった)。B-frame 無効化で
+#   PTS==DTS となり muxer が DTS 再構成不要に。低遅延ライブで no-B-frame は標準、帯域は微増のみ。
+# CasparCG Issue #1300 のため consumer 内 VAAPI が不可 → このサイドカーで HW エンコードする。
+After=casparcg-server.service
+Wants=casparcg-server.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# CF_INGEST_URL (rtmp://.../<stream-key>) / UDP_PORT / VBITRATE 等は EnvironmentFile から (チャンネル別)
+EnvironmentFile=/etc/icstv/encoder-%i.env
+ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel warning \
+  -fflags +genpts -thread_queue_size 1024 \
+  -i udp://127.0.0.1:${UDP_PORT}?fifo_size=1000000&overrun_nonfatal=1&timeout=10000000 \
+  -vaapi_device /dev/dri/renderD128 \
+  -vf format=nv12,hwupload \
+  -c:v h264_vaapi -b:v ${VBITRATE} -maxrate ${VBITRATE} -bufsize ${VBUFSIZE} -g ${GOP} -bf 0 \
+  -c:a aac -b:a 160k -ar 48000 \
+  -flags +global_header -map 0:v -map 0:a \
+  -f tee -use_fifo 1 -fifo_options "attempt_recovery=1:recover_any_error=1:drop_pkts_on_overflow=1:recovery_wait_time=1" "[onfail=ignore:f=flv]${CF_INGEST_URL}|[onfail=ignore:f=flv]rtmp://127.0.0.1:1935/hls/${ICSTV_CHANNEL_SLUG}"
+Restart=always
+RestartSec=2
+Environment=LIBVA_DRIVER_NAME=iHD
+
+[Install]
+WantedBy=multi-user.target

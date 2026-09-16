@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}グラフィックセット: {{ spec.title }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>自動グラフィックセット <span class="muted">/ {{ spec.title }}</span></h1>
+<p><a class="muted" href="{{ spec.back_url }}">← 戻る</a></p>
+<p class="muted" style="margin-top:-.4rem">{{ spec.subtitle }}</p>
+{% if err %}<div class="badge warn" style="display:block;margin:.4rem 0">{{ err }}</div>{% endif %}
+
+<section class="card">
+  <h2>登録済み <span class="muted">{{ rows|length }}</span></h2>
+  {% if rows %}
+    <table>
+      <tr><th>レイヤ</th><th>種別</th><th>内容</th><th>表示開始</th><th>表示終了</th><th>seq</th><th></th></tr>
+      {% for r in rows %}
+        <tr>
+          <td>1-{{ r.c.layer }}</td>
+          <td>{{ r.c.get_kind_display }}</td>
+          <td class="muted" style="max-width:24rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.summary }}</td>
+          <td style="white-space:nowrap">{{ r.show_s }}秒</td>
+          <td style="white-space:nowrap">{% if r.hide_s is not None %}{{ r.hide_s }}秒{% else %}末尾まで{% endif %}</td>
+          <td>{{ r.c.seq }}</td>
+          <td>
+            <form method="post" action="{% url 'scheduling:graphic_cue_delete' channel.slug owner owner_id r.c.id %}" style="display:inline"
+                  hx-post="{% url 'scheduling:graphic_cue_delete' channel.slug owner owner_id r.c.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}"
+                  onsubmit="return confirm('このグラフィックを削除しますか？');">
+              {% csrf_token %}<button class="btn warn" style="font-size:.75rem;padding:.1rem .4rem">削除</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}<p class="muted">まだありません。下で追加してください。</p>{% endif %}
+
+  <h3 style="margin-top:1rem;font-size:1rem">追加</h3>
+  <form method="post" action="{% url 'scheduling:graphic_cue_add' channel.slug owner owner_id %}"
+        enctype="multipart/form-data"
+        x-data="{ kind: 'graphic' }"
+        style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+    {% csrf_token %}
+    <div class="field" style="margin:0">
+      <label>レイヤ (1-89)</label>
+      <input type="number" name="layer" value="45" min="1" max="89" style="width:5rem">
+    </div>
+    <div class="field" style="margin:0">
+      <label>種別</label>
+      <select name="kind" x-model="kind">
+        {% for val, lbl in kinds %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <!-- graphic: 画像/動画 + 文字 + 位置 -->
+    <template x-if="kind==='graphic'">
+      <div style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="margin:0"><label>画像</label><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></div>
+        <div class="field" style="margin:0"><label>または画像URL</label><input type="text" name="image_url" placeholder="https://… / /t/…" style="width:14rem"></div>
+        <div class="field" style="margin:0"><label>文字(任意)</label><input type="text" name="text" style="width:12rem"></div>
+        <div class="field" style="margin:0"><label>x%</label><input type="number" name="x" value="5" style="width:3.6rem"></div>
+        <div class="field" style="margin:0"><label>y%</label><input type="number" name="y" value="78" style="width:3.6rem"></div>
+        <div class="field" style="margin:0"><label>w%</label><input type="number" name="w" value="25" style="width:3.6rem"></div>
+        <div class="field" style="margin:0"><label>文字px</label><input type="number" name="size" value="34" style="width:4rem"></div>
+        <div class="field" style="margin:0"><label>揃え</label>
+          <select name="align"><option value="left">左</option><option value="center">中</option><option value="right">右</option></select>
+        </div>
+      </div>
+    </template>
+
+    <!-- video: 透過動画クリップ -->
+    <template x-if="kind==='video'">
+      <div style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="margin:0"><label>クリップ(送出ノード)</label><input type="text" name="clip" placeholder="overlay/sponsor" style="width:16rem"></div>
+        <label class="muted"><input type="checkbox" name="loop" value="1"> ループ</label>
+      </div>
+    </template>
+
+    <!-- text: 文字のみ (速報テンプレ等) -->
+    <template x-if="kind==='text'">
+      <div class="field" style="margin:0"><label>文字</label><input type="text" name="text" style="width:20rem"></div>
+    </template>
+
+    <div class="field" style="margin:0"><label>表示開始(秒)</label><input type="number" name="show_at_s" value="0" step="0.1" style="width:5rem"></div>
+    <div class="field" style="margin:0"><label>表示終了(秒, 空=末尾)</label><input type="number" name="hide_at_s" step="0.1" style="width:6.5rem"></div>
+    <div class="field" style="margin:0"><label>seq</label><input type="number" name="seq" value="0" style="width:3.6rem"></div>
+    <div class="field" style="margin:0"><label>テンプレ(任意)</label><input type="text" name="template" placeholder="graphic/freeform" style="width:11rem"></div>
+    <button class="btn" type="submit">＋ 追加</button>
+  </form>
+  <p class="muted" style="font-size:.78rem;margin-top:.5rem">
+    レイヤは 1-89 (40=速報・45=フリーグラフィック・50=提供 が慣例)。同一レイヤは後勝ちなので組み合わせは別レイヤに。
+    表示開始/終了は番組(またはフィラークリップ)の頭からの秒。画像/動画+文字を 1 要素として組める。
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,14 @@
+{
+  "name": "@icstv/theme",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ICS-TV Bootstrap 5 テーマ (移行計画 Phase 0)。独自トークンを Bootstrap Sass 変数へ写像し、公開(cyan)/管理(green) の 2 テーマ SCSS を提供する。正本値は packages/ui・packages/studio-ui の tokens.css。",
+  "exports": {
+    "./public.scss": "./src/public.scss",
+    "./admin.scss": "./src/admin.scss"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8"
+  }
+}

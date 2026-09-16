@@ -1,0 +1,27 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{% if genre %}{{ genre }} の番組{% else %}ジャンルから探す{% endif %} — ICS-TV{% endblock %}
+{% block og_title %}{% if genre %}{{ genre }} の番組{% else %}ジャンルから探す{% endif %} — ICS-TV{% endblock %}
+{% block meta_description %}ICS-TV の番組をジャンルから探す。{% if genre %}{{ genre }}の番組一覧。{% endif %}{% endblock %}
+
+{% block extra_head %}
+  {# ジャンルブラウズは React 島(#Phase2c)。タブ/結果は /static/web/discover が /api/v1/browse 描画。 #}
+  <link rel="stylesheet" href="{% static 'web/discover/discover.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+{# 島マウントまで(JS 読込中)/JS 無し時に空白を見せないよう、shell に骨組みと noscript を置く。 #}
+<div id="discover-island" data-mode="browse" data-home-base="{{ public_base_url }}">
+  <section class="br">
+    <h1>ジャンルから探す</h1>
+    <p class="lead">放送予定・放送済みの番組をジャンル別に一覧できます。</p>
+    <div class="sk-chips" aria-hidden="true">{% for _ in "01234" %}<div class="sk sk-chip"></div>{% endfor %}</div>
+    {% include "public/_skel_grid.html" %}
+  </section>
+  <noscript><p class="island-noscript">ジャンル別一覧の表示には JavaScript が必要です。<a href="{{ public_base_url }}/">ホームへ ›</a></p></noscript>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/discover/discover.js' %}?v={{ app_version }}"></script>
+{% endblock %}

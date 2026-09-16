@@ -1,0 +1,62 @@
+{% load tz %}
+<h2>NOW PLAYING</h2>
+{% if on_air %}
+  <table>
+    <tr><th>action</th><td>{{ on_air.action }}</td></tr>
+    <tr><th>status</th><td><span class="badge {% if on_air.status == 'done' %}live{% endif %}">{{ on_air.status }}</span></td></tr>
+    {% if on_air.program %}<tr><th>番組</th><td>{{ on_air.program.title }}</td></tr>{% endif %}
+    <tr><th>開始</th><td>{{ on_air.scheduled_at|date:"H:i:s" }}</td></tr>
+    {% if on_air.note %}<tr><th>note</th><td class="muted">{{ on_air.note }}</td></tr>{% endif %}
+  </table>
+{% else %}
+  <p class="muted">オンエアイベントなし</p>
+{% endif %}
+
+<h2 style="margin-top:1rem;">NEXT</h2>
+{% if upcoming %}
+  <table>
+    <tr><th>時刻</th><th>action</th><th>番組</th></tr>
+    {% for e in upcoming %}
+      <tr>
+        <td>{{ e.scheduled_at|date:"H:i:s" }}</td>
+        <td class="kind">{{ e.action }}</td>
+        <td>{{ e.program.title|default:"—" }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted">予定なし</p>
+{% endif %}
+
+{% if live_program %}
+  <h2 style="margin-top:1rem;">押え / 巻き <span class="muted">/ {{ live_program.title }} (live)</span></h2>
+  <div style="display:flex; gap:.4rem; flex-wrap:wrap; align-items:center;">
+    <span class="muted">押え:</span>
+    <form method="post" action="{% url 'core:op_extend' channel.slug live_program.id %}"
+          hx-post="{% url 'core:op_extend' channel.slug live_program.id %}" hx-swap="none"
+          style="margin:0;"
+          onsubmit="return confirm('押え +5分を {{ live_program.title }} に適用します。続行しますか？');">
+      {% csrf_token %}<input type="hidden" name="delta_ms" value="300000">
+      <button class="btn" type="submit">+5分</button>
+    </form>
+    <form method="post" action="{% url 'core:op_extend' channel.slug live_program.id %}"
+          hx-post="{% url 'core:op_extend' channel.slug live_program.id %}" hx-swap="none"
+          style="margin:0;"
+          onsubmit="return confirm('押え +10分を {{ live_program.title }} に適用します。続行しますか？');">
+      {% csrf_token %}<input type="hidden" name="delta_ms" value="600000">
+      <button class="btn" type="submit">+10分</button>
+    </form>
+    <button class="btn" type="button"
+            hx-get="{% url 'core:op_extend_preview' channel.slug live_program.id %}?delta_ms=600000"
+            hx-target="#extend-preview" hx-swap="innerHTML">+10分の影響を見る</button>
+    <span class="muted" style="margin-left:.6rem;">巻き:</span>
+    <form method="post" action="{% url 'core:op_shorten' channel.slug live_program.id %}"
+          hx-post="{% url 'core:op_shorten' channel.slug live_program.id %}" hx-swap="none"
+          style="margin:0;"
+          onsubmit="return confirm('巻き -5分を {{ live_program.title }} に適用します。続行しますか？');">
+      {% csrf_token %}<input type="hidden" name="delta_ms" value="300000">
+      <button class="btn warn" type="submit">-5分</button>
+    </form>
+  </div>
+  <div id="extend-preview" style="margin-top:.5rem;"></div>
+{% endif %}

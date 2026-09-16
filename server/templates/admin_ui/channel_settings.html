@@ -1,0 +1,181 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}{{ channel.slug }} 設定 — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>channel: {{ channel.name }} <code>{{ channel.slug }}</code></h1>
+
+<section class="card">
+  <h2>YouTube 連携 (OAuth)</h2>
+  {# YouTube Data API 利用開示 (Google OAuth ブランディング要件)。API を実際に使うのは運用者 (本画面) なので
+     視聴者向け公開トップではなく、OAuth 連携を行う本カードに掲示する。privacy/terms は公開ホスト側の絶対 URL。 #}
+  <p class="muted">本サービス (ICS-TV) は、配信枠 (YouTube ライブ放送) の作成・管理のために YouTube Data API を利用します。取得データの取り扱いは
+    <a href="{{ public_base_url }}/privacy/" target="_blank" rel="noopener">プライバシーポリシー</a>・<a href="{{ public_base_url }}/terms/" target="_blank" rel="noopener">利用規約</a> をご覧ください。</p>
+  {% if not oauth_configured %}
+    <p class="err">ICSTV_OAUTH_CLIENT_ID / ICSTV_OAUTH_CLIENT_SECRET が未設定です。</p>
+    <p class="muted">Google Cloud Console で OAuth client (web application) を作成し、env で設定してから再度この画面を開いてください。redirect_uri = <code>{{ request.scheme }}://{{ request.get_host }}/admin-ui/oauth/callback/</code></p>
+  {% elif connected %}
+    <p class="ok">● 接続済み</p>
+    <p class="muted">access_token expiry: {{ cred.token_expiry|date:"Y-m-d H:i (T)"|default:"-" }}
+      <span class="muted">— 約1hで自動更新 (refresh_token 使用)</span></p>
+    <p class="muted">scopes: <code>{{ cred.scopes }}</code></p>
+    <a class="btn" href="{% url 'core:youtube_oauth_start' channel.slug %}">再認可</a>
+  {% else %}
+    <p class="muted">未接続。YouTube への配信枠生成 / transition に必要です。</p>
+    <a class="btn" href="{% url 'core:youtube_oauth_start' channel.slug %}">[接続]</a>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>永続 liveStream (ingest 受信口)</h2>
+  <p>livestream_id: <code>{{ channel.youtube_livestream_id|default:"未作成" }}</code></p>
+  <p>ingest_url: <code>{{ channel.youtube_ingest_url|default:"-" }}</code></p>
+  <p>stream_key: <code>{% if channel.youtube_stream_key %}***マスク***{% else %}未設定{% endif %}</code></p>
+  {% if not channel.youtube_livestream_id %}
+    {% if connected %}
+      <form method="post" action="{% url 'core:create_persistent_stream' channel.slug %}" style="margin:0"
+            onsubmit="return confirm('YouTube 側で永続 liveStream を作成します (Data API quota 消費)。続行しますか？');">
+        {% csrf_token %}
+        <button class="btn" type="submit">[作成] (liveStreams.insert)</button>
+      </form>
+    {% else %}
+      <p class="muted">先に YouTube OAuth 連携が必要です。</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">既存。再作成は Django admin で channel.youtube_livestream_id を NULL にしてから [作成]。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>YouTube 配信</h2>
+  <p class="muted">枠ダッシュボード / 配信プリセット / 番組専用枠 (#23) は上部メニュー
+    <a href="{% url 'core:youtube_console' channel.slug %}">YouTube</a> に移動しました。</p>
+</section>
+
+<section class="card">
+  <h2>Cloudflare Live Input / Output</h2>
+  <p>cf_live_input_id: <code>{{ channel.cf_live_input_id|default:"未作成" }}</code></p>
+  {% if not channel.cf_live_input_id %}
+    <form method="post" action="{% url 'core:create_cf_live_input' channel.slug %}" style="margin:0"
+          onsubmit="return confirm('CF Stream API で Live Input を作成します。続行しますか？');">
+      {% csrf_token %}
+      <button class="btn" type="submit">[Live Input 作成]</button>
+    </form>
+    <p class="muted">CasparCG → Live Input (RTMP 受信口) への送出先。</p>
+  {% else %}
+    <p class="muted">作成済み。CasparCG の出力 consumer を <code>{{ channel.cf_live_input_id }}</code> へ向ける。</p>
+    <form method="post" action="{% url 'core:set_cf_playback_url' channel.slug %}" style="margin:.6rem 0">
+      {% csrf_token %}
+      <label style="display:block;color:#888;font-size:.85rem">視聴者向け HLS 再生 URL (公開プレイヤー)</label>
+      <input name="cf_playback_hls_url" value="{{ channel.cf_playback_hls_url|default:'' }}"
+             placeholder="https://customer-xxxx.cloudflarestream.com/&lt;uid&gt;/manifest/video.m3u8"
+             style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem">
+      <button class="btn" type="submit" style="margin-top:.3rem">保存</button>
+      <p class="muted" style="font-size:.8rem">CF ダッシュボードの Live Input → 「再生用 URL」(HLS .m3u8) を貼り付け。公開ページの CF プレイヤーが使用。</p>
+    </form>
+    {% if channel.youtube_stream_key %}
+      <form method="post" action="{% url 'core:create_cf_live_output' channel.slug %}" style="margin:0;margin-top:.6rem"
+            onsubmit="return confirm('CF Live Output を追加し、Live Input → YouTube ingest へ再送出します。続行しますか？');">
+        {% csrf_token %}
+        <button class="btn" type="submit">[Live Output 追加 → YouTube]</button>
+      </form>
+      <p class="muted">YouTube 永続キーで再送出。CF 1 入力 → YouTube 1 出力。</p>
+    {% else %}
+      <p class="muted">[Live Output 追加] は YouTube 永続キーが揃ってから (上の [作成])。</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>枠生成テンプレート (youtube_config)</h2>
+  {% if yt_cfg %}
+    <p>title_template: <code>{{ yt_cfg.title_template }}</code></p>
+    <p>description_template:</p>
+    <pre style="white-space:pre-wrap"><code>{{ yt_cfg.description_template|default:"(なし)" }}</code></pre>
+    <p>privacy: <code>{{ yt_cfg.get_privacy_display }}</code> · enable_monitor: {{ yt_cfg.enable_monitor|yesno:"YES,NO" }}</p>
+    <p>rolling_hours: {{ yt_cfg.rolling_hours }} / slot_minutes: {{ yt_cfg.slot_minutes }}</p>
+    <p class="muted">テンプレートの編集・既存枠への反映は <a href="/slots/{{ channel.slug }}">配信枠 (Studio)</a> の「枠生成設定」から行えます。</p>
+  {% else %}
+    <p class="muted">YoutubeConfig 未設定。<a href="/slots/{{ channel.slug }}">配信枠 (Studio)</a> の「枠生成設定」から保存すると作成されます。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>送出メディア (フィラー / スレート)</h2>
+  <form method="post" action="{% url 'core:set_channel_media' channel.slug %}" style="margin:0">
+    {% csrf_token %}
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.4rem">既定フィラー playlist (隙間で巡回送出 / agent が全件先読み+常駐)</label>
+    <select name="default_filler" style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem">
+      <option value="">（未設定）</option>
+      {% for pl in filler_playlists %}
+        <option value="{{ pl.id }}" {% if channel.default_filler_id == pl.id %}selected{% endif %}>{{ pl.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.6rem">スレート素材 (feed断/緊急退避で layer90 へ。正規化済のみ)</label>
+    <select name="slate_asset" style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem">
+      <option value="">（未設定 → ノードローカル please_wait）</option>
+      {% for a in slate_candidates %}
+        <option value="{{ a.id }}" {% if channel.slate_asset_id == a.id %}selected{% endif %}>{{ a.title }}</option>
+      {% endfor %}
+    </select>
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.6rem">exposure_policy 公開ミラー案内フィラー (site_public/site_members/members_yt_site 中、公開YouTubeに出す案内。正規化済のみ)</label>
+    <select name="site_only_filler" style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem">
+      <option value="">（未設定 → ノードローカル既定）</option>
+      {% for a in slate_candidates %}
+        <option value="{{ a.id }}" {% if channel.site_only_filler_id == a.id %}selected{% endif %}>{{ a.title }}</option>
+      {% endfor %}
+    </select>
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.6rem">exposure_policy メンバーミラー待機画 (members_yt_site 以外の時間帯、YouTubeメンバー限定枠に出す待機画。正規化済のみ)</label>
+    <select name="members_filler" style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem">
+      <option value="">（未設定 → ノードローカル既定）</option>
+      {% for a in slate_candidates %}
+        <option value="{{ a.id }}" {% if channel.members_filler_id == a.id %}selected{% endif %}>{{ a.title }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn" type="submit" style="margin-top:.5rem">保存</button>
+    <p class="muted" style="font-size:.8rem">playlist の中身 (素材と並び) の編集は <a href="{% url 'medialib:dashboard' %}">素材ライブラリ</a> から。スレート/exposure_policy 案内素材は R2 先読みのため正規化済素材のみ選択可。空にするとそれぞれノードローカルの既定 (please_wait / filler/site_only_default / filler/members_default) にフォールバック。</p>
+  </form>
+</section>
+
+<section class="card">
+  <h2>放送時間帯</h2>
+  <form method="post" action="{% url 'core:set_broadcast_windows' channel.slug %}" style="margin:0">
+    {% csrf_token %}
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.2rem">放送中の時間帯 (JST・1行1帯・<code>HH:MM-HH:MM</code>・終端は <code>24:00</code> も可)</label>
+    <textarea name="broadcast_windows" rows="4" placeholder="例: 06:00-10:00&#10;17:00-24:00"
+              style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem;font-family:monospace">{{ broadcast_windows_text }}</textarea>
+    <button class="btn" type="submit" style="margin-top:.5rem">保存</button>
+    <p class="muted" style="font-size:.8rem">
+      設定した時間帯のみ番組・フィラーを送出し、それ以外の時間帯はスレート (休止中画面) を自動送出します。
+      フィラーは休止時間を挟んでも同一プレイリストの続きから再開します。
+      空欄にすると 24 時間放送 (制限なし) に戻ります。反映は次の resolve 周期 (最大 5 分) から。
+    </p>
+  </form>
+</section>
+
+<section class="card">
+  <h2>朝・夕の時計表示 (左上)</h2>
+  <form method="post" action="{% url 'core:set_clock_overlay' channel.slug %}" style="margin:0">
+    {% csrf_token %}
+    <label style="display:block;margin-top:.2rem">
+      <input type="checkbox" name="clock_overlay_enabled" {% if channel.clock_overlay_enabled %}checked{% endif %}>
+      このチャンネルで朝・夕の左上時計を表示する
+    </label>
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.6rem">表示時間帯 (JST・1行1帯・<code>HH:MM-HH:MM</code>)</label>
+    <textarea name="clock_windows" rows="3" placeholder="{{ clock_default_windows }}"
+              style="width:100%;max-width:40rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.25rem;font-family:monospace">{{ clock_windows_text }}</textarea>
+    <button class="btn" type="submit" style="margin-top:.5rem">保存</button>
+    <p class="muted" style="font-size:.8rem">時計は時間帯内の全番組・フィラーに左上表示 (時:分)。CM 中は自動退避。空欄なら既定 (<code>{{ clock_default_windows }}</code>) を使用。
+      映画など特定番組で出したくない場合は番組/シリーズ編集の「時計を表示しない」で個別に除外できます。</p>
+  </form>
+</section>
+
+<section class="card">
+  <h2>agent gRPC</h2>
+  <p>agent_token: <code>{% if channel.agent_token %}***マスク***{% else %}未発行{% endif %}</code></p>
+  <p class="muted">agent (送出ノード) が gRPC 接続に使う Bearer。Django admin で発行。</p>
+</section>
+
+{% endblock %}

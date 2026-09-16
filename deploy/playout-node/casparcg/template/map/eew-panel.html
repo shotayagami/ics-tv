@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 緊急地震速報テロップ パターン1: 横書き 地図＋地域 (CG layer 38, template=map/eew-panel)。
+     下段パネル: 左=強い揺れが予想される地域を黄で塗った小地図(＋震源✕)、右=見出し＋地域名(横書き)。
+     契約: play()/stop()/update(data)/next()/remove()。data 例:
+       {"epicenter":"相模湾","regions":["関東","東海","甲信","伊豆諸島","東北","北陸","近畿"],
+        "headline":"強い揺れに警戒","hypocenter":{"lat":35.2,"lon":139.4},"test":false}
+     regions は緊急地震速報 地方予報区名 (geo.eew と名称一致で地図ハイライト)。出典: 気象庁。 -->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:"Noto Sans JP","Yu Gothic",sans-serif;}
+  #root{position:absolute;inset:0;opacity:0;transition:opacity 300ms ease-in-out;}
+  #root.show{opacity:1;}
+  #panel{position:absolute;left:180px;bottom:150px;display:flex;gap:0;
+    box-shadow:0 8px 28px rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.5);}
+  #mini{width:250px;height:250px;background:#2a3550;flex:none;}
+  #mini svg{width:100%;height:100%;}
+  #info{width:660px;background:#1f6fc4;color:#fff;display:flex;flex-direction:column;}
+  #hd{background:#d51a1a;font-weight:900;font-size:38px;padding:8px 20px;letter-spacing:1px;}
+  #sb{font-size:28px;font-weight:700;padding:6px 20px;background:rgba(255,255,255,.12);}
+  #rg{padding:12px 20px;font-size:40px;font-weight:900;line-height:1.5;letter-spacing:2px;
+    display:flex;flex-wrap:wrap;gap:6px 26px;align-content:flex-start;flex:1;}
+  #warn{position:absolute;left:180px;bottom:412px;background:#ffe000;color:#111;font-weight:900;
+    font-size:24px;padding:5px 14px;border-radius:4px;display:none;}
+  .epi{font:900 40px/1 sans-serif;fill:#ff2d2d;stroke:#fff;stroke-width:3;paint-order:stroke;}
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="warn">訓練映像　実際に発生した地震ではありません</div>
+    <div id="panel">
+      <div id="mini"><svg viewBox="470 0 1080 1040" preserveAspectRatio="xMidYMid meet">
+        <g id="mbase"></g><g id="mhi"></g><g id="mepi"></g></svg></div>
+      <div id="info">
+        <div id="hd">緊急地震速報（気象庁）</div>
+        <div id="sb"></div>
+        <div id="rg"></div>
+      </div>
+    </div>
+  </div>
+<script src="geo.js"></script>
+<script src="mapkit.js"></script>
+<script>
+  "use strict";
+  var M=window.ICSTV_MAP, root=document.getElementById("root");
+  var mbase=document.getElementById("mbase"), mhi=document.getElementById("mhi"), mepi=document.getElementById("mepi"),
+      sb=document.getElementById("sb"), rg=document.getElementById("rg"), warn=document.getElementById("warn");
+  M.paintBase(mbase, {fill:"#586a86", stroke:"#39465e", sw:1});
+
+  function render(d){
+    d=d||{};
+    var regions=d.regions||[];
+    sb.textContent=(d.epicenter?d.epicenter+"で地震　":"")+(d.headline||"強い揺れに警戒");
+    warn.style.display=d.test?"block":"none";
+    // 地図ハイライト
+    mhi.innerHTML="";
+    regions.forEach(function(nm){ M.paintEewRegion(mhi, nm, {fill:"#ffe000", stroke:"#c9a400", "stroke-width":1, "fill-opacity":.92}); });
+    mepi.innerHTML="";
+    if(d.hypocenter && typeof d.hypocenter.lat==="number"){
+      var p=M.project(d.hypocenter.lat,d.hypocenter.lon);
+      var t=M.el("text",{x:p[0],y:p[1]+14,"text-anchor":"middle","class":"epi"});t.textContent="✕";mepi.appendChild(t);
+    }
+    // 地域名 (横書き)
+    rg.innerHTML="";
+    regions.forEach(function(nm){ var s=document.createElement("span"); s.textContent=nm; rg.appendChild(s); });
+  }
+  function update(data){ try{ render(typeof data==="string"?JSON.parse(data||"{}"):(data||{})); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); }
+  window.update=update;window.play=play;window.stop=stop;window.next=next;window.remove=remove;
+
+  if(location.search.indexOf("test")!==-1){
+    update({test:true, epicenter:"相模湾", headline:"強い揺れに警戒",
+      hypocenter:{lat:35.15,lon:139.45},
+      regions:["関東","東海","甲信","伊豆諸島","東北","北陸","近畿"]});
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

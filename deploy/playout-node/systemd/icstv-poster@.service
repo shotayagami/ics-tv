@@ -1,0 +1,25 @@
+[Unit]
+Description=ICS-TV live poster grabber (%i): MediaMTX frame -> public site "now playing" ingest
+# テンプレートユニット: icstv-poster@<slug> (例 icstv-poster@ch1)。%i=<slug>。
+# MediaMTX (rtmp://127.0.0.1:1935/hls/%i) の現在フレームを ~10s おきに JPEG 化し、公開サイトの
+# ライブ静止画 ingest (管理ホスト/LAN, token=Channel.agent_token) へ POST する (poster-grab.sh)。
+# install.sh は本ユニットを install するが enable はしない (任意機能)。手動で:
+#   systemctl enable --now icstv-poster@<slug>
+# 事前に /etc/icstv/poster.env を用意 (deploy/playout-node/env/poster.env.example 参照)。
+After=mediamtx.service icstv-encoder@%i.service
+Wants=mediamtx.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# slug / token は agent-%i.env (ICSTV_CHANNEL_SLUG / ICSTV_AGENT_TOKEN) を流用 (二重保管しない)。
+EnvironmentFile=/etc/icstv/agent-%i.env
+# ingest 先 (共有): ICSTV_POSTER_INGEST_BASE / ICSTV_POSTER_HOST / ICSTV_POSTER_INTERVAL 等。
+EnvironmentFile=/etc/icstv/poster.env
+ExecStart=/opt/icstv/deploy/playout-node/scripts/poster-grab.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

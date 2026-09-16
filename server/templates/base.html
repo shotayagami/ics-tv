@@ -1,0 +1,71 @@
+{% load static %}<!doctype html>
+<html lang="ja" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}ICS-TV{% endblock %}</title>
+<script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="{% static 'web/bootstrap/bootstrap-admin.css' %}?v={{ app_version }}">
+<style>
+  [x-cloak] { display: none !important; }
+  /* compat: child templates use these class names without modification */
+  .btn { background: var(--bs-success); color: #fff; border: 0; padding: .4rem .9rem; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn.warn { background: var(--bs-danger); }
+  .btn[disabled], .btn.disabled { background: var(--bs-secondary); cursor: not-allowed; }
+  .card { background: var(--bs-tertiary-bg); padding: 1rem; border: 1px solid var(--bs-border-color); margin-bottom: 1rem; }
+  .field { margin: .55rem 0; display: flex; flex-direction: column; gap: .2rem; }
+  .field label { color: var(--bs-secondary-color); font-size: .85rem; }
+  form input, form select, form textarea { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color); padding: .35rem .5rem; font: inherit; }
+  .muted { color: var(--bs-secondary-color); }
+  .ok { color: var(--bs-success-text-emphasis); }
+  .err, .ng { color: var(--bs-danger-text-emphasis); }
+  .badge { font-size: .8rem; padding: .1rem .4rem; border: 1px solid var(--bs-border-color); color: var(--bs-secondary-color); border-radius: 3px; }
+  .badge.live { color: #fff; background: var(--live); border-color: var(--live); }
+  .badge.warn { color: #fff; background: var(--bs-warning); border-color: var(--bs-warning); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: .35rem .55rem; border-bottom: 1px solid var(--bs-border-color); }
+  th { color: var(--bs-secondary-color); font-weight: normal; }
+  tr.recorded td.kind::before { content: "◇ "; color: var(--bs-success); }
+  tr.live td.kind::before { content: "◆ "; color: var(--live); }
+  footer.status { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bs-tertiary-bg); padding: .35rem 1rem; font-size: .85rem; border-top: 1px solid var(--bs-border-color); color: var(--bs-secondary-color); }
+</style>
+</head>
+<body>
+<nav class="navbar bg-body-tertiary border-bottom sticky-top py-1">
+  <div class="container-fluid gap-2 flex-wrap">
+    <span class="navbar-brand fw-bold mb-0 fs-6 me-2">ICS-TV</span>
+    {% if channels %}
+      <select class="form-select form-select-sm w-auto" onchange="location.href='{% url 'scheduling:timeline' '__' %}'.replace('__', this.value)">
+        {% for ch in channels %}
+          <option value="{{ ch.slug }}" {% if ch.slug == current_ch_slug %}selected{% endif %}>{{ ch.name }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    <div class="d-flex flex-wrap align-items-center gap-1">
+      {% include "partials/console_nav.html" %}
+    </div>
+    <div class="ms-auto d-flex gap-2 align-items-center">
+      {% if current_ch_slug %}
+        <form method="post" action="{% url 'core:slate' current_ch_slug %}"
+              hx-post="{% url 'core:slate' current_ch_slug %}" hx-swap="none"
+              style="margin:0"
+              onsubmit="return confirm('緊急SLATEを {{ current_ch_slug }} に発火します。続行しますか？');">
+          {% csrf_token %}
+          <button class="btn btn-danger btn-sm" type="submit" title="本線(1-10)の上に slate (1-90) を最前面で被せる">緊急SLATE</button>
+        </form>
+      {% else %}
+        <button class="btn btn-danger btn-sm" type="button" disabled title="ch 未選択">緊急SLATE</button>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<main class="container-fluid py-3" style="padding-bottom:3.5rem">
+  {% block content %}{% endblock %}
+</main>
+<footer class="status">
+  ch={{ current_ch_slug|default:"-" }} · v={{ app_version }}
+  {% block statusbar %}{% endblock %}
+</footer>
+</body>
+</html>

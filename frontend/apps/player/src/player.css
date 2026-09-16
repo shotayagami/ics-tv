@@ -1,0 +1,724 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* 公開プレイヤー島 (#Phase1)。epg.html の {% block extra_css %} を移植。
+   :root のデザイントークンと汎用 atom (.badge-live/.pulse-dot/.progress/.chip/.live-frame/
+   .scanline/.frame-logo) は public_base.html がグローバル供給する。 */
+.player-page {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(16px, 2.4vw, 28px) var(--pad) 64px;
+}
+/* チャンネルタブ */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tabs .home {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 4px;
+  text-decoration: none;
+}
+.tabs .slash {
+  color: var(--sep);
+}
+.tabs a.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+.tabs a.tab.sel {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+.tabs a.tab .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.tabs a.tab .pin-mark {
+  color: var(--accent);
+  font-size: 11px;
+  margin-left: 2px;
+}
+/* お気に入りチャンネル + シェアの操作行 (#EPG-04) */
+.actions-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+/* .btn-pin は public_base.html(共有層・Button atom)へ移設。 */
+
+.player-body {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.player-main {
+  flex: 1 1 600px;
+  min-width: 0;
+}
+/* プレイヤー */
+.player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+.player video,
+.player iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+  z-index: 1;
+}
+.player .placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aeb6c9;
+  font-size: 1.2rem;
+  z-index: 1;
+}
+.player .badge-live {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 3;
+  letter-spacing: 0.07em;
+}
+.player .viewers {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(8, 10, 20, 0.6);
+  color: #e6eaf4;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 11px;
+  border-radius: 999px;
+}
+.player .bug {
+  position: absolute;
+  left: 16px;
+  bottom: 64px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+}
+.player .bug i {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+.ctrl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 14px 16px;
+  background: linear-gradient(0deg, rgba(4, 6, 12, 0.92), transparent);
+}
+.ctrl .progress {
+  background: rgba(255, 255, 255, 0.2);
+  margin-bottom: 12px;
+}
+/* タイムシフト シークバー (#PLAYER-03): DVR 窓内の巻き戻し。音量スライダーと同じ range 意匠。 */
+.ctrl .seek {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 0 0 10px;
+  cursor: pointer;
+  accent-color: var(--danger, #ff3b30);
+}
+.ctrl .seek:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ctrl .seek:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* 「ライブに戻る」ピル。at-live=ライブ端 (赤ドット)、無印=巻き戻し中 (灰ドット・押すと復帰)。 */
+.ctrl .live-pill {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 4px 9px;
+  border-radius: 6px;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl .live-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9aa3ad;
+}
+.ctrl .live-pill.at-live {
+  background: color-mix(in srgb, var(--danger, #ff3b30) 22%, transparent);
+}
+.ctrl .live-pill.at-live::before {
+  background: var(--danger, #ff3b30);
+}
+.ctrl .bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ctrl button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  color: #fff;
+}
+.ctrl .tr {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--bright);
+}
+.ctrl .hd {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 4px 9px;
+  border-radius: 6px;
+}
+.ctrl .vol-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl .vol {
+  width: 78px;
+  height: 16px;
+  cursor: pointer;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
+.ctrl .vol:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* ===== コントロール オートハイド: マウス静止/離脱でフェード (VideoPlayer が
+   .player.controls-hidden をトグル)。LIVE 表示と操作バーのみ対象、局ロゴ(.bug)は常時表示。 ===== */
+.player .badge-live,
+.player .viewers,
+.player .ctrl {
+  transition: opacity 0.28s ease;
+}
+.player.controls-hidden .badge-live,
+.player.controls-hidden .viewers,
+.player.controls-hidden .ctrl {
+  opacity: 0;
+  pointer-events: none;
+}
+.player.controls-hidden {
+  cursor: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .player .badge-live,
+  .player .viewers,
+  .player .ctrl {
+    transition: none;
+  }
+}
+/* ===== モバイル対応(トークン不変/レイアウトのみ) ds-mobile.md commit2/6 ===== */
+@media (max-width: 768px) {
+  /* main(600)+aside(300) を縦スタック */
+  .player-body { flex-direction: column; }
+  .player-main { flex: 1 1 auto; width: 100%; }
+  .today { flex: 1 1 auto; width: 100%; min-width: 0; align-self: auto; }
+  .today .list { max-height: 360px; }
+  .ctrl .bar { gap: 10px; }
+}
+@media (max-width: 480px) {
+  /* 横並びセパレータ(border-left)→ 縦積み時 border-top */
+  .pcard .right { padding-left: 0; border-left: none; padding-top: 12px; border-top: 1px solid var(--line); width: 100%; }
+  .comment-form { flex-direction: column; }
+  .comment-form button { align-self: stretch; width: 100%; }
+  .comment .c-head { flex-wrap: wrap; }
+  .comment .c-prog { max-width: 140px; }
+  .ctrl { padding: 10px 10px; }
+  .ctrl .bar { gap: 8px; }
+  .player .settings { right: 8px; min-width: 168px; }
+  .audio-cover { padding: 16px; }
+  .ctrl .vol { width: 50px; }
+}
+/* 設定(ギア)パネル — 画質/音声のみ選択 (#画質切替) */
+.player .settings {
+  position: absolute;
+  right: 12px;
+  bottom: 64px;
+  z-index: 4;
+  min-width: 196px;
+  background: rgba(12, 15, 26, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.player .settings[hidden] {
+  display: none;
+}
+.player .settings .shd {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dim);
+  padding: 8px 12px 6px;
+  letter-spacing: 0.05em;
+}
+.player .settings .opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-align: left;
+}
+.player .settings .opt:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.player .settings .opt .ck {
+  width: 15px;
+  flex: none;
+  opacity: 0;
+  color: var(--accent);
+}
+.player .settings .opt.sel .ck {
+  opacity: 1;
+}
+.player .settings .opt .sub {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dim);
+  font-weight: 700;
+}
+/* 音声のみモードのオーバーレイ */
+.player .audio-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 36%, rgba(30, 42, 74, 0.65), #05070e 80%);
+}
+.player .audio-cover[hidden] {
+  display: none;
+}
+.player .audio-cover .ring {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 26px;
+  color: #fff;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06);
+}
+.player .audio-cover .wav {
+  display: inline-flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 22px;
+}
+.player .audio-cover .wav i {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: icstv-aud 1s ease-in-out infinite;
+}
+.player .audio-cover .t {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--bright);
+}
+.player .audio-cover .s {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dim);
+}
+@keyframes icstv-aud {
+  0%,
+  100% {
+    height: 6px;
+  }
+  50% {
+    height: 20px;
+  }
+}
+
+/* 番組情報 */
+.pinfo {
+  margin-top: 18px;
+}
+.pinfo .chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.pinfo .chips .st {
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pinfo h1 {
+  margin: 0 0 14px;
+  font-size: clamp(22px, 3vw, 32px);
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.pcard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+.pcard .left {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.pcard .left .lbl {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--dim);
+  font-weight: 600;
+}
+.pcard .right {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+}
+.pcard .right .t {
+  font-size: 12px;
+  color: var(--dim);
+  font-weight: 700;
+}
+.pcard .right .cd {
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+/* 本日の番組 (サイド) */
+.today {
+  flex: 1 1 300px;
+  min-width: 280px;
+  background: var(--side);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  align-self: stretch;
+}
+.today .hd {
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line-thin);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.today .hd .ttl {
+  font-size: 15px;
+  font-weight: 800;
+}
+.today .hd a {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+.today .list {
+  max-height: 560px;
+  overflow-y: auto;
+}
+.today .item {
+  display: flex;
+  gap: 13px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line-faint);
+}
+.today .item .when {
+  flex: none;
+  width: 46px;
+  text-align: right;
+}
+.today .item .when .tm {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.today .item .when .on {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 3px;
+}
+.today .item .when .rerun {
+  font-size: 10px;
+  font-weight: 800;
+  color: #aeb6c9;
+  margin-top: 3px;
+}
+.today .item .b {
+  flex: 1;
+  min-width: 0;
+  padding-left: 12px;
+}
+.today .item .b .t {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+.today .item .b .g {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.today .empty {
+  padding: 18px;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+/* ===== コメント (ライブチャット風) ===== */
+.comments {
+  margin-top: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: clamp(14px, 2.5vw, 20px);
+}
+.comments-h {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+.comments-h .muted {
+  color: var(--dim);
+  font-weight: 700;
+  font-size: 13px;
+}
+.comments-msg {
+  margin-bottom: 10px;
+}
+.cmsg {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 11px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.cmsg.error {
+  background: var(--danger-wash);
+  border: 1px solid var(--danger-line);
+  color: var(--danger-text);
+}
+.cmsg.success {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: var(--bright);
+}
+.comment-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+/* コメント投稿は TextField(multiline)。.field ラッパが行を埋める。textarea は下の
+   .comment-form textarea でプレイヤー調(40px/濃紺)を維持、エラーは .field-error で入力欄直下に。 */
+.comment-form .field {
+  flex: 1;
+  min-width: 0;
+}
+.comment-form textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+  background: #0c1226;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--fg);
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.comment-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.comment-form button {
+  flex: none;
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--accent-on);
+  border: none;
+  border-radius: 9px;
+  font-weight: 800;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.comment-gate {
+  font-size: 13px;
+  color: var(--dim);
+  padding: 11px 13px;
+  background: #0c1226;
+  border: 1px solid var(--line-thin);
+  border-radius: 9px;
+  margin-bottom: 14px;
+}
+.comment-gate a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+}
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 540px;
+  overflow-y: auto;
+}
+.comment {
+  border-bottom: 1px solid var(--line-faint);
+  padding-bottom: 10px;
+}
+.comment .c-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+.comment .c-nick {
+  font-weight: 800;
+  color: var(--bright);
+}
+.comment .c-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-on);
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+.comment .c-time {
+  color: var(--faint);
+}
+.comment .c-prog {
+  color: var(--dim);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 7px;
+  border-radius: 5px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment .c-del {
+  margin-left: auto;
+}
+.comment .c-del button {
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.comment .c-del button:hover {
+  color: var(--live-text);
+}
+.comment .c-body {
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.comments-empty {
+  color: var(--dim);
+  font-size: 13px;
+  padding: 8px 0;
+}

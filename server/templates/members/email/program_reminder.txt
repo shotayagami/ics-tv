@@ -1,0 +1,15 @@
+{{ member.nickname }} 様
+
+まもなく次の番組が始まります。
+
+  {{ program.title }}
+  {{ program.channel.name }}
+  {{ start_local|date:"n月j日(D) H:i" }} 開始
+
+ご視聴はこちら:
+  {{ channel_url }}
+
+番組の詳細:
+  {{ program_url }}
+
+— ICS-TV

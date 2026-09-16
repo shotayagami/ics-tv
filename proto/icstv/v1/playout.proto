@@ -1,0 +1,280 @@
+// SPDX-FileCopyrightText: 2026 アイシーエス
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// ICS-TV playout agent contract.
+// 言語非依存契約。将来 Go agent 化の余地を残す (overview.md 決定#13)。
+//
+// 通信パターン:
+//   - SubscribeEvents (server-streaming): agent が接続し、サーバが新規/更新 event を push。
+//     agent は last_known_seq を渡して resume できる。
+//   - ReportResult (unary): agent が as-run 実績を返送。idempotency_key で冪等。
+//   - Heartbeat (unary): agent の死活/queue 状態。Zabbix 連携の元データ。
+//
+// 認証: gRPC metadata `authorization: Bearer <channel-specific-token>`。
+//       WireGuard 越しのため TLS は経路で担保。
+
+syntax = "proto3";
+
+package icstv.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+service PlayoutAgent {
+  // agent が起動時に開く長期ストリーム。再接続時は last_known_seq で resume。
+  // Response は wrapper にして将来 heartbeat/system message を混在できる余地を残す。
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream SubscribeEventsResponse);
+
+  // as-run 実績の返送 (store-and-forward)。同一 idempotency_key は最新で上書き。
+  rpc ReportResult(ReportResultRequest) returns (ReportResultResponse);
+
+  // 死活・queue 深さ・CasparCG ヘルス。30s 周期。
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // agent 起点の割り込み報告 (feed 断→自動退避 / 自動復帰 / フラップ停止)。
+  // 事前生成イベントが無いため ReportResult とは別 RPC。interrupt_key で冪等 (#7 決定 O4)。
+  rpc ReportInterrupt(ReportInterruptRequest) returns (ReportInterruptResponse);
+
+  // 生放送録画 (record_live) 完了後、agent が録画クリップの R2 アップロード先を要求する。
+  // 送出ノードは R2 へ直接アクセスできないため、都度 presigned PUT URL を server が発行する
+  // (scheduling.live_recording が ingest/live_recording/ 配下を後日 scan して取り込む)。
+  rpc RequestRecordingUpload(RequestRecordingUploadRequest) returns (RequestRecordingUploadResponse);
+}
+
+// ---- Subscribe ----
+
+message SubscribeEventsRequest {
+  // 必須。複数チャンネルに 1 agent をぶら下げる場合は接続を複数張る。
+  string channel_slug = 1;
+
+  // resume cursor。最初の接続は 0。再接続は最後に受け取った sync_seq。
+  int64 last_known_seq = 2;
+}
+
+message SubscribeEventsResponse {
+  // event と control は排他で流れる (どちらか一方をセット)。
+  PlayoutEvent event = 1;
+  // server → agent の制御 (自動復帰トグル等、#7 決定 O4)。
+  AgentControl control = 2;
+}
+
+// server → agent の制御メッセージ (SubscribeEvents ストリームで配送)。
+message AgentControl {
+  // 自動復帰トグルの意図。再送カーソルが無いため (再)接続時に必ず初送し、Heartbeat の
+  // auto_return との乖離検出で再送する (operations.md AgentControl 配送規約)。
+  optional bool auto_return = 1;
+}
+
+// playout_event 1 件 (新規 or 更新 or tombstone)。
+// agent はこれを sync_seq 昇順で適用し、ローカル SQLite キューを更新する。
+message PlayoutEvent {
+  // Django playout_event.idempotency_key (UUID 文字列)。
+  // agent ローカルキューの一次キー。
+  string idempotency_key = 1;
+
+  // 単調増加 (BIGSERIAL via trigger)。resume cursor。
+  // tombstone も含めて発行されるため、agent は受信した最大値を保持すれば抜けが起きない。
+  int64 sync_seq = 2;
+
+  string channel_slug = 3;
+
+  google.protobuf.Timestamp scheduled_at = 4;
+
+  PlayoutAction action = 5;
+
+  // action 別の本体。
+  oneof payload {
+    PlayAssetPayload play_asset = 10;
+    PlayCmPayload play_cm = 11;
+    PlayCmBundlePayload play_cm_bundle = 12;
+    CutLivePayload cut_live = 13;
+    PlayFillerPayload play_filler = 14;
+    PlaySlatePayload play_slate = 15;
+    YtTransitionPayload yt_transition = 16;
+    PlayAssetPayload play_vt = 17;   // PlayAssetPayload型を再利用 (clip/in_ms/out_ms/r2_key)
+  }
+
+  // AMCP 補助 (layer 番号、transition 指定等)。
+  map<string, string> params = 20;
+
+  // true なら agent はこの idempotency_key をローカルキューから除去する。
+  // Django でリゾルバが再解決し、未来の event がキャンセルされた場合に流れる。
+  bool tombstone = 30;
+}
+
+enum PlayoutAction {
+  PLAYOUT_ACTION_UNSPECIFIED = 0;
+  PLAYOUT_ACTION_PLAY_ASSET = 1;       // 録画番組本編
+  PLAYOUT_ACTION_PLAY_CM = 2;          // 単発 CM
+  PLAYOUT_ACTION_PLAY_CM_BUNDLE = 3;   // 生番組用 CM リール
+  PLAYOUT_ACTION_CUT_LIVE = 4;         // RTMP ingest へ切替
+  PLAYOUT_ACTION_PLAY_FILLER = 5;      // 隙間フィラー (ループ可)
+  PLAYOUT_ACTION_PLAY_SLATE = 6;       // 緊急スレート
+  PLAYOUT_ACTION_YT_TRANSITION = 7;    // YouTube broadcast 遷移
+  PLAYOUT_ACTION_CLEAR_SLATE = 8;      // スレート解除 (CLEAR {ch}-90。#7 決定 O4)
+  PLAYOUT_ACTION_OVERLAY_OP = 9;       // 手動グラフィック操作 (任意レイヤへ CG/PLAY。#18 §B)
+  PLAYOUT_ACTION_PLAY_VT = 10;   // 生番組内VT(録画セグメント)ロール。CMとは別建て(billing/CGバンパー対象外)
+  PLAYOUT_ACTION_YT_MIRROR_FILLER = 11;  // exposure_policy: YTミラー(公開M/メンバーP)を案内フィラーへ (#site-only-broadcast)
+  PLAYOUT_ACTION_YT_MIRROR_ROUTE = 12;   // exposure_policy: YTミラーを route://本線 へ復帰
+
+}
+
+// ---- Payloads ----
+
+message PlayAssetPayload {
+  // 送出ノードが prefetch 済みの R2 オブジェクト key。
+  string r2_key = 1;
+  // 素材の論理尺 (フレーム精度。実時間は CasparCG の clock が決める)。
+  google.protobuf.Duration duration = 2;
+  // CasparCG media-path 相対の clip 名 (LOADBG 引数。例 "asset/42")。
+  string clip = 3;
+  // 録画番組の本編セグメント [in_ms, out_ms) (SEEK/LENGTH 換算元)。
+  int64 in_ms = 4;
+  int64 out_ms = 5;
+}
+
+message PlayCmPayload {
+  string r2_key = 1;
+  google.protobuf.Duration duration = 2;
+  string clip = 3;
+}
+
+// CM バンドル 1 本ぶん (連結再生の単位)。
+message BundleItem {
+  string clip = 1;
+  int64 duration_ms = 2;  // 前 clip 終了まで待つ AUTO 背面ロードの猶予窓
+  string r2_key = 3;
+}
+
+message PlayCmBundlePayload {
+  // 連結順。agent は順に LOADBG → PLAY を流す。(互換のため残置)
+  repeated string r2_keys = 1;
+  google.protobuf.Duration total_duration = 2;
+  // agent はこれを使う (clip + 各尺)。
+  repeated BundleItem items = 3;
+}
+
+message CutLivePayload {
+  // MediaMTX 終端の RTMP URL (例: rtmp://mediamtx:1935/live/ch1)。
+  string rtmp_url = 1;
+}
+
+message PlayFillerPayload {
+  repeated string r2_keys = 1;
+  // 次番組まで隙間をループで埋める。
+  bool loop = 2;
+  // フィラー clip 名 (例 "filler/default")。
+  string clip = 3;
+  // 実番組による中断からの再開時のみ >0 (クリップ内シーク位置)。
+  int64 in_ms = 4;
+  // in_ms > 0 のときのみ設定 (= クリップの自然尺。LENGTH 換算の終端に使う)。
+  int64 out_ms = 5;
+}
+
+message PlaySlatePayload {
+  string r2_key = 1;
+  // feed_drop / error / wan_break / manual
+  string reason = 2;
+}
+
+message YtTransitionPayload {
+  // YouTube Data API v3 の liveBroadcast.id。
+  string broadcast_id = 1;
+  Transition target = 2;
+
+  enum Transition {
+    TRANSITION_UNSPECIFIED = 0;
+    TRANSITION_TESTING = 1;
+    TRANSITION_LIVE = 2;
+    TRANSITION_COMPLETE = 3;
+  }
+}
+
+// ---- ReportResult ----
+
+message ReportResultRequest {
+  string channel_slug = 1;
+  // 対応する PlayoutEvent.idempotency_key。
+  string idempotency_key = 2;
+  ResultStatus status = 3;
+  // CasparCG が実際に切替えた壁時計時刻 (NTP 同期前提)。
+  google.protobuf.Timestamp actual_at = 4;
+  string note = 5;
+}
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_DONE = 1;
+  RESULT_STATUS_SKIPPED = 2;     // tombstone 受信などで実行不要だった
+  RESULT_STATUS_FAILED = 3;
+}
+
+message ReportResultResponse {
+  bool accepted = 1;
+}
+
+// ---- Heartbeat ----
+
+message HeartbeatRequest {
+  string channel_slug = 1;
+  google.protobuf.Timestamp now = 2;
+  // 現在 agent が受信し終えた最大 sync_seq。サーバ側で乖離検出に使う。
+  int64 last_received_seq = 3;
+  // 未実行の event 件数 (ローカル SQLite キュー)。
+  int32 queue_depth = 4;
+  // healthy / degraded / down 等。CasparCG への AMCP 簡易応答。
+  string caspar_health = 5;
+  // 以下 #7 決定 O4 追加 (後方互換なフィールド追加)。
+  bool slate_active = 6;            // SLATE 退避中か
+  string feed_state = 7;            // 監視対象パスの状態 (ok / lost / idle)
+  bool auto_return = 8;             // operator トグルの意図 (フラップ停止でも ON のまま)
+  bool auto_return_suspended = 9;   // フラップ保護による一時サスペンド (agent 内部状態)
+  // #18 CG レイヤ実装: 各レイヤの状態スナップショット (ops のレイヤ状態パネル用)。
+  repeated LayerState layers = 10;
+}
+
+// #18 CG レイヤ実装: 1 レイヤの状態 (cg-layers.md §A)。agent が INFO + 内部状態から構築。
+message LayerState {
+  int32 layer = 1;        // 10/20/30/35/40/45/50/90
+  string role = 2;        // main/bumper/lbar/preview/breaking/freeform/sponsor/slate
+  bool occupied = 3;      // producer あり (empty でない)
+  string producer = 4;    // ffmpeg / html / image / empty
+  string content = 5;     // テンプレ名 or clip名 or 主要 data (例: lbar=タイトル)
+  bool visible = 6;       // 表示中 (CG=play 状態, MIXER opacity>0)
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+}
+
+// ---- ReportInterrupt (#7 決定 O4) ----
+
+message ReportInterruptRequest {
+  string channel_slug = 1;
+  string interrupt_key = 2;            // agent 生成 UUID (再送冪等)
+  InterruptKind kind = 3;
+  google.protobuf.Timestamp at = 4;
+  string detail = 5;                   // 対象 path / 理由等
+
+  enum InterruptKind {
+    INTERRUPT_KIND_UNSPECIFIED = 0;
+    INTERRUPT_KIND_SLATE_ON = 1;             // feed 断→自動退避
+    INTERRUPT_KIND_FEED_RESTORED = 2;        // 自動復帰で生へ戻した
+    INTERRUPT_KIND_AUTO_RETURN_SUSPENDED = 3; // フラップ上限で自動復帰停止
+  }
+}
+
+message ReportInterruptResponse {
+  bool accepted = 1;
+}
+
+// ---- RequestRecordingUpload (生放送録画 → R2 アップロード先要求) ----
+
+message RequestRecordingUploadRequest {
+  string channel_slug = 1;
+  int64 program_id = 2;
+}
+
+message RequestRecordingUploadResponse {
+  string upload_url = 1;  // presigned PUT URL
+  string r2_key = 2;      // ingest/live_recording/<channel_slug>/<program_id>.mp4
+}

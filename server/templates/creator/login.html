@@ -1,0 +1,15 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}ログイン — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:3rem auto;text-align:center">
+  <h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">クリエイターログイン</h1>
+  {% if oauth_error %}
+  <p class="err">{{ oauth_error }}</p>
+  {% endif %}
+  <p class="muted" style="font-size:.85rem">
+    運営から届いた招待メールをお持ちの方は、メール内のリンクから参加してください。<br>
+    既にアカウントをお持ちの方は下記からサインインできます。
+  </p>
+  <a class="btn" href="/auth/google/start/?next={{ next|urlencode }}">Googleでサインイン</a>
+</div>
+{% endblock %}

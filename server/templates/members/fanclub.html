@@ -1,0 +1,44 @@
+{% extends "members/base_members.html" %}
+{% block title %}ファンクラブ — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .fclist { list-style: none; padding: 0; margin: 14px 0 4px; }
+  .fclist li { border-bottom: 1px solid var(--line-thin); }
+  .fclist a { display: flex; flex-direction: column; gap: 3px; padding: 13px 2px; text-decoration: none; color: inherit; }
+  .fclist a:hover { background: rgba(56,189,248,.05); }
+  .fclist .fn { font-size: 15px; font-weight: 700; }
+  .fclist .fm { font-size: 12px; color: var(--dim); font-weight: 600; }
+  .fclist .fp { font-size: 12px; color: var(--accent); font-weight: 700; }
+  .fclist .fcgo { display: inline-block; font-size: 12px; color: var(--accent); font-weight: 700;
+    text-decoration: none; padding: 0 2px 10px; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>ファンクラブ</h1>
+  <p class="mhint">加入中のファンクラブです。会員証を開くと会員番号を確認できます。</p>
+  {% if memberships %}
+  <ul class="fclist">
+    {% for m in memberships %}
+    <li>
+      <a href="/members/fanclub/{{ m.creator.slug }}/card/">
+        <span class="fn">{{ m.creator.name }}</span>
+        <span class="fm tabnum">
+          No.{{ m.member_no_display }} ・
+          {% if m.tier.level > 0 %}{{ m.tier.name }}（¥{{ m.tier.price_minor }}/月）{% else %}無料会員{% endif %}
+          {% if m.joined_at %} ・ {{ m.joined_at|date:"Y/n/j" }} から{% endif %}
+        </span>
+        {% if m.pending_tier %}
+        <span class="fp">{{ m.pending_tier_effective_at|date:"n月j日" }} から「{{ m.pending_tier.name }}」へ変更予定</span>
+        {% elif m.cancel_at_period_end %}
+        <span class="fp">{{ m.current_period_end|date:"n月j日" }} に解約予定</span>
+        {% endif %}
+      </a>
+      <a class="fcgo" href="/fc/{{ m.creator.slug }}/">ファンクラブページへ ›</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="mhint">まだ加入しているファンクラブがありません。番組ページのファンクラブカードから参加できます。</p>
+  {% endif %}
+  <div class="mlinks"><a href="/guide/">番組表へ</a> ・ <a href="/members/">マイページ</a></div>
+</div>
+{% endblock %}

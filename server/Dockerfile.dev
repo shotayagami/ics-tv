@@ -1,0 +1,23 @@
+# ICS-TV control plane — dev/test image (本番 Dockerfile は requirements.txt のみで lean)。
+# 追加: requirements-dev.txt + Playwright chromium + OS deps。
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Playwright chromium + 必要な OS deps (libnss3 等を自動 install)
+RUN playwright install --with-deps chromium
+
+COPY . .
+
+EXPOSE 8000
+CMD ["pytest", "--tb=short"]

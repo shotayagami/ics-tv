@@ -1,0 +1,8 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+// ICS-TV 管理テーマ エントリ (green / 等幅 / dark)。bootstrap-admin バンドルがこれを取り込む。
+@import "bootstrap/scss/functions";
+@import "brand-admin";
+@import "bootstrap/scss/bootstrap";
+@import "custom-admin";
+@import "studio-components";

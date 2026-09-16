@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if is_edit %}番組編集{% else %}番組追加{% endif %} — {{ channel.name }}{% endblock %}
+{% block content %}
+<h1>{% if is_edit %}番組編集 #{{ program.id }}{% else %}番組追加{% endif %} — {{ channel.name }}</h1>
+<form method="post" class="card" style="max-width:42rem">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+      {{ field }}
+      {% if field.errors %}<div style="color:#e63">{{ field.errors|join:" / " }}</div>{% endif %}
+      {% if field.help_text %}<div class="muted" style="font-size:.85rem">{{ field.help_text }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  {% if form.non_field_errors %}<div style="color:#e63">{{ form.non_field_errors|join:" / " }}</div>{% endif %}
+  <div style="display:flex;gap:.6rem;margin-top:.8rem">
+    <button class="btn" type="submit">保存</button>
+    <a class="btn" style="background:#444" href="{% url 'scheduling:timeline' channel.slug %}">キャンセル</a>
+  </div>
+</form>
+{% if is_edit %}
+<p style="margin-top:.8rem">
+  <a class="btn" style="font-size:.85rem" href="{% url 'scheduling:graphic_cues' channel.slug 'program' program.id %}">🖼 自動グラフィックセット編集</a>
+  <span class="muted" style="font-size:.78rem">（この回のみ・Series からコピー済なら個別編集）</span>
+</p>
+{% endif %}
+<p class="muted" style="margin-top:1rem;font-size:.85rem">
+  注: <code>type=recorded</code> は asset 必須 / <code>type=live</code> は live_source 必須 (DB CHECK 制約)。<br>
+  終了時刻は素材を選ぶと <code>開始時刻 + 素材尺</code> (キューシートがあれば CM枠込みの積算尺) で自動算出されます。手入力で上書きも可。
+</p>
+{% if not is_edit %}
+  {{ asset_airtime_map|json_script:"asset-airtime-map" }}
+  <script>
+  (function () {
+    const map = JSON.parse(document.getElementById('asset-airtime-map').textContent);
+    const assetEl = document.getElementById('id_asset');
+    const startEl = document.getElementById('id_start_at');
+    const endEl = document.getElementById('id_end_at');
+    if (!assetEl || !startEl || !endEl) return;
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T` +
+      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    function recompute() {
+      const ms = map[assetEl.value];
+      if (!startEl.value || !ms) return;
+      const start = new Date(startEl.value);
+      if (isNaN(start.getTime())) return;
+      endEl.value = fmt(new Date(start.getTime() + ms));
+    }
+    assetEl.addEventListener('change', recompute);
+    startEl.addEventListener('change', recompute);
+  })();
+  </script>
+{% endif %}
+{% endblock %}

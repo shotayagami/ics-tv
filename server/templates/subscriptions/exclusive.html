@@ -1,0 +1,29 @@
+{% extends "members/base_members.html" %}
+{% block title %}会員限定 — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .vlist { list-style: none; padding: 0; margin: 14px 0 4px; }
+  .vlist li { border-bottom: 1px solid var(--line-thin); }
+  .vlist a { display: flex; flex-direction: column; gap: 3px; padding: 13px 2px; text-decoration: none; color: inherit; }
+  .vlist a:hover { background: rgba(56,189,248,.05); }
+  .vlist .vt { font-size: 15px; font-weight: 700; }
+  .vlist .vm { font-size: 12px; color: var(--dim); font-weight: 600; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>会員限定コンテンツ</h1>
+  <p class="mhint">サブスク会員限定の見逃し配信です。</p>
+  {% if items %}
+  <ul class="vlist">
+    {% for p in items %}
+    <li><a href="/vod/{{ p.id }}/">
+      <span class="vt">{{ p.title }}</span>
+      <span class="vm tabnum">{{ p.channel.name }} ・ {{ p.start_at|date:"n/j H:i" }}{% if p.asset.duration_ms %} ・ {{ p.asset.duration_display }}{% endif %}</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="mhint">現在、会員限定の見逃し配信はありません。</p>
+  {% endif %}
+  <div class="mlinks"><a href="/vod/">見逃し一覧へ</a> ・ <a href="/subscriptions/">プランの管理</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}見逃し配信 — ICS-TV{% endblock %}
+
+{% block extra_head %}
+  {# 見逃し一覧は React 島(#Phase2c)。録画+YouTubeアーカイブは /static/web/discover が /api/v1/vod 描画。 #}
+  <link rel="stylesheet" href="{% static 'web/discover/discover.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+{# 島マウントまで(JS 読込中)/JS 無し時に空白を見せないよう、shell に骨組みと noscript を置く。 #}
+<div id="discover-island" data-mode="vod" data-home-base="{{ public_base_url }}">
+  <section class="vod">
+    <h1>見逃し配信</h1>
+    <p class="lead">放送が終わった番組をオンデマンドで視聴できます。</p>
+    {% include "public/_skel_grid.html" %}
+  </section>
+  <noscript><p class="island-noscript">見逃し配信の一覧表示には JavaScript が必要です。<a href="{{ public_base_url }}/">ホームへ ›</a></p></noscript>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/discover/discover.js' %}?v={{ app_version }}"></script>
+{% endblock %}

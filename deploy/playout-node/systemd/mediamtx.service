@@ -1,0 +1,18 @@
+[Unit]
+Description=ICS-TV MediaMTX (local RTMP ingest for live programs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mediamtx
+Group=mediamtx
+ExecStart=/opt/mediamtx/mediamtx /etc/icstv/mediamtx.yml
+Restart=always
+RestartSec=2
+# 生入力終端のみ。CPU/メモリは軽量
+MemoryMax=512M
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

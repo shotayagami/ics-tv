@@ -1,0 +1,49 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}枠契約 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">枠契約</h1>
+<p class="muted" style="font-size:.8rem">契約の新規作成・金額変更は運営にお問い合わせください。決済の開始・変更・解約はこのページから行えます。</p>
+{% if not creator.youtube_destination_stream_key %}
+<p style="font-size:.8rem">YouTube宛先が「クリエイター自チャンネル」の枠は、<a href="/youtube/">YouTube連携</a>でストリームキーを設定するまで配信されません。</p>
+{% endif %}
+<div class="card">
+  <table style="width:100%">
+    <thead>
+      <tr><th>枠名</th><th style="text-align:right">月額</th><th>開始</th><th>状態</th><th>お支払い</th><th>YouTube宛先</th></tr>
+    </thead>
+    <tbody>
+      {% for c in contracts %}
+      <tr>
+        <td>{{ c.title }}</td>
+        <td style="text-align:right">¥{{ c.monthly_fee_minor }}</td>
+        <td class="muted">{{ c.starts_on }}</td>
+        <td>{{ c.get_status_display }}</td>
+        <td>
+          {% if c.stripe_subscription_id %}
+          <form method="post" action="/contracts/{{ c.id }}/portal/" style="display:inline;margin:0">
+            {% csrf_token %}
+            <button type="submit" class="btn secondary" style="font-size:.75rem;padding:.15rem .5rem">お支払いの管理</button>
+          </form>
+          {% elif c.status == "draft" %}
+          <form method="post" action="/contracts/{{ c.id }}/checkout/" style="display:inline;margin:0">
+            {% csrf_token %}
+            <button type="submit" class="btn" style="font-size:.75rem;padding:.15rem .5rem">お支払いを開始</button>
+          </form>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td class="muted">{{ c.get_youtube_destination_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="muted">枠契約がまだありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if request.GET.slot_success %}
+<p class="ok" style="font-size:.85rem">お支払い手続きが完了しました。反映まで少し時間がかかる場合があります。</p>
+{% elif request.GET.slot_canceled %}
+<p class="muted" style="font-size:.85rem">お支払い手続きを中断しました。</p>
+{% endif %}
+{% endblock %}

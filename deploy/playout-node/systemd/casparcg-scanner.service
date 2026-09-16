@@ -1,0 +1,18 @@
+[Unit]
+Description=ICS-TV CasparCG media scanner (indexes /opt/casparcg/media)
+After=network-online.target
+Wants=network-online.target
+PartOf=casparcg-server.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+WorkingDirectory=/opt/casparcg
+# PPA 版 (apt install casparcg-scanner)。media-path をインデックスする。
+ExecStart=/usr/bin/casparcg-scanner /opt/casparcg/media
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

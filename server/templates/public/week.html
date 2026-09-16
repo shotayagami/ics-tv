@@ -1,0 +1,284 @@
+{% extends "public_base.html" %}
+{% block title %}{% if channel %}{{ channel.name }} ・ {% endif %}週間番組表 — ICS-TV{% endblock %}
+
+{% block extra_css %}
+  .week-page { max-width: var(--maxw); margin: 0 auto; padding: clamp(20px,3vw,32px) var(--pad) 64px; }
+  .week-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .week-head h1 { margin: 0; font-size: 24px; font-weight: 800; }
+  /* 日/週 切替 */
+  .vtoggle { display: inline-flex; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+  .vtoggle a { color: var(--dim); font-size: 13px; font-weight: 700; padding: 7px 15px; border-radius: 999px; text-decoration: none; }
+  .vtoggle a.sel { background: var(--accent); color: var(--accent-on); font-weight: 800; }
+  .datenav { display: flex; align-items: center; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+  .datenav a { color: var(--dim); font-size: 13px; font-weight: 700; padding: 7px 13px; border-radius: 999px; text-decoration: none; }
+  .datenav a.today { background: var(--accent); color: var(--accent-on); font-weight: 800; padding: 7px 15px; }
+  .week-head .dlabel { color: var(--dim); font-size: 14px; font-weight: 600; }
+  /* 右寄せツール群 (縦ズーム + 現在時刻)。日次 guide.css と同設計・localStorage キー共有。 */
+  .week-head .week-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .week-head .zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--side); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .week-head .zoom .zbtn { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 28px; padding: 0 8px; border: none; background: transparent; color: var(--dim); font-size: 15px; font-weight: 800; line-height: 1; border-radius: 999px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .week-head .zoom .zbtn:hover:not(:disabled) { background: rgba(255,255,255,.06); color: var(--fg); }
+  .week-head .zoom .zbtn:disabled { opacity: .35; cursor: default; }
+  .week-head .zoom .zreset { font-size: 13px; color: var(--faint); }
+  /* 横スクロール (‹ ›)。狭幅で日列が潰れて読めない問題への明示的な操作。desktop は列が収まるので非表示。 */
+  .week-head .hscroll { display: none; }
+  .week-head .hscroll .hbtn { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 28px; padding: 0 8px; border: none; background: transparent; color: var(--dim); font-size: 17px; font-weight: 800; line-height: 1; border-radius: 999px; cursor: pointer; }
+  .week-head .hscroll .hbtn:hover:not(:disabled) { background: rgba(255,255,255,.06); color: var(--fg); }
+  .week-head .hscroll .hbtn:disabled { opacity: .35; cursor: default; }
+  .week-head .nowclock { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .week-head .nowclock i { width: 18px; height: 2px; background: var(--accent); border-radius: 2px; }
+
+  /* チャンネルタブ */
+  .chtabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .chtabs a { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: transparent; color: var(--dim); font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 999px; text-decoration: none; }
+  .chtabs a.sel { border-color: var(--accent); background: rgba(255,255,255,.06); color: var(--fg); }
+  .chtabs a .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* グリッド (guide の単日グリッドと同系・列=7日) */
+  /* overflow:clip は hidden と同じ border-radius クリッピングを保ちつつ scroll container を作らない。
+     hidden だと .grid-cols {position:sticky} が .grid を基準にしてしまいページスクロールで効かない。 */
+  .grid { border: 1px solid var(--line); border-radius: 16px; overflow: clip; background: #0b1024; }
+  .grid-cols { display: flex; border-bottom: 1px solid var(--line); background: var(--side); position: sticky; top: 60px; z-index: 6; }
+  .grid-cols .axis-sp { width: 58px; flex: none; }
+  .grid-cols .col { flex: 1; min-width: 0; padding: 11px 12px; border-left: 1px solid var(--line-thin); }
+  .grid-cols .col.today { background: rgba(56,189,248,.10); }
+  .grid-cols .col .wd { font-size: 12px; font-weight: 800; color: var(--bright); }
+  .grid-cols .col .wd.wkend { color: var(--live-text); }
+  .grid-cols .col .dt { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .grid-cols .col.today .dt { color: var(--accent); }
+  .grid-cols .col .on { margin-left: 6px; font-size: 9px; font-weight: 800; color: var(--accent-on); background: var(--accent); padding: 1px 6px; border-radius: 4px; vertical-align: middle; }
+
+  .grid-scroll { max-height: 70vh; overflow-y: auto; }
+  .grid-inner { display: flex; position: relative; }
+  .axis { width: 58px; flex: none; position: relative; border-right: 1px solid var(--line-thin); }
+  .axis .h { position: absolute; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--faint); font-variant-numeric: tabular-nums; border-top: 1px solid var(--line-faint); padding-top: 4px; }
+  .gcol { flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--line-thin); }
+  .gcol.today { background: rgba(56,189,248,.04); }
+  .gcol .blk .bt { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .gcol .blk .bt .tm { font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .gcol .blk .bt .onair { font-size: 9px; font-weight: 800; color: #fff; background: var(--live); padding: 1px 6px; border-radius: 4px; }
+  .gcol .blk .bt .rerun-tag { font-size: 9px; font-weight: 800; color: #cdd3e0; background: rgba(91,100,128,.28); border: 1px solid #5b6480; padding: 1px 6px; border-radius: 4px; }
+  .gcol .blk .btl { font-size: 12.5px; font-weight: 700; line-height: 1.25; text-wrap: pretty; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .gcol .blk .bg { font-size: 10.5px; font-weight: 700; margin-top: 3px; }
+  /* 短尺ブロックの本文を高さに応じて適応表示 (時刻+タイトル優先・ジャンルを畳む)。tier は JS が付与。 */
+  .gcol .blk.compact { padding: 6px 10px; }
+  .gcol .blk.compact .bg { display: none; }
+  .gcol .blk.tiny { padding: 4px 9px; }
+  .gcol .blk.tiny .bt { margin-bottom: 1px; }
+  .gcol .blk.tiny .btl { -webkit-line-clamp: 1; }
+  .gcol .blk.tiny .bg { display: none; }
+  /* 短尺ブロックは hover で全文を展開 (覆われて読めない問題の即時解消・inline 上書きに !important)。 */
+  .gcol .blk:hover { z-index: 4; }
+  .gcol .blk.compact:hover, .gcol .blk.tiny:hover { height: auto !important; overflow: visible !important; padding: 8px 11px; box-shadow: 0 8px 26px rgba(0,0,0,.55); }
+  .gcol .blk.compact:hover .bg, .gcol .blk.tiny:hover .bg { display: block; }
+  .gcol .blk.compact:hover .btl, .gcol .blk.tiny:hover .btl { -webkit-line-clamp: 4; }
+  .gcol .blk.tiny:hover .bt { margin-bottom: 3px; }
+  .gcol .nowline-col { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 5; animation: nowGlow 2.4s ease-in-out infinite; }
+  .gcol .nowline-col .pill { position: absolute; left: 0; top: -9px; background: var(--accent); color: var(--accent-on); font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+  .week-empty { border: 1px solid var(--line); border-radius: 16px; padding: 40px; text-align: center; color: var(--dim); font-size: 14px; }
+
+  /* ===== モバイル対応(週間=7日グリッド・トークン不変/レイアウトのみ) ds-mobile.md =====
+     当初モバイル @media が無く 7 列(flex:1)が ~320px に圧縮され崩れ・極狭だった。
+     列を潰さず横スクロールで広げる。日次 EPG と同様 .grid 1つで grid-cols(ヘッダ)/grid-inner(本体)を
+     一緒に横スクロールさせ、grid-scroll の内部縦スクロール(max-height:70vh)を mobile では無効化
+     (=ページスクロール)してヘッダ/本体が別々に横スクロールしてズレる二重スクローラを回避する。 */
+  @media (max-width: 768px) {
+    .grid { overflow-x: auto; scroll-behavior: smooth; }
+    .grid-scroll { max-height: none; overflow-y: visible; }
+    .grid-cols, .grid-inner { min-width: 1120px; }  /* 7日×~153px + 軸=読める幅(横スクロール) */
+    .grid-cols { top: 0; }                            /* mobile は .grid が sticky 基準=隙間防止 */
+    .grid-cols .axis-sp, .axis { width: 48px; }
+    .week-head { gap: 10px 12px; margin-bottom: 12px; }
+    .week-head h1 { font-size: 20px; flex: 1 1 100%; }
+    .week-head .nowclock { margin-left: 0; }
+    .week-head .hscroll { display: inline-flex; align-items: center; gap: 2px; background: var(--side); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+    .chtabs { margin-bottom: 14px; }
+  }
+  @media (max-width: 480px) {
+    .week-page { padding: 16px var(--pad) 48px; }
+    .week-head h1 { font-size: 18px; }
+    .grid-cols .col { padding: 9px 8px; }
+    .gcol .blk .btl { font-size: 12px; }
+  }
+{% endblock %}
+
+{% block content %}
+<section class="week-page">
+  <div class="week-head">
+    <h1>週間番組表</h1>
+    <div class="vtoggle">
+      <a href="{{ public_base_url }}/guide/">日</a>
+      <a href="{{ public_base_url }}/guide/week/{% if channel %}?ch={{ channel.slug }}{% endif %}" class="sel">週</a>
+    </div>
+    {% if channel %}
+    <div class="datenav">
+      <a href="?ch={{ channel.slug }}&date={{ prev_date|date:'Y-m-d' }}">‹ 前週</a>
+      <a href="?ch={{ channel.slug }}&date={{ today|date:'Y-m-d' }}" class="today">今週</a>
+      <a href="?ch={{ channel.slug }}&date={{ next_date|date:'Y-m-d' }}">翌週 ›</a>
+    </div>
+    <span class="dlabel">{{ start_date|date:"n/j" }} – {{ end_date|date:"n/j" }}</span>
+    <div class="week-tools">
+      <div class="hscroll" role="group" aria-label="番組表の横スクロール">
+        <button type="button" id="weekLeft" class="hbtn" aria-label="前の日へスクロール">‹</button>
+        <button type="button" id="weekRight" class="hbtn" aria-label="次の日へスクロール">›</button>
+      </div>
+      <div class="zoom" role="group" aria-label="番組表の高さ">
+        <button type="button" id="zoomMinus" class="zbtn" aria-label="縮小">−</button>
+        <button type="button" id="zoomReset" class="zbtn zreset" aria-label="標準の高さに戻す" title="標準の高さ">⟲</button>
+        <button type="button" id="zoomPlus" class="zbtn" aria-label="拡大">＋</button>
+      </div>
+      {% if week.show_now %}<span class="nowclock"><i></i>現在時刻 {{ week.now_label }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if channel %}
+  <div class="chtabs">
+    {% for c in channels %}
+    <a class="{% if c.slug == channel.slug %}sel{% endif %}" href="?ch={{ c.slug }}{% if start_date != today %}&date={{ start_date|date:'Y-m-d' }}{% endif %}">
+      <span class="dot" style="background:{{ c.tint_color }}"></span>{{ c.name }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="grid">
+    <div class="grid-cols">
+      <div class="axis-sp"></div>
+      {% for col in week.cols %}
+      <div class="col{% if col.is_today %} today{% endif %}">
+        <div class="wd{% if col.is_weekend %} wkend{% endif %}">{{ col.weekday }}{% if col.is_today %}<span class="on">今日</span>{% endif %}</div>
+        <div class="dt">{{ col.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="grid-scroll" id="weekScroll" data-now-top="{{ week.now_top_px|default:'0' }}" data-now-min="{{ week.now_min|default:'' }}" data-base-ppm="{{ week.px_per_min }}" data-show-now="{{ week.show_now|yesno:'1,0' }}">
+      <div class="grid-inner" id="weekInner" style="height:{{ week.height_px }}">
+        <div class="axis">
+          {% for h in week.hours %}<div class="h" style="top:{{ h.top_px }}" data-hour="{{ forloop.counter0 }}">{{ h.label }}</div>{% endfor %}
+        </div>
+        {% for col in week.cols %}
+        <div class="gcol{% if col.is_today %} today{% endif %}">
+          {% for b in col.blocks %}
+          {% if b.is_rerun %}
+          {# 再放送 (フィラー由来の合成行) は番組詳細が無いので非リンク。 #}
+          <div class="blk" data-smin="{{ b.start_min }}" data-dmin="{{ b.dur_min }}" title="{{ b.time }} {{ b.title }}{% if b.genre %} / {{ b.genre }}{% endif %}" style="{{ b.style }}display:block">
+            <div class="bt">
+              <span class="tm" style="color:{{ b.time_color }}">{{ b.time }}</span>
+              {% if b.is_live %}<span class="onair">ON AIR</span>{% endif %}
+              <span class="rerun-tag">再放送</span>
+            </div>
+            <div class="btl" style="color:{{ b.title_color }}">{{ b.title }}</div>
+            {% if b.genre %}<div class="bg" style="color:{{ b.color }}">{{ b.genre }}</div>{% endif %}
+          </div>
+          {% else %}
+          <a class="blk" href="{{ public_base_url }}/program/{{ b.id }}/" data-smin="{{ b.start_min }}" data-dmin="{{ b.dur_min }}" title="{{ b.time }} {{ b.title }}{% if b.genre %} / {{ b.genre }}{% endif %}" style="{{ b.style }}text-decoration:none;color:inherit;display:block">
+            <div class="bt">
+              <span class="tm" style="color:{{ b.time_color }}">{{ b.time }}</span>
+              {% if b.is_live %}<span class="onair">ON AIR</span>{% endif %}
+            </div>
+            <div class="btl" style="color:{{ b.title_color }}">{{ b.title }}</div>
+            {% if b.genre %}<div class="bg" style="color:{{ b.color }}">{{ b.genre }}</div>{% endif %}
+          </a>
+          {% endif %}
+          {% endfor %}
+          {% if col.now_top_px %}
+          <div class="nowline-col" data-nowmin="{{ col.now_min }}" style="top:{{ col.now_top_px }}"><span class="pill">{{ week.now_label }}</span></div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="week-empty">公開中のチャンネルがありません。</div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 縦ズーム (− / ⟲ / +)。日次 guide 島と同じ localStorage キー (icstv.guide.ppm) を共有し、
+// server が既定密度 (week.px_per_min) でベイクした top/height を client が任意 px/分で再計算する。
+// 初期表示で現在時刻付近へ自動スクロール (guide と同じ挙動)。
+(function () {
+  var PPM_KEY = "icstv.guide.ppm", PPM_MIN = 1.0, PPM_MAX = 6.0, PPM_STEP = 0.4;
+  var DAY_MIN = 1440, MIN_BLOCK_H = 30, BLOCK_GAP = 4;  // core.epg と一致
+  var scroll = document.getElementById("weekScroll");
+  if (!scroll) return;  // チャンネル無し時はグリッド非描画
+  var inner = document.getElementById("weekInner");
+  var base = parseFloat(scroll.getAttribute("data-base-ppm")) || 2.2;
+
+  function clampPpm(v) { v = Math.round(v * 100) / 100; return Math.min(PPM_MAX, Math.max(PPM_MIN, v)); }
+  function loadPpm() { try { var v = parseFloat(localStorage.getItem(PPM_KEY)); return isFinite(v) ? clampPpm(v) : base; } catch (e) { return base; } }
+  function savePpm(v) { try { localStorage.setItem(PPM_KEY, String(v)); } catch (e) { /* private mode */ } }
+  function tier(h) { return h < 38 ? "blk tiny" : h < 56 ? "blk compact" : "blk"; }
+
+  var ppm = loadPpm();
+  var minus = document.getElementById("zoomMinus");
+  var plus = document.getElementById("zoomPlus");
+  var reset = document.getElementById("zoomReset");
+  var nowMin = parseFloat(scroll.getAttribute("data-now-min"));
+
+  function apply() {
+    if (inner) inner.style.height = (DAY_MIN * ppm) + "px";
+    var hs = scroll.querySelectorAll(".axis .h");
+    for (var i = 0; i < hs.length; i++) {
+      var hr = parseInt(hs[i].getAttribute("data-hour"), 10) || 0;
+      hs[i].style.top = (hr * 60 * ppm) + "px";
+    }
+    var blks = scroll.querySelectorAll(".blk");
+    for (var j = 0; j < blks.length; j++) {
+      var el = blks[j];
+      var s = parseFloat(el.getAttribute("data-smin"));
+      var d = parseFloat(el.getAttribute("data-dmin"));
+      if (!isFinite(s) || !isFinite(d)) continue;
+      var hgt = Math.max(d * ppm - BLOCK_GAP, MIN_BLOCK_H);
+      el.style.top = (s * ppm) + "px";
+      el.style.height = hgt + "px";
+      el.className = tier(hgt);  // .blk 要素は tier 以外のクラスを持たない
+    }
+    var nls = scroll.querySelectorAll(".nowline-col");
+    for (var k = 0; k < nls.length; k++) {
+      var nm = parseFloat(nls[k].getAttribute("data-nowmin"));
+      if (isFinite(nm)) nls[k].style.top = (nm * ppm) + "px";
+    }
+    if (minus) minus.disabled = ppm <= PPM_MIN + 1e-9;
+    if (plus) plus.disabled = ppm >= PPM_MAX - 1e-9;
+  }
+
+  function setPpm(v) { ppm = clampPpm(v); savePpm(ppm); apply(); }
+  if (minus) minus.addEventListener("click", function () { setPpm(ppm - PPM_STEP); });
+  if (plus) plus.addEventListener("click", function () { setPpm(ppm + PPM_STEP); });
+  if (reset) reset.addEventListener("click", function () { setPpm(base); });
+
+  apply();
+  if (scroll.dataset.showNow === "1" && isFinite(nowMin)) {
+    var t = nowMin * ppm;
+    requestAnimationFrame(function () { scroll.scrollTop = Math.max(0, t - 150); });
+  }
+
+  // 横スクロール (‹ ›)。mobile で日列が横スクロールする .grid を約1日分ずつ動かす。
+  // 端では該当ボタンを無効化し、まだ隠れた列がある向きだけ押せることを示す。
+  var hgrid = document.querySelector(".grid");
+  var hLeft = document.getElementById("weekLeft");
+  var hRight = document.getElementById("weekRight");
+  if (hgrid && hLeft && hRight) {
+    function dayStep() {
+      var cols = hgrid.querySelectorAll(".grid-cols .col").length || 7;
+      var axis = 48;
+      return Math.max(120, (hgrid.scrollWidth - axis) / cols);  // ≈1日分
+    }
+    function syncHScroll() {
+      var max = hgrid.scrollWidth - hgrid.clientWidth;
+      hLeft.disabled = hgrid.scrollLeft <= 1;
+      hRight.disabled = hgrid.scrollLeft >= max - 1;
+    }
+    hLeft.addEventListener("click", function () { hgrid.scrollBy({ left: -dayStep(), behavior: "smooth" }); });
+    hRight.addEventListener("click", function () { hgrid.scrollBy({ left: dayStep(), behavior: "smooth" }); });
+    hgrid.addEventListener("scroll", syncHScroll, { passive: true });
+    window.addEventListener("resize", syncHScroll);
+    syncHScroll();
+  }
+})();
+</script>
+{% endblock %}

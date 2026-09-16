@@ -1,0 +1,24 @@
+{% if preview.ok %}
+  <p class="ok">押え可能（+{{ delta_ms|default:0|floatformat:0 }}ms）。新終了: {{ preview.new_end|date:"H:i:s" }}</p>
+  {% if preview.shifts %}
+    <p class="muted">繰り下がる後続:</p>
+    <table>
+      <tr><th>番組</th><th>繰り下げ</th></tr>
+      {% for s in preview.shifts %}
+        <tr><td>{{ s.title }}</td><td>+{{ s.shift_ms }}ms</td></tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">隙間で吸収され、後続への影響はありません。</p>
+  {% endif %}
+{% else %}
+  <p class="err">押え不可: {{ preview.reason }}</p>
+  {% if preview.shifts %}
+    <table>
+      <tr><th>番組</th><th>繰り下げ(試算)</th></tr>
+      {% for s in preview.shifts %}
+        <tr><td>{{ s.title }}</td><td>+{{ s.shift_ms }}ms</td></tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+{% endif %}

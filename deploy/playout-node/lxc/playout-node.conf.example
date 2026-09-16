@@ -1,0 +1,44 @@
+# ICS-TV 送出ノード LXC — /etc/pve/lxc/<CTID>.conf の参考 (<CTID> は provision-lxc.sh で作成する CT の ID)。
+# 実際は Proxmox ホスト上で pct を使って作成する (scripts/provision-lxc.sh が下記を実行)。
+# IP (192.0.2.x, RFC 5737 TEST-NET-1) は例示。自分の LAN の値に置き換えること。
+#
+# === pct create コマンド (Proxmox ホスト上で実行) ===
+# pct create <CTID> local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
+#   --hostname icstv-playout \
+#   --cores 3 --cpulimit 3 --cpuunits 50 \
+#   --memory 4096 --swap 2048 \
+#   --rootfs local-lvm:48 \
+#   --net0 name=eth0,bridge=vmbr0,ip=192.0.2.20/24,gw=192.0.2.1,firewall=1 \
+#   --features nesting=1 --onboot 1 --unprivileged 0 --start 0
+# # 素材キャッシュは rootfs と別ボリューム (例の local-lvm は provision-lxc.sh の MEDIA_STORE 既定値で rootfs と同じストレージ。k8s のコントロールプレーンノードの etcd や k8s のワーカーノードが使うディスクを避けるには、別ディスクのストレージ ID に置き換える)
+# pct set <CTID> -mp0 local-lvm:100,mp=/opt/casparcg/media
+#
+# === iGPU 共有 (PVE 8.2 device passthrough) ===
+# gid は CT 内 getent group render video で確認 (Ubuntu 24.04 CT で render=993 / video=44 実測済)。
+# pct set <CTID> -dev0 /dev/dri/renderD128,gid=993   # render
+# pct set <CTID> -dev1 /dev/dri/card0,gid=44          # video
+#
+# 上記 pct set 後、/etc/pve/lxc/<CTID>.conf は概ね以下のようになる:
+
+arch: amd64
+cores: 3
+cpulimit: 3
+cpuunits: 50
+features: nesting=1
+hostname: icstv-playout
+memory: 4096
+swap: 2048
+net0: name=eth0,bridge=vmbr0,gw=192.0.2.1,ip=192.0.2.20/24,firewall=1,type=veth
+onboot: 1
+ostype: ubuntu
+rootfs: local-lvm:vm-<CTID>-disk-0,size=48G
+mp0: local-lvm:vm-<CTID>-disk-1,mp=/opt/casparcg/media,size=100G
+unprivileged: 0
+dev0: /dev/dri/renderD128,gid=993   # render (Ubuntu 24.04 CT 実測)
+dev1: /dev/dri/card0,gid=44          # video
+
+# --- 代替: device passthrough(dev0/dev1) が不調なら cgroup2 allow + bind に切替 ---
+# lxc.cgroup2.devices.allow: c 226:0 rwm
+# lxc.cgroup2.devices.allow: c 226:128 rwm
+# lxc.mount.entry: /dev/dri/card0 dev/dri/card0 none bind,optional,create=file
+# lxc.mount.entry: /dev/dri/renderD128 dev/dri/renderD128 none bind,optional,create=file

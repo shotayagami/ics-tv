@@ -1,0 +1,85 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}ICS-TV — チャンネル{% endblock %}
+
+{% block extra_head %}
+  {# ヒーロー+カードは React 島(#Phase2b)。home.css は島+下部SSRセクション双方が使うため link 読込(島バンドル生成)。 #}
+  <link rel="stylesheet" href="{% static 'web/home/home.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+<section class="home">
+  {# ===== ヒーロー + チャンネルカード = React 島 (ライブHLSプレビュー + /api/v1/home ポーリング) ===== #}
+  <div id="home-island" data-home-base="{{ public_base_url }}"></div>
+
+  {# ===== これからの番組 (SSR) ===== #}
+{% if upcoming %}
+  <h2 class="sec-h2">これからの番組</h2>
+  <div class="up-row">
+    {% for p in upcoming %}
+    <a class="upcard" href="{{ public_base_url }}/program/{{ p.id }}/" style="text-decoration:none;color:inherit;display:block">
+      <div class="uthumb">
+        <div class="frame-logo">ICS-TV</div>
+        <div class="t tabnum">{{ p.time }}</div>
+        <div class="bar" style="background:{{ p.color }}"></div>
+      </div>
+      <div class="ubody">
+        <div class="urow">
+          <span class="dot" style="background:{{ p.ch_tint }}"></span>
+          <span class="nm">{{ p.ch_short }}</span>
+          {% if p.genre %}<span class="g" style="color:{{ p.color }}">{{ p.genre }}</span>{% endif %}
+        </div>
+        <div class="ut">{{ p.title }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+  {# ===== あなたへのおすすめ (#PERS-03, SSR) ===== #}
+{% if recommendations %}
+  <div class="sec-head">
+    <h2>あなたへのおすすめ</h2>
+  </div>
+  <div class="vod-grid">
+    {% for it in recommendations %}{% include "public/_vodcard.html" %}{% endfor %}
+  </div>
+{% endif %}
+
+  {# ===== 人気の見逃し (#DISC-01 / #ADMIN-02, SSR) ===== #}
+{% if popular %}
+  <div class="sec-head">
+    <h2>人気の見逃し</h2>
+    <a href="{{ public_base_url }}/vod/">見逃し一覧 ›</a>
+  </div>
+  <div class="vod-grid">
+    {% for it in popular %}{% include "public/_vodcard.html" %}{% endfor %}
+  </div>
+{% endif %}
+
+  {# ===== 新着見逃し (#DISC-01, SSR) ===== #}
+{% if new_vod %}
+  <div class="sec-head">
+    <h2>新着見逃し</h2>
+    <a href="{{ public_base_url }}/vod/">見逃し一覧 ›</a>
+  </div>
+  <div class="vod-grid">
+    {% for it in new_vod %}{% include "public/_vodcard.html" %}{% endfor %}
+  </div>
+{% endif %}
+
+  {# ===== ジャンルから探す (#DISC-01, SSR) ===== #}
+{% if browse_genres %}
+  <h2 class="sec-h2">ジャンルから探す</h2>
+  <div class="genre-row">
+    {% for g in browse_genres %}
+    <a class="genre-chip" href="{{ public_base_url }}/browse/?genre={{ g|urlencode }}">{{ g }}</a>
+    {% endfor %}
+  </div>
+{% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/home/home.js' %}?v={{ app_version }}"></script>
+{% endblock %}

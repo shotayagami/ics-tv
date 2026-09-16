@@ -1,0 +1,19 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ channel.name }} — ICS-TV{% endblock %}
+{% block og_title %}{% if current %}{{ current.title }} — {{ channel.name }}{% else %}{{ channel.name }}{% endif %} — ICS-TV{% endblock %}
+{% block og_description %}{% if current %}{{ channel.name }} で放送中：{{ current.title }}{% else %}{{ channel.name }} をライブ配信中{% endif %}{% endblock %}
+{% block meta_description %}{% if current %}{{ channel.name }} で「{{ current.title }}」を放送中。ICS-TV でライブ視聴できます。{% else %}{{ channel.name }} のライブ配信。ICS-TV で視聴できます。{% endif %}{% endblock %}
+
+{% block extra_head %}
+  {# 公開プレイヤーは React 島(#Phase1)。nav/footer/SEO は Django、本体は /static/web/player の島が API 描画。 #}
+  <link rel="stylesheet" href="{% static 'web/player/player.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+<div id="player-island" data-slug="{{ channel.slug }}" data-home-base="{{ public_base_url }}"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/player/player.js' %}?v={{ app_version }}"></script>
+{% endblock %}

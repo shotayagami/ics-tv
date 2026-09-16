@@ -1,0 +1,60 @@
+# 本番 image に入る依存 (server/Dockerfile が -r でこれを入れる)。
+#
+# **上限を必ず付ける** (#sec I-3)。2026-08-11 に stripe が下限のみ (>=10) だったため
+# イメージ再ビルドで 15.3.1 へ上がり、StripeObject が dict 継承をやめた破壊的変更で
+# webhook が全滅した。本番の Stripe トラフィックが 0 件だったので誰も気付かず、
+# 「初回の課金で決済は成立するが加入は作られない」状態のまま放置されていた。
+#
+# 上限は「本番実績のバージョンが入る最小の次メジャー」に置く。行末コメントの
+# 「本番実績」は 2026-08-12 に稼働 pod の pip freeze から採取した実値で、
+# 上限を上げるときの出発点になる (この版で動いていたことの記録)。
+#
+# なお本ファイルはロックファイルではなく、transitive の版は固定していない。
+# 完全な再現性 (ハッシュ固定ロック + Dockerfile の切替) は別途対応する。
+# 5.2 は LTS (5.1 は EOL で、2026-08 時点の CVE 6 件に修正が出ない)。
+# 下限が 5.2.16 なのはセキュリティ上の根拠がある: CVE-2026-48587 / CVE-2026-6873 /
+# CVE-2026-8404 の修正が 5.2.15、CVE-2026-48588 / CVE-2026-53877 / CVE-2026-53878 の
+# 修正が 5.2.16 に入っている。**下げるとこの 6 件が復活する。**
+Django>=5.2.16,<5.3  # 本番実績 5.1.15 からの LTS アップグレード
+psycopg[binary]>=3.2,<4  # 本番実績 3.3.4
+django-environ>=0.11,<1  # 本番実績 0.14.0
+celery>=5.4,<6  # 本番実績 5.6.3
+redis>=5.0,<9  # 本番実績 8.1.0
+gunicorn>=22.0,<27  # 本番実績 26.0.0
+# gRPC (agent contract)
+grpcio>=1.66,<2  # 本番実績 1.83.0
+protobuf>=5.28,<8  # 本番実績 7.35.1
+# gRPC 標準ヘルスチェック (grpc.health.v1)。k8s の readinessProbe/livenessProbe.grpc から叩く。
+grpcio-health-checking>=1.66,<2  # 本番実績 1.83.0
+# asgiref は Django 同梱だが sync_to_async を明示利用するため pin
+asgiref>=3.8,<4  # 本番実績 3.12.1
+# YouTube Data API v3 (枠 rolling 生成/遷移)
+google-api-python-client>=2.140,<3  # 本番実績 2.198.0
+google-auth>=2.34,<3  # 本番実績 2.56.3
+google-auth-oauthlib>=1.2,<2  # 本番実績 1.4.0
+# R2 (S3 互換) アップロード
+boto3>=1.34,<2  # 本番実績 1.43.68
+# Cloudflare Stream API (httpx)
+httpx>=0.27,<1  # 本番実績 0.28.1
+# 機密フィールドの DB at-rest 暗号化 (#3 core.fields.EncryptedTextField, Fernet)
+cryptography>=42,<51  # 本番実績 50.0.0
+# 静的配信 (gunicorn 単体で /static/ を返す。admin の CSS/JS 等)
+whitenoise>=6.6,<7  # 本番実績 6.12.0
+# 会員の TOTP 2FA (#会員管理)。pyotp=RFC6238 検証、segno=純Python QR (Pillow 不要・SVG)
+pyotp>=2.9,<3  # 本番実績 2.10.0
+segno>=1.6,<2  # 本番実績 1.6.6
+# 視聴者サブスク課金 (#サブスク)。Stripe 公式 SDK (Checkout/Portal/Webhook)
+# 上限必須: v12 で StripeObject が dict 継承をやめ .get() が使えなくなった破壊的変更がある。
+# 上げるときは fanclub/subscriptions の webhook とティア変更を実機で通してから。
+stripe>=15,<16
+# ライブコメントのリアルタイム配信 (#COMM-01)。Channels(WebSocket)+Redis channel layer、
+# ASGI サーバは gunicorn の uvicorn worker。
+channels>=4.1,<5  # 本番実績 4.3.2
+channels-redis>=4.2,<5  # 本番実績 4.3.0
+uvicorn[standard]>=0.30,<1  # 本番実績 0.52.1
+# フロント React/API 分離 (Phase 0)。JSON API は django-ninja (Pydantic スキーマ→OpenAPI→
+# TS クライアント自動生成)。既存 session/CSRF を踏襲 (csrf=True)、JWT は導入しない。
+django-ninja>=1.3,<2
+# 字幕自動生成 (#ADMIN-04・決定#24)。faster-whisper=CTranslate2 で int8 CPU 推論・日本語対応。
+# captions 専任 pod でのみ import される (web/normalize/worker は未ロード)。モデルは初回 DL→PVC キャッシュ。
+faster-whisper>=1.0,<2  # 本番実績 1.2.1

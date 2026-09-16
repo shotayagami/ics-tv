@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}CM 登録{% else %}CM 編集{% endif %} — ICS-TV{% endblock %}
+{% block content %}
+<h1>{% if is_new %}CM 登録{% else %}CM 編集 <span class="muted">/ {{ cm.advertiser }}</span>{% endif %}</h1>
+<p><a class="muted" href="{% url 'medialib:dashboard' %}">← 素材・CM へ戻る</a></p>
+<section class="card" style="max-width:48rem">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="badge warn" style="display:block;margin-bottom:.5rem">{{ form.non_field_errors|striptags }}</div>{% endif %}
+    {% if is_new %}
+      <div class="field">
+        <label>素材（種別=CM・CM未設定のもの）</label>
+        {% if free_assets %}
+          <select name="asset_id" required>
+            {% for a in free_assets %}<option value="{{ a.id }}">{{ a.title }} ({{ a.duration_display }})</option>{% endfor %}
+          </select>
+        {% else %}
+          <span class="badge warn">割当可能な CM 素材がありません。先に納品→正規化で種別=CM の素材を用意してください。</span>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="field"><label>素材</label><div class="muted">{{ cm.asset.title }} ({{ cm.asset.duration_display }})</div></div>
+    {% endif %}
+    {% for f in form %}
+      <div class="field">
+        <label>{{ f.label }}</label>
+        {{ f }}
+        {% if f.errors %}<span class="badge warn">{{ f.errors|striptags }}</span>{% endif %}
+      </div>
+    {% endfor %}
+    {% include "partials/thumb_upload.html" with current_url=cm.asset.thumbnail_url %}
+    <div style="margin-top:.8rem; display:flex; gap:.5rem;">
+      <button class="btn" type="submit" {% if is_new and not free_assets %}disabled{% endif %}>保存</button>
+      <a class="btn" style="background:#444" href="{% url 'medialib:dashboard' %}">キャンセル</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

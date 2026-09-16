@@ -1,0 +1,43 @@
+{% extends "members/base_members.html" %}
+{% block title %}2段階認証 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>2段階認証</h1>
+  <ul class="mlist">
+    <li><span class="k">現在の方式</span><span>{{ member.get_two_factor_method_display }}</span></li>
+    <li><span class="k">メール確認</span><span>{% if member.email_verified_at %}<span class="mbadge ok">済</span>{% else %}<span class="mbadge ng">未</span>{% endif %}</span></li>
+    <li><span class="k">認証アプリ</span><span>{% if member.totp_confirmed_at %}<span class="mbadge ok">登録済</span>{% else %}<span class="mbadge ng">未登録</span>{% endif %}</span></li>
+  </ul>
+</div>
+
+{% if not member.totp_confirmed_at %}
+<div class="mcard">
+  <h1 style="font-size:17px;">認証アプリ (TOTP)</h1>
+  <p class="mhint">Google Authenticator 等のアプリで6桁コードを生成し、ログイン時の第2要素にします。</p>
+  <a class="btn" href="/members/2fa/totp/setup/">認証アプリを登録する</a>
+</div>
+{% endif %}
+
+{% if member.email_verified_at and member.two_factor_method != 'email' %}
+<div class="mcard">
+  <h1 style="font-size:17px;">メール2段階認証</h1>
+  <p class="mhint">ログイン時に確認コードをメールで送ります。</p>
+  <form method="post" action="/members/2fa/email/enable/">{% csrf_token %}
+    <button class="btn" type="submit">メール2段階認証を有効にする</button>
+  </form>
+</div>
+{% endif %}
+
+{% if member.two_factor_method != 'none' %}
+<div class="mcard">
+  <h1 style="font-size:17px;">2段階認証を無効化</h1>
+  <form class="mform" method="post" action="/members/2fa/disable/">{% csrf_token %}
+    <label for="dpw">パスワード</label>
+    <input id="dpw" type="password" name="password" autocomplete="current-password">
+    <button class="btn ghost" type="submit">無効にする</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="mlinks"><a href="/members/">マイページに戻る</a></div>
+{% endblock %}

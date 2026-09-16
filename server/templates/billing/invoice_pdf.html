@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: sans-serif; font-size: 12px; color: #111; }
+  h1 { font-size: 18px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
+  td.num, th.num { text-align: right; }
+  .totals { margin-top: 1rem; width: 40%; margin-left: auto; }
+  .reg { color: #555; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>請求書 {{ invoice.invoice_number }}</h1>
+  <p>
+    請求先: {{ invoice.contract.advertiser.name }}
+    {% if invoice.bill_to_agency and invoice.contract.agency %}（代理店: {{ invoice.contract.agency.name }} 経由）{% endif %}<br>
+    対象期間: {{ invoice.period }}<br>
+    {% if invoice.issued_at %}発行日: {{ invoice.issued_at|date:"Y-m-d" }}{% endif %}
+  </p>
+  <table>
+    <thead><tr><th>摘要</th><th class="num">数量</th><th class="num">単価</th><th class="num">金額</th></tr></thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td class="num">{{ line.quantity }}</td>
+          <td class="num">{{ line.unit_price }}</td>
+          <td class="num">{{ line.amount }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <table class="totals">
+    <tr><th>小計 (税抜)</th><td class="num">{{ invoice.subtotal }}</td></tr>
+    {% if invoice.commission_amount %}<tr><th>代理店手数料</th><td class="num">-{{ invoice.commission_amount }}</td></tr>{% endif %}
+    <tr><th>消費税 ({{ invoice.tax_rate }}%)</th><td class="num">{{ invoice.tax_amount }}</td></tr>
+    <tr><th>合計</th><td class="num">{{ invoice.total }}</td></tr>
+  </table>
+  {% if reg_no %}<p class="reg">適格請求書発行事業者登録番号: {{ reg_no }}</p>{% endif %}
+</body>
+</html>

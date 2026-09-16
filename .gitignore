@@ -1,0 +1,68 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+server/.venv
+venv/
+.env
+.env.*
+!.env.example
+*.sqlite3
+staticfiles/
+# NOTE: Django MEDIA_ROOT は使わない（素材は R2/OMV 管理）。
+#       "media/" は ignore しない — アプリ名(medialib 等)と衝突させないため。
+
+# Node (frontend)
+node_modules/
+dist/
+.cache/
+
+# Secrets / credentials
+*.pem
+*.key
+secrets/
+# SealedSecret はクラスタ公開鍵で暗号化済み = コミット安全 (ArgoCD GitOps の source)。
+# 平文は引き続き ignore しつつ、deploy/k8s 配下の *.sealed.yaml だけ追跡を許可。
+# (base/overlays 再構成で secrets/ が overlays/{production,dev}/secrets/ へ移動した)
+!deploy/k8s/secrets/
+deploy/k8s/secrets/*
+!deploy/k8s/secrets/*.sealed.yaml
+!deploy/k8s/secrets/.gitkeep
+!deploy/k8s/overlays/production/secrets/
+deploy/k8s/overlays/production/secrets/*
+!deploy/k8s/overlays/production/secrets/*.sealed.yaml
+!deploy/k8s/overlays/dev/secrets/
+deploy/k8s/overlays/dev/secrets/*
+!deploy/k8s/overlays/dev/secrets/*.sealed.yaml
+.netrc
+
+# Media assets (大容量・R2管理)
+assets/
+*.mp4
+*.mov
+*.mxf
+*.ts
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# frontend (React/TS): TypeScript ソースは追跡する。
+# 上の "*.ts" は MPEG-TS 素材向けだが TypeScript .ts/.d.ts も巻き込むため、frontend 配下を除外解除。
+# (node_modules/ は親ディレクトリ除外なので、この負パターンでも再追跡されない)
+!frontend/**/*.ts
+# フロント Vite ビルドを web イメージへ同梱する中間物 (Dockerfile の node ステージ生成。"dist/" とは別名)。
+frontend_dist/
+
+# Claude Code (project-local): 共有 config / skills はコミット, local 上書きのみ無視
+.claude/settings.local.json
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+ds-bundle-studio/
+.tokensave

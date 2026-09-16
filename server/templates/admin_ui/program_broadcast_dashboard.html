@@ -1,0 +1,114 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}{{ channel.slug }} 番組専用枠 — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>番組専用枠 (#23) — {{ channel.name }} <code>{{ channel.slug }}</code></h1>
+<p><a href="{% url 'core:channel_settings' channel.slug %}" style="color:#aaf">← channel 設定に戻る</a></p>
+<p class="muted">rolling 2h 枠と並行して、番組単位の専用 liveBroadcast を立てます。映像は encoder が 2 本目
+  RTMP へ同一内容を tee で送出する必要があります (送出ノード側設定。runbook 参照)。
+  {% if has_second_stream %}<span class="ok">2 本目 liveStream: 作成済</span>{% else %}<span class="muted">2 本目 liveStream: 未作成 (専用枠作成時に自動プロビジョン)</span>{% endif %}</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <p class="{% if m.tags == 'error' %}err{% else %}ok{% endif %}">{{ m }}</p>
+  {% endfor %}
+{% endif %}
+
+<section class="card">
+  <h2>作成候補 <span class="muted">専用枠フラグ ありで未作成の今後の番組</span></h2>
+  {% if upcoming %}
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="border-bottom:1px solid #444;color:#888">
+        <th style="text-align:left;padding:.3rem">番組</th>
+        <th style="text-align:left;padding:.3rem">開始</th>
+        <th style="text-align:left;padding:.3rem">preset</th>
+        <th style="text-align:left;padding:.3rem">操作</th>
+      </tr></thead>
+      <tbody>
+      {% for p in upcoming %}
+        <tr style="border-bottom:1px solid #2a2a2a">
+          <td style="padding:.3rem">{{ p.title }}</td>
+          <td style="padding:.3rem">{{ p.start_at|date:"m-d H:i" }}</td>
+          <td style="padding:.3rem">{{ p.resolved_youtube_preset.name|default:"（未設定）" }}</td>
+          <td style="padding:.3rem">
+            <form method="post" action="{% url 'core:program_broadcast_create_now' p.id %}" style="display:inline"
+                  onsubmit="return confirm('「{{ p.title }}」の専用枠を今すぐ作成しますか？');">
+              {% csrf_token %}
+              <button class="btn" style="font-size:.78rem;padding:.15rem .6rem" {% if not p.resolved_youtube_preset %}disabled title="preset 未設定"{% endif %}>専用枠を今すぐ作成</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">作成候補はありません (番組/シリーズで「YouTube 専用枠を立てる」を有効にしてください)。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>専用枠 <span class="muted">直近 50 件</span></h2>
+  {% if rows %}
+    {% for row in rows %}
+      {% with pb=row.pb %}
+      <div class="card" style="background:#151515">
+        <div style="display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap">
+          <strong>{{ pb.program.title }}</strong>
+          <span class="muted">{{ pb.program.start_at|date:"Y-m-d H:i" }}–{{ pb.program.end_at|date:"H:i" }}</span>
+          <span>
+            {% if pb.status == 'live' %}<span class="ok">●LIVE</span>
+            {% elif pb.status == 'ready' %}(●)ready
+            {% elif pb.status == 'complete' %}complete
+            {% elif pb.status == 'error' %}<span class="err">error</span>
+            {% else %}{{ pb.status }}{% endif %}
+          </span>
+          {% if pb.manual %}<span class="muted">[手動]</span>{% endif %}
+          {% if row.watch %}<a href="{{ row.watch }}" target="_blank" rel="noopener" style="color:#aaf">watch ↗</a>{% endif %}
+          <span class="muted">preset: {{ pb.preset.name|default:"-" }}</span>
+        </div>
+        {% if pb.error %}<p class="err" style="font-size:.85rem">{{ pb.error }}</p>{% endif %}
+
+        <div style="display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap">
+          {% if pb.broadcast_id and pb.status == 'ready' %}
+            <form method="post" action="{% url 'core:program_broadcast_transition' pb.id %}" style="display:inline"
+                  onsubmit="return confirm('Go Live しますか？ (2本目 liveStream が active である必要があります)');">
+              {% csrf_token %}<input type="hidden" name="target" value="live">
+              <button class="btn" style="font-size:.78rem;padding:.15rem .6rem">Go Live</button>
+            </form>
+          {% endif %}
+          {% if pb.broadcast_id and pb.status == 'live' %}
+            <form method="post" action="{% url 'core:program_broadcast_transition' pb.id %}" style="display:inline"
+                  onsubmit="return confirm('配信を終了 (complete) しますか？');">
+              {% csrf_token %}<input type="hidden" name="target" value="complete">
+              <button class="btn warn" style="font-size:.78rem;padding:.15rem .6rem">終了</button>
+            </form>
+          {% endif %}
+          <form method="post" action="{% url 'core:program_broadcast_delete' pb.id %}" style="display:inline"
+                onsubmit="return confirm('この専用枠を削除しますか？ (YouTube broadcast も削除)');">
+            {% csrf_token %}
+            <button class="btn warn" style="font-size:.78rem;padding:.15rem .6rem">削除</button>
+          </form>
+        </div>
+
+        <details style="margin-top:.5rem">
+          <summary class="muted" style="cursor:pointer">手動チェックリスト (Studio で設定する項目)</summary>
+          <form method="post" action="{% url 'core:program_broadcast_checklist' pb.id %}" style="margin-top:.4rem">
+            {% csrf_token %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem .8rem">
+              {% for c in row.checklist %}
+                <label style="display:flex;gap:.4rem;align-items:center">
+                  <input type="checkbox" name="checklist_{{ c.key }}" value="1" {% if c.checked %}checked{% endif %}>
+                  {{ c.label }}
+                </label>
+              {% endfor %}
+            </div>
+            <button class="btn" style="font-size:.78rem;padding:.15rem .6rem;margin-top:.4rem">チェックリストを保存</button>
+          </form>
+        </details>
+      </div>
+      {% endwith %}
+    {% endfor %}
+  {% else %}
+    <p class="muted">まだ専用枠はありません。</p>
+  {% endif %}
+</section>
+{% endblock %}

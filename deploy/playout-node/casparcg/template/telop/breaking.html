@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 速報・割り込みテロップ (CG layer 1-40、casparcg.md §1.1 / cg-layers.md §B.2)。
+     ops の手動 op (OVERLAY_OP, kind=text) から CG ADD/UPDATE/STOP される。
+     契約: play()/stop()/update(data)/next()/remove()。data 例 {"text":"速報: ○○○"}。
+     デザインは後付け前提の最小スタイル (画面下帯・赤)。 -->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #breaking { position:absolute; left:0; bottom:120px; width:100%; min-height:72px;
+              background:linear-gradient(90deg, rgba(200,20,20,.95), rgba(140,10,10,.85));
+              color:#fff; display:flex; align-items:center; gap:20px; padding:0 36px; box-sizing:border-box;
+              opacity:0; transition:opacity 300ms ease-in-out; }
+  #breaking.show { opacity:1; }
+  .tag { font-weight:800; font-size:30px; letter-spacing:.12em; background:#fff; color:#c81414;
+         padding:.1rem .7rem; border-radius:3px; flex:none; }
+  #text { font-size:34px; font-weight:700; }
+</style>
+</head>
+<body>
+  <div id="breaking">
+    <span class="tag">速報</span>
+    <span id="text"></span>
+  </div>
+<script>
+  "use strict";
+  var el = document.getElementById("breaking"), textEl = document.getElementById("text");
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if("text" in o) textEl.textContent = o.text || ""; }catch(e){} }
+  function play(){ el.classList.add("show"); }
+  function stop(){ el.classList.remove("show"); }
+  function next(){}
+  function remove(){ el.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){ update('{"text":"テスト速報です"}'); setTimeout(play,300); }
+</script>
+</body>
+</html>

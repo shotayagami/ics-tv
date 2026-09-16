@@ -1,0 +1,57 @@
+{% extends "creator/base_creator.html" %}
+{% load icstv_public %}
+{% block title %}分配明細 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">分配明細</h1>
+<p class="muted" style="font-size:.8rem">
+  Stripe が課金の都度、手数料を差し引いた金額を口座へ自動送金します。ここには直近{{ items|length }}件の履歴が表示されます。
+</p>
+{# 合計は通貨ごとに出す。通貨をまたいで足すと一見それらしい誤った数字になる。 #}
+{% for row in totals_by_currency %}
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">累計売上(税込){% if totals_by_currency|length > 1 %} <span class="muted">{{ row.currency|upper }}</span>{% endif %}</div>
+    <div style="font-size:1.5rem;font-weight:800">{{ row.total_gross|money:row.currency }}</div>
+  </div>
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">累計手数料</div>
+    <div style="font-size:1.5rem;font-weight:800">{{ row.total_fee|money:row.currency }}</div>
+  </div>
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">累計受取額</div>
+    <div style="font-size:1.5rem;font-weight:800">{{ row.total_net|money:row.currency }}</div>
+  </div>
+</div>
+{% empty %}
+<p class="muted" style="font-size:.85rem;margin-bottom:1.5rem">まだ売上がありません。</p>
+{% endfor %}
+<div class="card">
+  <table style="width:100%">
+    <thead>
+      <tr>
+        <th>日時</th>
+        <th>ティア</th>
+        <th style="text-align:right">売上</th>
+        <th style="text-align:right">手数料</th>
+        <th style="text-align:right">受取額</th>
+        <th>状態</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in items %}
+      <tr>
+        <td class="muted">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ s.tier.name|default:"—" }}</td>
+        <td style="text-align:right">¥{{ s.gross_amount_minor }}</td>
+        <td style="text-align:right">¥{{ s.application_fee_minor }}</td>
+        <td style="text-align:right">¥{{ s.net_amount_minor }}</td>
+        <td>{% if s.disputed %}<span style="color:#f87171">異議申立て中</span>{% else %}<span class="ok">確定</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="muted">分配実績がまだありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

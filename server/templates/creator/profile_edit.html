@@ -1,0 +1,62 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}ページ設定 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">ファンクラブページ設定</h1>
+<p class="muted" style="font-size:.8rem">
+  公開ページ <a href="{{ public_page_url }}" target="_blank" rel="noopener">{{ public_page_url }}</a>
+  の見た目を設定します。画像は URL 貼り付け方式です (X や画像ホスティングの直リンク等)。
+</p>
+<div class="card">
+  <form method="post" action="/profile/" style="display:flex;flex-direction:column;gap:.6rem;max-width:36rem">
+    {% csrf_token %}
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">紹介文</div>
+      <textarea name="description" rows="4" style="width:100%">{{ creator.description }}</textarea>
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">アバター画像 URL (正方形推奨)</div>
+      <input type="url" name="avatar_url" value="{{ creator.avatar_url }}" style="width:100%" placeholder="https://...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">カバー画像 URL (横長 16:6 推奨、2500×940 目安)</div>
+      <input type="url" name="cover_url" value="{{ creator.cover_url }}" style="width:100%" placeholder="https://...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">テーマカラー (ページのアクセント色。空欄で既定のシアン)</div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <input type="color" value="{% if creator.theme_color %}{{ creator.theme_color }}{% else %}#38bdf8{% endif %}"
+               oninput="this.nextElementSibling.value=this.value" aria-label="テーマカラーピッカー">
+        <input type="text" name="theme_color" value="{{ creator.theme_color }}" placeholder="#38bdf8"
+               pattern="^#[0-9a-fA-F]{6}$" style="width:8rem">
+      </div>
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">X (Twitter) URL</div>
+      <input type="url" name="sns_x_url" value="{{ creator.sns_x_url }}" style="width:100%" placeholder="https://x.com/...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">YouTube URL</div>
+      <input type="url" name="sns_youtube_url" value="{{ creator.sns_youtube_url }}" style="width:100%" placeholder="https://www.youtube.com/@...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">Instagram URL</div>
+      <input type="url" name="sns_instagram_url" value="{{ creator.sns_instagram_url }}" style="width:100%" placeholder="https://www.instagram.com/...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">Web サイト URL</div>
+      <input type="url" name="website_url" value="{{ creator.website_url }}" style="width:100%" placeholder="https://...">
+    </label>
+    <label>
+      <div style="font-size:.78rem;margin-bottom:.2rem">メンバーチャット</div>
+      <select name="chat_required_level">
+        <option value="off" {% if creator.chat_required_level is None %}selected{% endif %}>無効</option>
+        <option value="0" {% if creator.chat_required_level == 0 %}selected{% endif %}>無料会員以上</option>
+        {% for t in chat_tiers %}
+        <option value="{{ t.level }}" {% if creator.chat_required_level == t.level %}selected{% endif %}>{{ t.name }} (レベル{{ t.level }}) 以上</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div><button type="submit" class="btn">保存</button></div>
+  </form>
+</div>
+{% endblock %}

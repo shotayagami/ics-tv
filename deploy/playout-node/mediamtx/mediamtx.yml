@@ -1,0 +1,65 @@
+# ICS-TV 送出ノード (自宅 Proxmox LXC) MediaMTX 設定 (生番組 SRT/RTMP ローカル終端)。
+# docs/overview.md §3.5 / 決定#21: 現場 OBS → Cloudflare One(cloudflared private network + WARP)
+# → 送出ノードの :8890(SRT) / :1935(RTMP) でローカル終端 → CasparCG が FFmpeg producer で
+# 127.0.0.1:1935 を参照。app/key は control plane の LiveSource (server/core/models.py:
+# rtmp_app / rtmp_key) が決め、SRT publish の streamid=publish:<app>/<key> も同一 path に終端する
+# ため、SRT で push しても agent は PLAY 1-10 rtmp://127.0.0.1:1935/<app>/<key> をそのまま組む。
+
+logLevel: info
+logDestinations: [stdout]
+
+# --- 接続 read/write タイムアウト (既定 10s → 30s) ---
+# 送出ノードは単一 iGPU+3 コアで 24/7 720p60 本線 + ABR ladder を回しており CPU/RCS が逼迫する
+# (loadavg 一桁後半〜二桁)。CPU starvation で encoder の RTMP publish leg が一瞬 (数秒) 詰まると、
+# 既定 10s では readTimeout を超えて publisher が切断 → path `hls/<slug>` 破棄 → その path を読む
+# `icstv-hls-ladder@<slug>` が道連れで落ち、公開 /hls2 が数秒途切れる (実機で 8 分〜2h 毎に観測)。
+# encoder tee は use_fifo attempt_recovery で ~1-3s で自動再接続するので、30s に広げれば瞬断では
+# path を破棄せず ladder を生かしたまま復帰できる。writeTimeout 側は CPU 逼迫時の遅い reader(ladder)
+# が write timeout で切られるのを防ぐ。hlsAlwaysRemux(下記) と併せて 24/7 配信の path 維持に効く。
+readTimeout: 30s
+writeTimeout: 30s
+
+# --- RTMP ingest (LAN/WG 内サブ卓向け。現場 last-mile は下の SRT が既定) ---
+rtmp: yes
+rtmpAddress: :1935
+# ネットワーク層の認証は Cloudflare One(WARP enroll + Access ポリシーで ingest ポートのみ到達可)
+# が担う(決定#21)。アプリ層は path(=app/key) と SRT passphrase。素の RTMP に publishUser/pass
+# は付けない(WARP/Access で十分・既存 agent 無改修のため)。
+
+# --- 制御 API (feed-drop 検知に使用: publisher present/absent) ---
+# watchdog.sh / Zabbix が /v3/paths/list を見て生入力断を検知し agent の goto_slate と連動。
+api: yes
+apiAddress: 127.0.0.1:9997
+
+# --- HLS 出力 (本線オンエアの公開プレイヤー用; tv.yagamin.net/hls 経由で配信) ---
+# encoder が tee で air/ch1 を publish → ここで HLS 化 → k8s ingress 逆プロキシ → Cloudflare キャッシュ。
+# 汎用 CDN キャッシュとの相性のため LL-HLS ではなく古典 mpegts(.ts) variant を採用 (m3u8 は CF で no-cache)。
+hls: yes
+hlsAddress: :8888
+hlsVariant: mpegts
+hlsSegmentCount: 7
+hlsSegmentDuration: 2s
+hlsAllowOrigin: '*'
+# 視聴者0でも muxer を常駐させ publish を連続消費する。これが無いと on-demand muxer が
+# hlsMuxerCloseAfter で破棄→再生成を繰り返し、その隙に encoder の RTMP publish が
+# read i/o timeout で切断され tee の MediaMTX leg が死ぬ (24/7 配信には必須)。
+hlsAlwaysRemux: yes
+
+# --- SRT ingest (決定#21: 現場 OBS の既定経路) ---
+# 現場 → Cloudflare One(WARP) → 送出ノードの :8890 へ SRT push。streamid=publish:<app>/<key> が
+# 下の paths(RTMP と同一 path)に終端し、CasparCG は rtmp://127.0.0.1:1935/<app>/<key> として読む
+# (SRT publish → RTMP read は MediaMTX が透過)。ARQ 再送 + latency バッファで現場回線のロスに強い。
+srt: yes
+srtAddress: :8890
+
+# 他プロトコルは不要 (上り帯域節約)
+webrtc: no
+rtsp: no
+
+# 任意の app/key を受け付ける (control plane が動的に発行する path に追従)
+# SRT publish 暗号化 passphrase (LiveSource.srt_passphrase, 10-79 文字) を使う場合は per-deploy で
+# env 注入する(リポジトリに平文を置かない):
+#   MTX_PATHS_ALL_OTHERS_SRTPUBLISHPASSPHRASE=<passphrase>
+# per-LiveSource で別 passphrase を強制する場合は all_others ではなく path 個別定義が要る(将来・多元化時)。
+paths:
+  all_others:

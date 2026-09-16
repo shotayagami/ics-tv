@@ -1,0 +1,19 @@
+{% extends "members/base_members.html" %}
+{% block title %}メール確認 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>メールアドレスの確認</h1>
+  <p class="mhint">{{ member.email }} に送信された6桁の確認コードを入力してください。</p>
+  <form class="mform" method="post" action="/members/verify/email/confirm/" novalidate>
+    {% csrf_token %}
+    <label for="code">確認コード</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+    <button class="btn" type="submit">確認する</button>
+  </form>
+  <form method="post" action="/members/verify/email/send/" style="margin: 12px 0 0;">
+    {% csrf_token %}
+    <button class="btn ghost" type="submit">確認コードを再送する</button>
+  </form>
+  <div class="mlinks"><a href="/members/">あとで設定する</a></div>
+</div>
+{% endblock %}

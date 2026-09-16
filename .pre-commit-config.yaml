@@ -1,0 +1,89 @@
+# Commit 前にローカルで走る品質ゲート。
+# install:  pip install pre-commit && pre-commit install
+# manual:   pre-commit run --all-files
+# update:   pre-commit autoupdate
+
+# 版は固定しない。`agent/pyproject.toml` が `requires-python = ">=3.12"` と宣言しており、
+# ここで 3.12 を厳密に固定すると、その宣言を満たす 3.13 以降で pre-commit が起動できない
+# (`failed to find interpreter for ... python3.12`)。
+default_language_version:
+  python: python3
+
+repos:
+  # ---- Python lint + format (Ruff: Rust 製 1 ツールで flake8/isort/pyupgrade/black 相当) ----
+  # 生成コード (icstv_proto) と Django migration は pre-commit に filename を直接渡されると
+  # ruff config の extend-exclude が無視されるため hook 側にも exclude を書く。
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16  # CI (requirements-dev.txt) と同一バージョンに固定。乖離すると format 折返しが食い違う
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+        exclude: ^(server|agent)/icstv_proto/|/migrations/
+      - id: ruff-format
+        types_or: [python, pyi]
+        exclude: ^(server|agent)/icstv_proto/|/migrations/
+
+  # ---- 型チェック (local hook 経由で server/.venv を使う。django-stubs plugin は
+  #      django_settings_module を見つける必要があり、独立 venv では解決が壊れる) ----
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (django-stubs plugin via server/.venv)
+        entry: bash -c 'cd server && .venv/bin/mypy --config-file pyproject.toml .'
+        language: system
+        pass_filenames: false
+        files: ^(server|agent)/.+\.py$
+        exclude: ^(server|agent)/icstv_proto/|.*/migrations/.*
+
+  # ---- 機密漏れ検知 ----
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        # baseline は付けない。baseline は「既知の検出を抑止する」ための一覧で、このツリーの
+        # 既知の値は行ごとの `pragma: allowlist secret` で抑止してある (実測で検出 0 件)。
+        # `--baseline` を付けると起動時に一覧ファイルを要求するので、無いと必ず失敗する。
+        exclude: ^(.*\.lock|.*generated.*|.*/icstv_proto/.*)$
+
+  # ---- proto 検証 (buf) ----
+  - repo: local
+    hooks:
+      - id: buf-lint
+        name: buf lint (proto)
+        entry: buf lint proto
+        language: system
+        pass_filenames: false
+        files: ^proto/.+\.proto$
+
+  # ---- Django: system check + migration の漏れ検知 (DB 不要、~3 秒) ----
+  - repo: local
+    hooks:
+      - id: django-check
+        name: django check
+        entry: bash -c 'cd server && .venv/bin/python manage.py check --fail-level WARNING'
+        language: system
+        pass_filenames: false
+        files: ^server/.+\.py$
+
+      - id: django-makemigrations-check
+        name: django makemigrations --check --dry-run
+        entry: bash -c 'cd server && .venv/bin/python manage.py makemigrations --check --dry-run'
+        language: system
+        pass_filenames: false
+        files: ^server/.+/(models|migrations)/.+\.py$
+
+  # ---- 一般ファイル衛生 ----
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        # LICENSE は AGPL の本文をバイトごと保つ (D030)。末尾の空行を削らせない。
+        exclude: ^LICENSE$
+      - id: check-yaml
+        args: [--allow-multiple-documents]  # k8s manifest が "---" 区切りで複数ドキュメント
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]  # 生成物 (openapi.json・schema.ts) を許容

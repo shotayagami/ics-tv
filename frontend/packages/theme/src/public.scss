@@ -1,0 +1,8 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+// ICS-TV 公開テーマ エントリ (cyan / dark)。bootstrap-public バンドルがこれを取り込む。
+// 順序が重要: functions → ブランド上書き (Bucket A) → Bootstrap 本体 → 固有レイヤー (Bucket B/C)。
+@import "bootstrap/scss/functions";
+@import "brand-public";
+@import "bootstrap/scss/bootstrap";
+@import "custom-public";

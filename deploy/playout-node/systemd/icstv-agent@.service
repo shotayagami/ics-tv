@@ -1,0 +1,25 @@
+[Unit]
+Description=ICS-TV playout agent (%i): gRPC <- control plane, AMCP -> CasparCG
+# テンプレートユニット: icstv-agent@<slug> (例 icstv-agent@ch1)。%i=<slug>=ICSTV_CHANNEL_SLUG。
+# 1 ノードに複数チャンネルを同居させる場合、チャンネルごとに 1 インスタンスを enable する。
+After=casparcg-server.service mediamtx.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# env 契約は agent/icstv_agent/config.py を参照 (ICSTV_SERVER_GRPC/AGENT_TOKEN/CHANNEL_SLUG/CASPAR_CHANNEL/...)
+# チャンネル別 (slug/token/caspar_channel/queue_db/media_dir) を /etc/icstv/agent-%i.env に置く。
+EnvironmentFile=/etc/icstv/agent-%i.env
+ExecStart=/opt/icstv/agent/.venv/bin/icstv-agent
+# agent は CasparCG/WAN 断に耐える (SQLite store-and-forward + 再接続ループ)。常時再起動。
+Restart=always
+RestartSec=3
+StateDirectory=icstv-agent
+# StateDirectory=/var/lib/icstv-agent (全インスタンス共有)。queue はインスタンス別に
+# ICSTV_QUEUE_DB=/var/lib/icstv-agent/queue-%i.db を env で指定する (共有すると store-and-forward
+# キューが破損するため必須)。media_dir は逆に共有 (= CasparCG の単一 media-path。agent-%i.env 参照)。
+
+[Install]
+WantedBy=multi-user.target

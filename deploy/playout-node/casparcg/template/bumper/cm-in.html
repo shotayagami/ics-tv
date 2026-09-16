@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- CM バンパー (CM IN/OUT のつなぎ)。CG layer 1-20 (casparcg.md §3.4)。番組頭で ADD 0 …0 で背面
+     ロードし、CM IN の瞬間に PLAY、CM OUT で STOP。契約 play()/stop()/update(data)/next()/remove()。-->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+       opacity:0; transition:opacity 300ms ease; }
+  #b.show { opacity:1; }
+  .pill { background:rgba(10,10,16,.78); color:#fff; font-size:40px; font-weight:700;
+          letter-spacing:.12em; padding:18px 48px; border-radius:999px; border:2px solid #7fd0ff; }
+</style>
+</head>
+<body>
+  <div id="b"><span class="pill" id="msg">ここからお知らせ</span></div>
+<script>
+  "use strict";
+  var el=document.getElementById("b"), msg=document.getElementById("msg");
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if(o.text) msg.textContent=o.text; }catch(e){} }
+  function play(){ el.classList.add("show"); }
+  function stop(){ el.classList.remove("show"); }
+  function next(){}
+  function remove(){ el.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){ setTimeout(play,300); }
+</script>
+</body>
+</html>

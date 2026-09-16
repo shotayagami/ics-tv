@@ -1,0 +1,47 @@
+{% extends "public_base.html" %}
+{% block title %}お申し込み内容の確認 — {{ creator.name }} — ICS-TV{% endblock %}
+{% block meta_description %}{{ creator.name }} ファンクラブへのお申し込み内容の確認画面です。{% endblock %}
+
+{% block extra_css %}
+  .fcconfirm { max-width: 560px; margin: 0 auto; padding: clamp(28px,6vw,56px) var(--pad) 96px; }
+  .fcconfirm h1 { font-size: clamp(20px,4vw,24px); font-weight: 800; margin: 0 0 8px; }
+  .fcconfirm .lead { color: var(--dim); font-size: 13px; margin: 0 0 20px; }
+  .fcconfirm .confirm-list { list-style: none; padding: 0; margin: 0 0 22px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 4px 18px; }
+  .fcconfirm .confirm-list li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid var(--line); }
+  .fcconfirm .confirm-list li:last-child { border-bottom: none; }
+  .fcconfirm .confirm-list .k { color: var(--dim); flex: 0 0 auto; }
+  .fcconfirm .confirm-list .v { text-align: right; }
+  .fcconfirm .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%;
+    background: var(--accent); color: var(--accent-on); border: none; border-radius: 999px;
+    font-weight: 800; font-size: 15px; padding: 13px 22px; cursor: pointer; text-decoration: none; }
+  .fcconfirm .links { margin-top: 18px; font-size: 13px; color: var(--dim); text-align: center; }
+  .fcconfirm .links a { color: var(--accent); text-decoration: none; }
+{% endblock %}
+
+{% block content %}
+<section class="fcconfirm">
+  <h1>お申し込み内容の確認</h1>
+  <p class="lead">下記の内容で {{ creator.name }} のファンクラブにお申し込みになります。ご確認のうえ「同意して申し込む」を押してください。</p>
+  <ul class="confirm-list">
+    <li><span class="k">クリエイター</span><span class="v">{{ creator.name }}</span></li>
+    <li><span class="k">ティア</span><span class="v">{{ tier.name }}</span></li>
+    <li><span class="k">数量</span><span class="v">1</span></li>
+    <li><span class="k">価格</span><span class="v">¥{{ tier.price_minor }}（税込）/ 月</span></li>
+    <li><span class="k">契約期間</span><span class="v">1ヶ月ごとの自動更新（期間の定めなし）</span></li>
+    <li><span class="k">申込期間</span><span class="v">随時（期間の定めなし）</span></li>
+    <li><span class="k">解約条件</span><span class="v">いつでも解約可。解約後は次回更新日以降の課金は発生せず、更新日まで引き続き利用可</span></li>
+    <li><span class="k">解約方法</span><span class="v">「ご契約を管理する」からオンラインで即時手続き可</span></li>
+  </ul>
+  <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/tiers/{{ tier.id }}/checkout/">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn" type="submit">同意して申し込む</button>
+  </form>
+  <div class="links">
+    <a href="{{ next }}">戻る</a> ・
+    <a href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tokushoho/">特定商取引法に基づく表記</a>
+  </div>
+</section>
+{% endblock %}

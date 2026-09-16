@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!--
+  提供表示 (スポンサークレジット) CG テンプレート。CasparCG CG layer 1-50 用 (casparcg.md §3.5)。
+  server (#6 sales.constraints.program_credit) → playout_event.params.cg_sponsor →
+  agent (amcp_planner._sponsor_cg) が `CG 1-50 ADD 0 "credit/sponsor" 1 {"sponsor":"…"}` を発火。
+  play-on-load=1 で update(data)→play() が走る。STOP は伴わない想定なので play() で自走
+  (イン→保持→アウト) して自分で remove する自己終了アニメ。
+
+  CasparCG HTML producer の契約: グローバル関数 play()/stop()/next()/update(data)/remove() を実装。
+  update(data) は ADD/UPDATE の data 文字列 (JSON) をそのまま受ける (JSON.parse はこちらの責務)。
+
+  ブラウザ単体確認: file:///…/sponsor.html?test=1 で 3 秒後に自走表示 (CSS/文言の目視用)。
+-->
+<style>
+  html, body {
+    margin: 0; width: 1920px; height: 1080px; overflow: hidden;
+    background: transparent;  /* CG レイヤはアルファ合成。背景は必ず透明 */
+    font-family: "Noto Sans JP", sans-serif;
+  }
+  #credit {
+    position: absolute; left: 0; right: 0; bottom: 96px;
+    text-align: center; opacity: 0;
+    transition: opacity 600ms ease-in-out, transform 600ms ease-in-out;
+    transform: translateY(24px);
+  }
+  #credit.show { opacity: 1; transform: translateY(0); }
+  .band {
+    display: inline-block; padding: 18px 56px;
+    background: linear-gradient(180deg, rgba(10,10,16,.82), rgba(10,10,16,.66));
+    border-top: 3px solid #d9b15a; border-bottom: 3px solid #d9b15a;
+    color: #fff; border-radius: 6px;
+  }
+  .lead { font-size: 30px; letter-spacing: .25em; color: #d9b15a; margin-bottom: 6px; }
+  .names { font-size: 46px; font-weight: 700; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+  <div id="credit">
+    <div class="band">
+      <div class="lead">提 供</div>
+      <div class="names" id="names">　</div>
+    </div>
+  </div>
+<script>
+  "use strict";
+  var el = document.getElementById("credit");
+  var namesEl = document.getElementById("names");
+  var hideTimer = null, removeTimer = null;
+  var HOLD_MS = 5000;   // 表示保持
+  var FADE_MS = 600;    // CSS の transition と一致
+
+  function setData(data) {
+    try {
+      var obj = (typeof data === "string") ? JSON.parse(data || "{}") : (data || {});
+      if (obj.sponsor) namesEl.textContent = obj.sponsor;
+      if (obj.hold_ms) HOLD_MS = parseInt(obj.hold_ms, 10) || HOLD_MS;
+    } catch (e) { /* 不正 JSON は無視 (文言だけ前回値を保持) */ }
+  }
+
+  // ---- CasparCG テンプレ契約 ----
+  function update(data) { setData(data); }
+  function play() {
+    el.classList.add("show");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(stop, HOLD_MS);   // 自走: 保持後にアウト
+  }
+  function stop() {
+    el.classList.remove("show");
+    clearTimeout(removeTimer);
+    removeTimer = setTimeout(remove, FADE_MS);  // フェード後に撤去
+  }
+  function next() { /* 多段送りなし */ }
+  function remove() { namesEl.textContent = "　"; }
+
+  // CasparCG はグローバル関数を呼ぶ
+  window.update = update; window.play = play; window.stop = stop;
+  window.next = next; window.remove = remove;
+
+  // ブラウザ単体プレビュー
+  if (location.search.indexOf("test") !== -1) {
+    update('{"sponsor":"トヨペット、〇〇商事、ICS フーズ"}');
+    setTimeout(play, 800);
+  }
+</script>
+</body>
+</html>

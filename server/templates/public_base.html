@@ -1,0 +1,125 @@
+{% load static %}<!doctype html>
+<html lang="ja" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}ICS-TV{% endblock %}</title>
+{# ===== OGP / Twitter カード (#COMM-02 SNSシェア)。個別ページは og_* ブロックで上書き。 ===== #}
+<meta name="description" content="{% block meta_description %}リニア配信の ICS-TV。番組表・ライブ視聴・見逃し配信。{% endblock %}">
+<meta property="og:site_name" content="ICS-TV">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+<meta property="og:title" content="{% block og_title %}ICS-TV{% endblock %}">
+<meta property="og:description" content="{% block og_description %}リニア配信の ICS-TV。番組表・ライブ視聴・見逃し配信。{% endblock %}">
+<meta property="og:url" content="{{ request.build_absolute_uri }}">
+{% block og_image %}{% endblock %}
+<meta name="twitter:card" content="{% block twitter_card %}summary{% endblock %}">
+{# 和文フォント: Noto Sans JP を Google Fonts から実ロード(Hiragino 等のシステム依存を排除し環境差をなくす)。weight=400/500/600/700/800(CSS が 600/800 を使うため和文の太字階層を保つ)。 #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap">
+{# Bootstrap 5 公開テーマ (cyan/dark)。トークン・コンポーネント CSS はすべてこのファイルに統合済み。 #}
+<link rel="stylesheet" href="{% static 'web/bootstrap/bootstrap-public.css' %}?v={{ app_version }}">
+<style>{% block extra_css %}{% endblock %}</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{# ===== グローバルナビ (Bootstrap navbar + offcanvas モバイルドロワー) ===== #}
+<nav class="navbar sticky-top border-bottom py-0" id="pub-nav">
+  <div class="container-fluid flex-wrap" style="max-width:var(--maxw);margin:0 auto;padding:8px var(--pad);gap:8px 16px;min-height:60px;align-items:center">
+
+    {# ロゴ #}
+    <a class="navbar-brand d-flex align-items-center fw-bold py-0 me-2 text-decoration-none" href="{{ public_base_url }}/" style="font-size:19px;letter-spacing:.01em;color:var(--fg);gap:9px">
+      <span class="logo-mark"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 1.5 L10 6 L2.5 10.5 Z" fill="#04101a"></path></svg></span>
+      ICS<b style="color:var(--accent)">-TV</b>
+    </a>
+
+    {# デスクトップ: プライマリナビリンク (md 以上で main row に表示) #}
+    <div class="pub-nav-links d-none d-md-flex align-items-center gap-1 me-auto">
+      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}">ホーム</a>
+      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}">番組表</a>
+      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}">週間</a>
+      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}">見逃し</a>
+      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}">ジャンル</a>
+    </div>
+
+    {# 右ツールバー #}
+    <div class="d-flex align-items-center gap-2 ms-auto">
+      <form class="search" action="{{ public_base_url }}/search/" method="get" role="search">
+        <svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><circle cx="7" cy="7" r="5" fill="none" stroke="#6a7390" stroke-width="1.6"></circle><path d="M11 11 L14.5 14.5" stroke="#6a7390" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <input type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="番組・チャンネルを検索" aria-label="番組・チャンネルを検索">
+      </form>
+      <span class="live-pill"><span class="pulse-dot"></span>LIVE <span id="nav-live-count">{{ live_count|default:0 }}</span></span>
+      {# アカウントリンク (md 以上のみ) #}
+      <div class="d-none d-md-flex align-items-center gap-1">
+        {% if member %}
+          <a href="{{ public_base_url }}/members/favorites/" style="color:var(--bright);font-size:13px;font-weight:700;padding:7px 11px;border-radius:8px;text-decoration:none;white-space:nowrap">マイリスト</a>
+          <a href="{{ public_base_url }}/members/history/" style="color:var(--bright);font-size:13px;font-weight:700;padding:7px 11px;border-radius:8px;text-decoration:none;white-space:nowrap">履歴</a>
+          <a href="{{ public_base_url }}/subscriptions/" style="color:var(--bright);font-size:13px;font-weight:700;padding:7px 11px;border-radius:8px;text-decoration:none;white-space:nowrap">プラン</a>
+          <a href="{{ public_base_url }}/members/" style="color:var(--bright);font-size:13px;font-weight:700;padding:7px 11px;border-radius:8px;text-decoration:none;white-space:nowrap">マイページ</a>
+        {% else %}
+          <a href="{{ public_base_url }}/members/login/" style="color:var(--bright);font-size:13px;font-weight:700;padding:7px 11px;border-radius:8px;text-decoration:none;white-space:nowrap">ログイン</a>
+          <a href="{{ public_base_url }}/members/register/" style="background:var(--accent);color:var(--accent-on);font-weight:800;font-size:13px;padding:7px 14px;border-radius:999px;text-decoration:none;white-space:nowrap">会員登録</a>
+        {% endif %}
+      </div>
+      {# ハンバーガー (md 未満のみ) → Bootstrap offcanvas で制御 #}
+      <button class="nav-burger d-flex d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas" aria-label="メニュー" aria-controls="navOffcanvas" aria-expanded="false">
+        <span class="nb-bar"></span><span class="nb-bar"></span><span class="nb-bar"></span>
+      </button>
+    </div>
+
+    {# モバイル 2 行目: プライマリナビリンク (pub-nav-links の @media で order:10/width:100% に) #}
+    <div class="pub-nav-links d-flex d-md-none align-items-center gap-1">
+      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}">ホーム</a>
+      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}">番組表</a>
+      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}">週間</a>
+      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}">見逃し</a>
+      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}">ジャンル</a>
+    </div>
+  </div>
+</nav>
+
+{# ===== オフキャンバス (モバイルドロワー: 副ナビ + フッタ要点) ===== #}
+<div class="offcanvas offcanvas-end" tabindex="-1" id="navOffcanvas" aria-labelledby="navOffcanvasTitle" style="background:rgba(8,9,18,.98);border-left:1px solid var(--line-chrome)">
+  <div class="offcanvas-header" style="border-bottom:1px solid var(--line-chrome)">
+    <span class="fw-bold" id="navOffcanvasTitle" style="color:var(--fg);font-size:15px">ICS-TV</span>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="閉じる"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <div style="border-bottom:1px solid var(--line-thin)">
+      {% if member %}
+        <a href="{{ public_base_url }}/members/favorites/" class="d-block text-decoration-none fw-bold" style="color:var(--bright);font-size:15px;padding:13px 24px;border-bottom:1px solid var(--line-thin)">マイリスト</a>
+        <a href="{{ public_base_url }}/members/history/" class="d-block text-decoration-none fw-bold" style="color:var(--bright);font-size:15px;padding:13px 24px;border-bottom:1px solid var(--line-thin)">履歴</a>
+        <a href="{{ public_base_url }}/subscriptions/" class="d-block text-decoration-none fw-bold" style="color:var(--bright);font-size:15px;padding:13px 24px;border-bottom:1px solid var(--line-thin)">プラン</a>
+        <a href="{{ public_base_url }}/members/" class="d-block text-decoration-none fw-bold" style="color:var(--bright);font-size:15px;padding:13px 24px">マイページ</a>
+      {% else %}
+        <a href="{{ public_base_url }}/members/login/" class="d-block text-decoration-none fw-bold" style="color:var(--bright);font-size:15px;padding:13px 24px;border-bottom:1px solid var(--line-thin)">ログイン</a>
+        <a href="{{ public_base_url }}/members/register/" class="d-block text-decoration-none fw-bold" style="color:var(--accent);font-size:15px;padding:13px 24px">会員登録</a>
+      {% endif %}
+    </div>
+    <div style="padding:8px 24px 16px">
+      <a href="{{ public_base_url }}/privacy/" class="d-block text-decoration-none" style="color:var(--dim);font-size:13px;font-weight:600;padding:9px 0">プライバシーポリシー</a>
+      <a href="{{ public_base_url }}/terms/" class="d-block text-decoration-none" style="color:var(--dim);font-size:13px;font-weight:600;padding:9px 0">利用規約</a>
+      <a href="{{ public_base_url }}/tokushoho/" class="d-block text-decoration-none" style="color:var(--dim);font-size:13px;font-weight:600;padding:9px 0">特定商取引法に基づく表記</a>
+    </div>
+  </div>
+</div>
+
+{% block content %}{% endblock %}
+
+<footer class="border-top py-3">
+  <div class="container-fluid d-flex align-items-center flex-wrap gap-2" style="max-width:var(--maxw);margin:0 auto;padding-left:var(--pad);padding-right:var(--pad);font-size:13px;color:var(--faint)">
+    <b style="font-weight:800"><a href="{{ public_base_url }}/" style="color:#9aa3ba;text-decoration:none">ICS-TV</a></b>
+    <span style="color:var(--sep)">·</span><a href="{{ public_base_url }}/privacy/" style="color:var(--dim);text-decoration:none">プライバシーポリシー</a>
+    <span style="color:var(--sep)">·</span><a href="{{ public_base_url }}/terms/" style="color:var(--dim);text-decoration:none">利用規約</a>
+    <span style="color:var(--sep)">·</span><a href="{{ public_base_url }}/tokushoho/" style="color:var(--dim);text-decoration:none">特定商取引法に基づく表記</a>
+    <span class="ms-auto" style="color:#5b6480">circle-ics.com</span>
+  </div>
+</footer>
+
+{# Bootstrap 5 JS (data-bs-* offcanvas/modal 用)。React 島内は react-bootstrap を使う (Phase 4 以降)。 #}
+<script type="module" src="{% static 'web/bootstrap/bootstrap-public.js' %}?v={{ app_version }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}ダッシュボード — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.2rem;font-weight:800;margin-bottom:1rem">{{ creator.name }}</h1>
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">番組</div>
+    <div style="font-size:1.8rem;font-weight:800">{{ series_count }}</div>
+  </div>
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">会員</div>
+    <div style="font-size:1.8rem;font-weight:800">{{ member_count }}</div>
+  </div>
+  <div class="card" style="flex:1;min-width:160px;text-align:center">
+    <div class="muted" style="font-size:.78rem">稼働中の枠契約</div>
+    <div style="font-size:1.8rem;font-weight:800">{{ active_contract_count }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="muted" style="font-size:.78rem;margin-bottom:.4rem">有料ティアの入金先(Stripe)</div>
+  {% if creator.stripe_connect_onboarded %}
+  <div style="font-weight:700;color:#4ade80">✓ 連携済み — 有料ティアの受付が可能です</div>
+  {% else %}
+  <p class="muted" style="font-size:.85rem;margin:0 0 .6rem">
+    有料ティアで会員から課金を受け取るには、Stripe に口座情報・本人確認を登録する必要があります。
+  </p>
+  <form method="post" action="/stripe/connect/">
+    {% csrf_token %}
+    <button type="submit" class="btn">Stripeで入金先を設定する</button>
+  </form>
+  {% endif %}
+</div>
+
+<p class="muted" style="font-size:.85rem">
+  上のナビからティア設定・番組ごとの投稿管理・会員数の確認・枠契約の閲覧ができます。
+  番組(Series)の紐付けや枠契約の作成は運営(studio)が行います。
+</p>
+{% endblock %}

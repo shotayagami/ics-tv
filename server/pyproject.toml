@@ -1,0 +1,75 @@
+# server (Django モジュラモノリス) のツール設定を集約。
+# 依存は requirements.txt / requirements-dev.txt (pip-tools 風に分離) で管理。
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    "**/icstv_proto/**",  # buf generate 出力
+    "**/migrations/**",   # Django generated
+]
+
+[tool.ruff.lint]
+# 妥当な範囲の現代的ルールセット
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import 順)
+    "B",   # flake8-bugbear (落とし穴)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+    "N",   # PEP 8 naming
+    "RUF", # Ruff 固有
+]
+ignore = [
+    "E501",   # 行長は ruff format に任せる
+    "B008",   # FastAPI/Django で Depends() などの default 引数 callable は許容
+    "N805",   # Django のクラスメソッド first arg (cls) は規約上 self との衝突あり
+    "RUF012", # Django Model.Meta: indexes/constraints の list は規約
+    "RUF001", # 日本語コメントの ambiguous unicode (全角記号許容)
+    "RUF002", # 同 docstring
+    "RUF003", # 同 comment
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B011"]  # assert False は test で使う
+"**/conftest.py" = ["B011"]
+# gRPC servicer の method 名 (SubscribeEvents/ReportResult/Heartbeat) は proto 由来の CamelCase
+"**/grpc_service.py" = ["N802"]
+# grpc.health.v1.Health の Check も同様に proto 由来の CamelCase
+"**/health_service.py" = ["N802"]
+# boto3 S3 API を模した偽クライアントの引数名 (Bucket/Key/Body/...) は boto3 由来の CamelCase
+"**/test_normalize_watcher.py" = ["N803"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "core", "medialib", "scheduling", "youtube", "playout", "config"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+exclude = [
+    "icstv_proto/",
+    ".*/migrations/.*",
+    ".venv/",
+]
+# Phase 1 は段階導入: 明示アノテーションは尊重するが、無アノテーションは黙認
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[tool.pytest.ini_options]
+# 旧 pytest.ini を統合。
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+addopts = "--strict-markers --tb=short"
+markers = [
+    "grpc: tests that require gRPC server running on localhost:50051",
+    "e2e: tests that require web server + chromium (Playwright)",
+]

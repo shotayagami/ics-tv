@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}編成 — {{ channel.name }}{% endblock %}
+{% block content %}
+{{ programs_data|json_script:"programs-data" }}
+<form id="csrf-holder" style="display:none">{% csrf_token %}</form>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+  <h1 style="margin:0">編成タイムライン — {{ channel.name }}
+    <span class="muted" style="font-size:.8rem">[{{ now|date:"m/d H:i" }} → +24h)</span></h1>
+  <a class="btn" href="{% url 'scheduling:program_create' channel.slug %}">＋ 番組追加</a>
+</div>
+<p class="muted" style="font-size:.82rem;margin:.2rem 0 .6rem">
+  凡例: <span style="color:#7fd0ff">◇録画</span> <span style="color:#f0a">◆生</span>
+  <span style="color:#d9b15a">▓CM枠</span> ／ ブロックをドラッグ=移動 (5分スナップ・尺保持)、生は下端で尺変更、
+  クリックで詳細・操作。空き領域をドラッグ=その範囲で番組追加。CM枠はキューシートで定義し「キュー適用」で展開 (ここでは表示のみ)。重なりは配置不可 (EXCLUSION)。
+</p>
+
+<div x-data="timelineApp()" x-init="init()">
+  <div style="display:flex; gap:.6rem; align-items:center; margin-bottom:.5rem; flex-wrap:wrap;">
+    <span class="muted" style="font-size:.8rem">縦ズーム</span>
+    <button class="btn" type="button" @click="setZoom(pxPerMin-0.8)" style="padding:.05rem .5rem">−</button>
+    <span class="muted" style="font-size:.8rem; min-width:3.2rem; text-align:center" x-text="(pxPerMin/1.6).toFixed(1)+'x'"></span>
+    <button class="btn" type="button" @click="setZoom(pxPerMin+0.8)" style="padding:.05rem .5rem">＋</button>
+    <input type="search" x-model="q" placeholder="番組名で検索…"
+           style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.25rem .5rem;width:16rem;margin-left:.6rem">
+    <span class="muted" style="font-size:.78rem" x-show="q.trim()" x-text="filtered().length + ' 件一致'"></span>
+  </div>
+  <template x-if="error">
+    <div class="badge warn" style="margin-bottom:.5rem" x-text="error" @click="error=''"></div>
+  </template>
+  <div style="display:flex;gap:8px;align-items:flex-start">
+    {# 時刻軸 #}
+    <div :style="`position:relative;width:56px;height:${trackH}px;flex:none`">
+      <template x-for="h in hourMarks" :key="h.min">
+        <div :style="`position:absolute;top:${h.min*pxPerMin}px;right:4px;font-size:.72rem;color:#888`"
+             x-text="h.label"></div>
+      </template>
+    </div>
+    {# 番組レーン #}
+    <div :style="`position:relative;flex:1;height:${trackH}px;border-left:1px solid #2a2a2a;background:#141414;cursor:crosshair`"
+         @pointerdown.self="startCreate($event)"
+         @pointermove="onPointerMove($event)" @pointerup="onPointerUp($event)" @pointerleave="onPointerUp($event)">
+      {# 1時間ごとの罫線 (pointer-events:none = 罫線上でも空き領域ドラッグを拾う) #}
+      <template x-for="h in hourMarks" :key="'g'+h.min">
+        <div :style="`position:absolute;left:0;right:0;top:${h.min*pxPerMin}px;border-top:1px solid #222;pointer-events:none`"></div>
+      </template>
+      {# 番組ブロック (検索フィルタ適用) #}
+      <template x-for="p in filtered()" :key="p.id">
+        <div :style="blockStyle(p)" class="tl-block"
+             @pointerdown="startMove($event, p)">
+          <div style="display:flex;justify-content:space-between;gap:4px;font-size:.74rem">
+            <strong x-text="p.title"></strong>
+            <span x-text="fmtRange(p)"></span>
+          </div>
+          <div class="muted" style="font-size:.7rem" x-show="durMin(p)*pxPerMin >= 38" x-text="(p.type==='live'?'◆生 ':'◇録画 ')+(p.source||'')"></div>
+          {# CM枠マーカー (録画のみ・読取専用)。定義はキューシート→「キュー適用」。ラベルで内容明示 #}
+          <template x-if="p.type==='recorded' && p.asset_duration_ms && p.breaks">
+            <div>
+              <template x-for="b in p.breaks" :key="b.id">
+                <div class="tl-break" :style="breakStyle(p,b)" :title="breakLabel(b)">
+                  <span x-show="durMin(p)*pxPerMin >= 26" style="font-size:.6rem" x-text="breakLabel(b)"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+          {# リサイズハンドル (生のみ) #}
+          <template x-if="p.type==='live'">
+            <div class="tl-resize" @pointerdown.stop="startResize($event, p)"></div>
+          </template>
+          {# 操作 (薄いブロックでは隠す。ズームで高さが出ると表示) #}
+          <div style="position:absolute;right:2px;top:2px;display:flex;gap:2px" @pointerdown.stop
+               x-show="durMin(p)*pxPerMin >= 28">
+            <template x-if="p.type==='recorded' && p.has_cuesheet">
+              <button class="btn" style="font-size:.66rem;padding:0 .3rem" @click.stop="applyCuesheet(p)"
+                      title="素材のキューシートから CM枠を一括展開">キュー適用</button>
+            </template>
+            <a :href="`/scheduling/ch/{{ channel.slug }}/programs/${p.id}/edit/`" class="btn"
+               style="font-size:.66rem;padding:0 .3rem">編集</a>
+          </div>
+        </div>
+      </template>
+      {# ドラッグ中ゴースト (開始–終了をラベル表示) #}
+      <template x-if="ghost">
+        <div :style="ghostStyle()" class="tl-ghost">
+          <span class="tl-ghost-label" x-text="ghostLabel()"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  {# 番組クリックで詳細ポップアップ (薄いブロックでも全情報・操作にアクセス可) #}
+  <template x-if="sel">
+    <div @click.self="sel=null"
+         style="position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; display:flex; align-items:center; justify-content:center;">
+      <div class="card" style="min-width:24rem; max-width:34rem" @click.stop>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:.6rem;">
+          <div style="display:flex; align-items:center; gap:.6rem; min-width:0">
+            <span style="position:relative;display:inline-block;flex:none;width:52px;height:52px;border-radius:5px;overflow:hidden;background:#1d1d1d;border:1px solid var(--line)">
+              <svg viewBox="0 0 24 24" width="58%" height="58%" fill="none" stroke="#5a5a5a" stroke-width="1.6"
+                   stroke-linecap="round" stroke-linejoin="round" style="position:absolute;top:21%;left:21%">
+                <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              <template x-if="sel.thumb"><img :src="sel.thumb" alt="" @error="$event.target.style.display='none'"
+                   style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></template>
+            </span>
+            <h2 style="margin:0;overflow:hidden;text-overflow:ellipsis" x-text="sel.title"></h2>
+          </div>
+          <button class="btn" type="button" style="background:#444; padding:.1rem .55rem" @click="sel=null">✕</button>
+        </div>
+        <p class="muted" style="margin:.4rem 0"
+           x-text="(sel.type==='live'?'◆ 生':'◇ 録画')+' · '+fmtRange(sel)+(sel.source?(' · '+sel.source):'')"></p>
+        <template x-if="sel.type==='recorded' && sel.breaks && sel.breaks.length">
+          <p class="muted" style="margin:.2rem 0" x-text="'CM枠 '+sel.breaks.length+' 本'"></p>
+        </template>
+        <div style="margin-top:.7rem">
+          <label class="muted" style="font-size:.8rem">開始時刻（手入力・秒精度）</label>
+          <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem;">
+            <input type="datetime-local" step="1" x-ref="selStart" :value="toLocalInput(sel.start_at)"
+                   style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.25rem .4rem">
+            <button class="btn" type="button" @click="setStart()">時刻を適用</button>
+          </div>
+        </div>
+        <div style="display:flex; gap:.5rem; margin-top:.9rem; flex-wrap:wrap;">
+          <a class="btn" :href="`/scheduling/ch/{{ channel.slug }}/programs/${sel.id}/edit/`">編集</a>
+          <template x-if="sel.type==='recorded' && sel.has_cuesheet">
+            <button class="btn" type="button" @click="applyCuesheet(sel); sel=null">キュー適用</button>
+          </template>
+          <template x-if="sel.type==='recorded' && sel.breaks && sel.breaks.length">
+            <a class="btn" :href="`/scheduling/ch/{{ channel.slug }}/programs/${sel.id}/breaks/`">CM割当</a>
+          </template>
+          <button class="btn warn" type="button" @click="delProgram(sel)">削除</button>
+        </div>
+        <p class="muted" style="font-size:.78rem; margin:.7rem 0 0">
+          ※ 移動はブロックをドラッグ（5分スナップ）。このポップアップは選択中の番組の詳細・操作です。
+        </p>
+      </div>
+    </div>
+  </template>
+</div>
+
+{% comment %}
+生番組のランタイム quick-action (押え/巻き。#7 O-C)。ドラッグ移動とは別系統で、
+extend_program/shorten_program サービス (ExtendRejectedError 等) を通す。サーバ描画。
+{% endcomment %}
+<section class="card" style="margin-top:1rem">
+  <h2 style="font-size:1rem">生番組 押え / 巻き <span class="muted">(ランタイム調整)</span></h2>
+  {% for prog in programs %}{% if prog.type == "live" %}
+    <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin:.3rem 0">
+      <span style="min-width:14rem">◆ {{ prog.title }} <span class="muted">{{ prog.start_at|date:"H:i" }}–{{ prog.end_at|date:"H:i" }}</span></span>
+      <form hx-post="{% url 'core:op_extend' channel.slug prog.id %}" hx-swap="none"
+            hx-on::after-request="event.detail.successful ? location.reload() : alert(event.detail.xhr.responseText)" style="display:inline">
+        {% csrf_token %}<input type="hidden" name="delta_ms" value="300000">
+        <button type="submit" class="btn" style="font-size:.75rem;padding:.15rem .4rem">押え+5</button>
+      </form>
+      <form hx-post="{% url 'core:op_extend' channel.slug prog.id %}" hx-swap="none"
+            hx-on::after-request="event.detail.successful ? location.reload() : alert(event.detail.xhr.responseText)" style="display:inline">
+        {% csrf_token %}<input type="hidden" name="delta_ms" value="600000">
+        <button type="submit" class="btn" style="font-size:.75rem;padding:.15rem .4rem">+10</button>
+      </form>
+      <form hx-post="{% url 'core:op_shorten' channel.slug prog.id %}" hx-swap="none"
+            hx-on::after-request="event.detail.successful ? location.reload() : alert(event.detail.xhr.responseText)" style="display:inline">
+        {% csrf_token %}<input type="hidden" name="delta_ms" value="300000">
+        <button type="submit" class="btn warn" style="font-size:.75rem;padding:.15rem .4rem">巻き-5</button>
+      </form>
+    </div>
+  {% endif %}{% empty %}
+    <p class="muted" style="font-size:.85rem">生番組がありません。</p>
+  {% endfor %}
+</section>
+
+<style>
+  .tl-block { position:absolute; left:6px; right:10px; box-sizing:border-box; border-radius:5px;
+    padding:4px 6px; overflow:hidden; cursor:grab; color:#eee;
+    background:rgba(40,60,90,.85); border:1px solid #3a5a82; touch-action:none; }
+  .tl-block:active { cursor:grabbing; }
+  .tl-break { position:absolute; left:2px; right:2px; background:rgba(217,177,90,.55);
+    border-top:2px solid #d9b15a; box-sizing:border-box; cursor:grab; touch-action:none;
+    display:flex; justify-content:flex-end; padding:0 3px; color:#1a1a1a; font-size:.66rem; }
+  .tl-resize { position:absolute; left:0; right:0; bottom:0; height:7px; cursor:ns-resize;
+    background:repeating-linear-gradient(90deg,#3a5a82,#3a5a82 4px,transparent 4px,transparent 8px); }
+  .tl-ghost { position:absolute; left:6px; right:10px; border-radius:5px; pointer-events:none;
+    background:repeating-linear-gradient(45deg,rgba(127,208,255,.18),rgba(127,208,255,.18) 6px,transparent 6px,transparent 12px);
+    border:1px dashed #7fd0ff; }
+  .tl-ghost-label { position:absolute; left:4px; top:-1px; font-size:.7rem; color:#cfeaff;
+    background:rgba(18,28,42,.9); padding:0 5px; border-radius:0 0 4px 4px; white-space:nowrap;
+    font-variant-numeric:tabular-nums; }
+</style>
+
+<script>
+function timelineApp() {
+  return {
+    slug: "{{ channel.slug }}",
+    now: new Date("{{ now|date:'c' }}"),
+    pxPerMin: 1.6,
+    snapMin: 5,
+    windowMin: 24*60,
+    programs: [],
+    q: "",              // 番組名フィルタ (番組数増加に備える)
+    sel: null,          // クリックで開く詳細ポップアップの対象番組
+    error: "",
+    ghost: null,        // {top, height}
+    drag: null,         // {mode:'move'|'resize'|'break', p, b, startY, origTop/origH/origOffsetTop}
+    get trackH() { return this.windowMin * this.pxPerMin; },
+    get hourMarks() {
+      const out = [];
+      const base = new Date(this.now); base.setMinutes(0,0,0);
+      if (base < this.now) base.setHours(base.getHours()+1);
+      for (let t=new Date(base); (t-this.now)/60000 < this.windowMin; t.setHours(t.getHours()+1)) {
+        out.push({ min:(t-this.now)/60000, label:String(t.getHours()).padStart(2,'0')+":00" });
+      }
+      return out;
+    },
+    init() {
+      this.programs = JSON.parse(document.getElementById("programs-data").textContent);
+      const z = parseFloat(localStorage.getItem("tl_pxPerMin"));
+      if (z && z > 0) this.pxPerMin = z;   // 縦ズーム倍率を復元
+    },
+    // 番組名フィルタ (空なら全件)
+    filtered() {
+      const q = this.q.trim().toLowerCase();
+      return q ? this.programs.filter(p => (p.title||"").toLowerCase().includes(q)) : this.programs;
+    },
+    setZoom(v) {
+      this.pxPerMin = Math.min(12, Math.max(0.8, Math.round(v*10)/10));
+      localStorage.setItem("tl_pxPerMin", this.pxPerMin);
+    },
+    // 絶対時刻を壁時計 snapMin 分グリッドへスナップ (now 相対でなく :00/:05.. に揃える)
+    _snapAbs(minFromNow) {
+      const grid = this.snapMin*60000;
+      return new Date(Math.round((this.now.getTime() + minFromNow*60000)/grid)*grid);
+    },
+    _csrf() { return document.querySelector("#csrf-holder [name=csrfmiddlewaretoken]").value; },
+    minOf(iso) { return (new Date(iso) - this.now)/60000; },
+    durMin(p) { return (new Date(p.end_at) - new Date(p.start_at))/60000; },
+    blockStyle(p) {
+      const top = this.minOf(p.start_at)*this.pxPerMin;
+      const h = Math.max(6, this.durMin(p)*this.pxPerMin);
+      return `top:${top}px;height:${h}px;${p.type==='live'?'background:rgba(120,40,90,.85);border-color:#a3477e':''}`;
+    },
+    breakStyle(p, b) {
+      const frac = b.offset_ms / p.asset_duration_ms;        // 素材尺内の相対位置
+      const h = Math.max(6, this.durMin(p)*this.pxPerMin);
+      return `top:${Math.min(h-6, frac*h)}px;height:5px`;
+    },
+    breakLabel(b) {
+      const off = Math.round(b.offset_ms/1000), mm = Math.floor(off/60), ss = off%60;
+      return `CM枠 ${b.grid} ${Math.round(b.duration_ms/1000)}s @${mm}:${String(ss).padStart(2,'0')}`;
+    },
+    ghostStyle() { return `top:${this.ghost.top}px;height:${this.ghost.height}px`; },
+    // ドラッグ中ゴーストの開始–終了 (onPointerUp と同じ算出: 確定後の値を表示)
+    ghostLabel() {
+      if (!this.ghost || !this.drag) return "";
+      const g = this.ghost, m = this.drag.mode;
+      const f = d => String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0');
+      let start, end;
+      if (m==='create') {
+        start = this._snapAbs(g.top/this.pxPerMin);
+        end = this._snapAbs((g.top+g.height)/this.pxPerMin);
+      } else if (m==='move') {
+        start = this._snapAbs(g.top/this.pxPerMin);
+        end = new Date(start.getTime() + (new Date(this.drag.p.end_at) - new Date(this.drag.p.start_at)));
+      } else if (m==='resize') {
+        start = new Date(this.drag.p.start_at);
+        end = this._snapAbs((g.top+g.height)/this.pxPerMin);
+      } else {
+        return "";
+      }
+      return f(start)+"–"+f(end);
+    },
+    fmtRange(p) {
+      const f = d => String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0');
+      return f(new Date(p.start_at))+"–"+f(new Date(p.end_at));
+    },
+    toLocalInput(iso) {   // ISO → datetime-local の value (ローカル・秒まで)
+      const d = new Date(iso), p = n => String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    },
+    async setStart() {    // ポップアップの手入力時刻へ移動 (尺保持・重なりは _move が 422 処理)
+      const v = this.$refs.selStart.value;
+      if (v) await this._move(this.sel, new Date(v));
+      this.sel = null;
+    },
+    _snap(min) { return Math.round(min/this.snapMin)*this.snapMin; },
+
+    // ---- 番組 移動 ----
+    startMove(ev, p) {
+      // pointer capture は使わない (lane の pointermove/up へバブリングさせるため)
+      this.drag = { mode:'move', p, startY:ev.clientY, origTop:this.minOf(p.start_at)*this.pxPerMin };
+      this.ghost = { top:this.drag.origTop, height:Math.max(6,this.durMin(p)*this.pxPerMin) };
+    },
+    startResize(ev, p) {
+      this.drag = { mode:'resize', p, startY:ev.clientY, origH:Math.max(6,this.durMin(p)*this.pxPerMin) };
+    },
+    startBreakMove(ev, p, b) {
+      const h = Math.max(6,this.durMin(p)*this.pxPerMin);
+      this.drag = { mode:'break', p, b, startY:ev.clientY, blockH:h, origTop:(b.offset_ms/p.asset_duration_ms)*h };
+    },
+    // ---- 空き領域ドラッグで新規番組追加 (選択範囲=尺) ----
+    startCreate(ev) {
+      const rect = ev.currentTarget.getBoundingClientRect();
+      const y0 = Math.max(0, ev.clientY - rect.top);
+      this.drag = { mode:'create', laneTop:rect.top, origTop:y0 };
+      this.ghost = { top:y0, height:0 };
+    },
+    onPointerMove(ev) {
+      if (!this.drag) return;
+      const dy = ev.clientY - this.drag.startY;
+      if (this.drag.mode==='move') this.ghost.top = Math.max(0, this.drag.origTop + dy);
+      else if (this.drag.mode==='resize') this.ghost = { top:this.minOf(this.drag.p.start_at)*this.pxPerMin, height:Math.max(8, this.drag.origH+dy) };
+      else if (this.drag.mode==='break') this.drag.curTop = Math.min(this.drag.blockH-2, Math.max(0, this.drag.origTop+dy));
+      else if (this.drag.mode==='create') {
+        const cur = Math.max(0, ev.clientY - this.drag.laneTop);
+        this.ghost = { top:Math.min(this.drag.origTop, cur), height:Math.abs(cur - this.drag.origTop) };
+      }
+    },
+    async onPointerUp(ev) {
+      if (!this.drag) return;
+      const d = this.drag; this.drag = null; const g = this.ghost; this.ghost = null;
+      if (d.mode==='move') {
+        if (Math.abs(g.top - d.origTop) < 4) { this.sel = d.p; return; }  // ほぼ動かず=クリック→詳細
+        await this._move(d.p, this._snapAbs(g.top/this.pxPerMin));   // 壁時計5分スナップ
+      } else if (d.mode==='resize') {
+        await this._resize(d.p, this._snapAbs((g.top+g.height)/this.pxPerMin));
+      } else if (d.mode==='break') {
+        const frac = (d.curTop ?? d.origTop)/d.blockH;
+        const unit = d.b.grid==='15s'?15000:20000;
+        let off = Math.round((frac*d.p.asset_duration_ms)/unit)*unit;     // grid スナップ
+        off = Math.max(0, Math.min(d.p.asset_duration_ms-unit, off));
+        await this._post(`/scheduling/ch/${this.slug}/adbreaks/${d.b.id}/move/`, {offset_ms:off},
+          r => { d.b.offset_ms = r.offset_ms; });
+      } else if (d.mode==='create') {
+        if (!g || g.height < 6) return;                          // ほぼ動かず=ただのクリック→無視
+        const start = this._snapAbs(g.top/this.pxPerMin);        // 壁時計5分スナップ
+        const end = this._snapAbs((g.top+g.height)/this.pxPerMin);
+        if (end <= start) return;                                // 5分未満の選択は枠にならない
+        const qs = `?start=${encodeURIComponent(this.toLocalInput(start))}`
+                 + `&end=${encodeURIComponent(this.toLocalInput(end))}`;
+        window.location.href = `/scheduling/ch/${this.slug}/programs/new/${qs}`;
+      }
+    },
+    async _move(p, start) {
+      const dur = new Date(p.end_at) - new Date(p.start_at);
+      await this._post(`/scheduling/ch/${this.slug}/programs/${p.id}/move/`, {start_at:start.toISOString()},
+        r => { p.start_at = r.start_at; p.end_at = r.end_at; },
+        body => { if (body.earliest) this._move(p, new Date(body.earliest)); });
+    },
+    async _resize(p, end) {
+      await this._post(`/scheduling/ch/${this.slug}/programs/${p.id}/resize/`, {end_at:end.toISOString()},
+        r => { p.end_at = r.end_at; });
+    },
+    addBreak(p) {
+      this._post(`/scheduling/ch/${this.slug}/programs/${p.id}/adbreaks/add/`,
+        {offset_ms:Math.floor(p.asset_duration_ms/3), grid:"15s", duration_ms:30000},
+        r => { p.breaks.push({id:r.id, offset_ms:r.offset_ms, grid:r.grid, duration_ms:r.duration_ms});
+               if (r.end_at) p.end_at = r.end_at; });
+    },
+    applyCuesheet(p) {
+      this._post(`/scheduling/ch/${this.slug}/programs/${p.id}/adbreaks/apply-cuesheet/`, {},
+        () => location.reload());
+    },
+    async delProgram(p) {
+      if (!confirm(`番組「${p.title}」を編成から削除しますか？`)) return;
+      const res = await fetch(`/scheduling/ch/${this.slug}/programs/${p.id}/delete/`,
+        {method:"POST", headers:{"X-CSRFToken":this._csrf()}});
+      if (res.ok) location.reload();
+      else this.error = "削除に失敗しました";
+    },
+    async delBreak(p, b) {
+      const res = await fetch(`/scheduling/ch/${this.slug}/adbreaks/${b.id}/delete/`,
+        {method:"POST", headers:{"X-CSRFToken":this._csrf()}});
+      if (res.ok) p.breaks = p.breaks.filter(x => x.id !== b.id);
+    },
+    async _post(url, payload, onOk, onErr) {
+      this.error = "";
+      const res = await fetch(url, {method:"POST",
+        headers:{"Content-Type":"application/json","X-CSRFToken":this._csrf()},
+        body:JSON.stringify(payload)});
+      let body = {}; try { body = await res.json(); } catch(e) {}
+      if (res.ok) { onOk?.(body); }
+      else if (res.status===422 && onErr) { onErr(body); }
+      else { this.error = "配置不可: " + (body.error || body.earliest || res.status); }
+    },
+  };
+}
+</script>
+{% endblock %}

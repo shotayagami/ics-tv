@@ -1,0 +1,114 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ post.title }} — {{ series.title }} — ICS-TV{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block og_title %}{{ post.title }} — {{ series.title }}{% endblock %}
+{% block og_description %}{{ post.body|truncatechars:120 }}{% endblock %}
+{% block meta_description %}{{ post.body|truncatechars:120 }}{% endblock %}
+{% block og_image %}{% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}{% endblock %}
+{% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+
+{% block extra_css %}
+  .sp { max-width: 760px; margin: 0 auto; padding: clamp(16px,3vw,28px) var(--pad) 64px; }
+  .sp .back { display: inline-flex; align-items: center; gap: 6px; color: var(--dim);
+    font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 18px; }
+  .sp .back:hover { color: var(--accent); }
+  .sp .post-kind { display: inline-block; font-size: 11px; font-weight: 700;
+    border-radius: 4px; padding: 2px 8px; background: rgba(56,189,248,.14); color: var(--accent);
+    margin-bottom: 10px; }
+  .sp .post-kind.campaign { background: rgba(251,191,36,.14); color: #fbbf24; }
+  .sp h1 { font-size: clamp(20px,3vw,30px); font-weight: 800; line-height: 1.22; margin: 0 0 8px; }
+  .sp .post-date { font-size: 13px; color: var(--dim); font-weight: 600; margin-bottom: 20px; }
+
+  /* メディア (画像/動画) */
+  .sp .post-media { margin: 20px 0; border-radius: 10px; overflow: hidden; }
+  .sp .post-media img { width: 100%; display: block; border-radius: 10px; }
+  .sp .post-media video { width: 100%; display: block; border-radius: 10px; }
+
+  /* 本文 */
+  .sp .post-body { color: var(--bright2); line-height: 1.9; white-space: pre-wrap; margin-bottom: 28px; }
+
+  /* キャンペーン枠 */
+  .sp .campaign-box { border: 1px solid rgba(251,191,36,.35); border-radius: 10px;
+    padding: 20px 24px; margin-bottom: 24px; background: rgba(251,191,36,.06); }
+  .sp .campaign-box h2 { font-size: 15px; font-weight: 800; color: #fbbf24; margin: 0 0 8px; }
+  .sp .campaign-box .period { font-size: 13px; color: var(--dim); margin-bottom: 14px; }
+  .sp .campaign-box .btn-campaign { display: inline-flex; align-items: center; gap: 8px;
+    background: #fbbf24; color: #1a1200; font-weight: 800; font-size: 15px;
+    border-radius: 999px; padding: 12px 28px; text-decoration: none; }
+  .sp .campaign-box .btn-campaign:hover { background: #f59e0b; }
+
+  /* 番組へのリンク */
+  .sp .series-link { display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: inherit;
+    margin-top: 32px; }
+  .sp .series-link:hover { border-color: var(--accent); }
+  .sp .series-link img { width: 72px; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+  .sp .series-link .sl-ph { width: 72px; aspect-ratio: 16/9; background: #0d1530; border-radius: 6px;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: rgba(255,255,255,.2); font-weight: 800; }
+  .sp .series-link .sl-body .sl-label { font-size: 11px; color: var(--dim); font-weight: 700; }
+  .sp .series-link .sl-body .sl-title { font-size: 14px; font-weight: 700; }
+{% endblock %}
+
+{% block content %}
+<div class="sp">
+  <a class="back" href="{{ public_base_url }}/series/{{ series.id }}/">‹ {{ series.title }}</a>
+
+  <div>
+    <span class="post-kind {% if post.kind == 'campaign' %}campaign{% endif %}">{{ post.get_kind_display }}</span>
+  </div>
+  <h1>{{ post.title }}</h1>
+  {% if post.published_at %}<div class="post-date tabnum">{{ post.published_at|date:"Y/n/j(D)" }}</div>{% endif %}
+
+  {# メディア #}
+  {% if post.media_url %}
+  <div class="post-media">
+    {% with ext=post.media_url|lower %}
+    {% if ".mp4" in ext or ".webm" in ext or ".mov" in ext %}
+      <video src="{{ post.media_url }}" controls playsinline></video>
+    {% else %}
+      <img src="{{ post.media_url }}" alt="{{ post.title }}">
+    {% endif %}
+    {% endwith %}
+  </div>
+  {% endif %}
+
+  {# キャンペーン応募枠 #}
+  {% if post.kind == "campaign" and post.form_url %}
+  <div class="campaign-box">
+    <h2>キャンペーン応募</h2>
+    {% if post.campaign_start or post.campaign_end %}
+    <div class="period tabnum">
+      受付期間:
+      {% if post.campaign_start %}{{ post.campaign_start|date:"Y/n/j H:i" }}{% else %}—{% endif %}
+      〜
+      {% if post.campaign_end %}{{ post.campaign_end|date:"Y/n/j H:i" }}{% else %}随時{% endif %}
+      {% if post.campaign_end and post.campaign_end < now %}<span style="color:var(--danger-text)"> （受付終了）</span>{% endif %}
+    </div>
+    {% endif %}
+    {% if not post.campaign_end or post.campaign_end >= now %}
+    <a class="btn-campaign" href="{{ post.form_url }}" target="_blank" rel="noopener noreferrer">応募フォームへ ›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# 本文 #}
+  {% if post.body %}
+  <div class="post-body">{{ post.body }}</div>
+  {% endif %}
+
+  {# 番組ページへのリンク #}
+  <a class="series-link" href="{{ public_base_url }}/series/{{ series.id }}/">
+    {% if series.thumbnail_url %}
+    <img src="{{ series.thumbnail_url }}" alt="{{ series.title }}">
+    {% else %}
+    <div class="sl-ph">ICS-TV</div>
+    {% endif %}
+    <div class="sl-body">
+      <div class="sl-label">番組ページ</div>
+      <div class="sl-title">{{ series.title }}</div>
+    </div>
+  </a>
+</div>
+{% endblock %}

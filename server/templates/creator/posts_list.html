@@ -1,0 +1,30 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}{{ series.title }} 投稿 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<a href="/series/" class="muted" style="font-size:.8rem;text-decoration:none">‹ 番組一覧</a>
+<h1 style="font-size:1.1rem;font-weight:800;margin:.5rem 0 1rem">{{ series.title }} の投稿</h1>
+<a class="btn" href="/series/{{ series.id }}/posts/new/" style="margin-bottom:1rem;display:inline-block">＋ 投稿を追加</a>
+
+{% for post in posts %}
+<div class="card">
+  <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
+    <strong style="flex:1">{{ post.title }}</strong>
+    {% if post.fc_required_level != None %}
+    <span class="muted" style="font-size:.75rem">🔒 {% if post.fc_required_level == 0 %}無料会員以上{% else %}ティア{{ post.fc_required_level }}以上{% endif %}</span>
+    {% endif %}
+    <span style="font-size:.75rem" class="{% if post.is_published %}ok{% else %}muted{% endif %}">
+      {% if post.is_published %}● 公開中{% else %}○ 非公開{% endif %}
+    </span>
+  </div>
+  <div style="display:flex;gap:.5rem">
+    <a class="btn" style="font-size:.75rem;padding:.2rem .6rem" href="/series/{{ series.id }}/posts/{{ post.id }}/edit/">編集</a>
+    <form method="post" action="/series/{{ series.id }}/posts/{{ post.id }}/delete/" style="display:inline" onsubmit="return confirm('この投稿を削除しますか?');">
+      {% csrf_token %}
+      <button type="submit" class="btn warn" style="font-size:.75rem;padding:.2rem .6rem">削除</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<p class="muted">投稿がまだありません。</p>
+{% endfor %}
+{% endblock %}

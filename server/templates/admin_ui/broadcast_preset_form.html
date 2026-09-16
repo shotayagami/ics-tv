@@ -1,0 +1,56 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}配信プリセット — ICS-TV admin{% endblock %}
+{% block content %}
+<style>
+  .pf .field { margin: .55rem 0; }
+  .pf label { display:block; color:#bbb; font-size:.85rem; margin-bottom:.15rem; }
+  .pf input:not([type=checkbox]), .pf select, .pf textarea {
+    width:100%; max-width:40rem; background:#1a1a1a; color:#ddd; border:1px solid #444; padding:.3rem;
+  }
+  .pf .check { display:flex; align-items:center; gap:.4rem; }
+  .pf .check label { display:inline; margin:0; }
+  .pf .check input { width:auto; max-width:none; }
+  .pf .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.4rem 1.2rem; }
+</style>
+
+<h1>配信プリセット{% if not is_new %} <span class="muted">/ {{ preset.name }}</span>{% endif %}</h1>
+<p><a class="muted" href="{% url 'core:preset_list' %}">← プリセット一覧へ戻る</a></p>
+
+{% if messages %}
+  {% for m in messages %}
+    <p class="{% if m.tags == 'error' %}err{% else %}ok{% endif %}">{{ m }}</p>
+  {% endfor %}
+{% endif %}
+
+<form method="post" class="pf">
+  {% csrf_token %}
+
+  <section class="card">
+    <h2>{% if is_new %}新規作成{% else %}基本情報{% endif %} <span class="muted">— API で反映される項目</span></h2>
+    {% for f in form %}
+      <div class="field {% if f.field.widget.input_type == 'checkbox' %}check{% endif %}">
+        <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+        {{ f }}
+        {% if f.help_text %}<span class="muted">{{ f.help_text }}</span>{% endif %}
+        {% if f.errors %}<span class="err">{{ f.errors|striptags }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>手動チェックリスト <span class="muted">— YouTube Studio でしか設定できない項目</span></h2>
+    <p class="muted">API では設定できないため、配信ごとに Studio で手動操作します。ここでは「このプリセットで既定として扱う」項目に
+      チェックを付けます (各配信のチェック状態は専用枠ごとに別途残ります)。</p>
+    <div class="grid2">
+      {% for c in checklist %}
+        <div class="check">
+          <input type="checkbox" id="checklist_{{ c.key }}" name="checklist_{{ c.key }}" value="1" {% if c.default %}checked{% endif %}>
+          <label for="checklist_{{ c.key }}">{{ c.label }}</label>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <button class="btn" type="submit">{% if is_new %}作成{% else %}保存{% endif %}</button>
+</form>
+{% endblock %}

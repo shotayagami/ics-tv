@@ -1,0 +1,21 @@
+{% extends "members/base_members.html" %}
+{% block title %}プロフィール編集 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>プロフィール編集</h1>
+  <form class="mform" method="post" action="/members/edit/" novalidate>
+    {% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="merr">{{ e }}</div>{% endfor %}
+    {% include "members/_field.html" with field=form.nickname %}
+    <div class="mrow">
+      <div>{% include "members/_field.html" with field=form.birth_year %}</div>
+      <div>{% include "members/_field.html" with field=form.birth_month %}</div>
+    </div>
+    {% include "members/_field.html" with field=form.gender %}
+    {% include "members/_field.html" with field=form.country %}
+    {% include "members/_field.html" with field=form.postal_code %}
+    <button class="btn" type="submit">保存</button>
+  </form>
+  <div class="mlinks"><a href="/members/">マイページに戻る</a></div>
+</div>
+{% endblock %}

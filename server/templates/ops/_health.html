@@ -1,0 +1,58 @@
+<h2>ヘルス</h2>
+{% if status %}
+  <table>
+    <tr><th>agent</th><td>
+      {% if online %}<span class="badge live">ONLINE</span>{% else %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">OFFLINE</span>{% endif %}
+    </td></tr>
+    <tr><th>最終 heartbeat</th><td>{{ status.last_heartbeat_at|date:"H:i:s" }}</td></tr>
+    <tr><th>CasparCG</th><td>{{ status.caspar_health|default:"—" }}</td></tr>
+    <tr><th>feed</th><td>
+      {% if status.feed_state == "lost" %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">lost</span>
+      {% else %}{{ status.feed_state|default:"—" }}{% endif %}
+    </td></tr>
+    <tr><th>slate</th><td>{% if status.slate_active %}<span class="badge live">ON</span>{% else %}off{% endif %}</td></tr>
+    <tr><th>自動復帰</th><td>
+      {% if status.auto_return %}ON{% else %}OFF{% endif %}
+      {% if status.auto_return_suspended %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">サスペンド</span>{% endif %}
+      <form method="post" action="{% url 'core:op_auto_return_toggle' channel.slug %}"
+            hx-post="{% url 'core:op_auto_return_toggle' channel.slug %}" hx-swap="none"
+            style="display:inline; margin-left:.5rem;">
+        {% csrf_token %}
+        <input type="hidden" name="auto_return" value="{% if status.auto_return %}off{% else %}on{% endif %}">
+        <button class="btn" type="submit" style="padding:.15rem .5rem; font-size:.8rem;">
+          {% if status.auto_return %}OFFにする{% else %}ONにする{% endif %}
+        </button>
+      </form>
+    </td></tr>
+    <tr><th>queue</th><td>{{ status.queue_depth }} (seq {{ status.last_received_seq }})</td></tr>
+  </table>
+{% else %}
+  <p class="muted">agent_status なし (heartbeat 未受信)</p>
+{% endif %}
+
+<h2 style="margin-top:1rem;">レイヤ状態</h2>
+{% if status.layers %}
+  <table>
+    {% for l in status.layers %}
+    <tr>
+      <th>1-{{ l.layer }} {{ l.role }}</th>
+      <td>
+        {% if l.visible %}<span class="badge live">● ON</span>{% elif l.occupied %}<span class="muted">○ load</span>{% else %}<span class="muted">—</span>{% endif %}
+        {% if l.content %}<span style="margin-left:.4rem;">{{ l.content }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted">レイヤ情報なし (heartbeat 未受信 or 旧 agent)</p>
+{% endif %}
+
+<h2 style="margin-top:1rem;">YouTube 枠</h2>
+{% if current_slot %}
+  <table>
+    <tr><th>状態</th><td>{{ current_slot.status }}</td></tr>
+    <tr><th>窓</th><td>{{ current_slot.window_start|date:"H:i" }}–{{ current_slot.window_end|date:"H:i" }}</td></tr>
+  </table>
+{% else %}
+  <p class="muted">現在の枠なし</p>
+{% endif %}

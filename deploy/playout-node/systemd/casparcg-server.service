@@ -1,0 +1,38 @@
+[Unit]
+Description=ICS-TV CasparCG Server (headless EGL, Intel UHD630)
+After=network-online.target casparcg-scanner.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+WorkingDirectory=/opt/casparcg
+# PPA 版バイナリ (apt install casparcg-server)。config は /etc/icstv/casparcg.config (install.sh が配置)。
+ExecStart=/usr/bin/casparcg-server /etc/icstv/casparcg.config
+# AMCP "RESTART" はプロセスを exit code 5 で落として自己再起動を促す慣習
+Restart=on-failure
+RestartForceExitStatus=5
+RestartSec=3
+# --- 実証済み必須 env (2026-06-10, 実証用 LXC/UHD630) ---
+# EGL_PLATFORM=surfaceless が無いと eglChooseConfig 失敗。LC_ALL/LANG が無いと locale abort。
+Environment=EGL_PLATFORM=surfaceless
+Environment=LIBVA_DRIVER_NAME=iHD
+Environment=LC_ALL=C.UTF-8
+Environment=LANG=C.UTF-8
+# --- メモリ (2026-08-18 見直し。詳細は scripts/watchdog.sh の CASPAR_MEM_RECYCLE_BYTES) ---
+# casparcg 本体は単一 anon アリーナが単調増加する (実測: 仮想 3.0GiB/実 2.01GiB、CEF 子プロセスは
+# 合計 100MiB 未満で犯人ではない)。送出ノードのホストに増設余地は無いため、上限を上げるのではなく
+# watchdog が天井の手前で計画的にリサイクルする方針。
+# MemoryHigh は意図的に設定しない: high を超えるとプロセスがリクレイムで throttle され、
+#   AMCP 無応答のまま OOM kill もされず wedge する (2026-08-18 に 1h35m のオンエア断を実際に起こした)。
+#   実機では 2026-08-04 に systemctl set-property で MemoryHigh=2.5G が入っており
+#   /etc/systemd/system.control/ に残るので、install.sh が撤去する。
+# MemoryMax は「watchdog が取りこぼした場合の最後の砦」。ここに当たれば OOM kill され
+#   Restart=on-failure で確実に復帰する (wedge するより望ましい)。実機実績に合わせ 3G。
+MemoryMax=3G
+# wedge した casparcg は SIGTERM に応答しない。既定の 90s を待たず早めに SIGKILL へ落とす。
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

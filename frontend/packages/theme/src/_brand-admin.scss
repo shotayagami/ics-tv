@@ -1,0 +1,21 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+// ICS-TV 管理 (studio / ops) ブランド → Bootstrap Sass 変数の上書き (Bootstrap import の前)。
+// 正本は frontend/packages/studio-ui/src/tokens.css (green + 等幅)。Bucket A のみ。
+// ダーク実値は _custom-admin.scss の --bs-* 上書き、固有トークンも同ファイルで温存する。
+
+// ── テーマ色 (green) ─────────────────────────────────────────────
+$primary: #22aa44; // studio-ui --accent (#2a4)
+$danger: #ec5a6a; // studio-ui --warn
+$success: #22aa44;
+$warning: #f59e0b;
+$info: #4ec46f; // studio-ui --focus
+
+// ── タイポグラフィ (管理は等幅) ──────────────────────────────────
+$font-family-sans-serif: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans JP", monospace;
+$font-family-monospace: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+// ── 角丸 (管理は控えめ) ──────────────────────────────────────────
+$border-radius: 6px;
+$border-radius-sm: 4px;
+$border-radius-lg: 8px;

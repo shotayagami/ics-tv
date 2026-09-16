@@ -1,0 +1,179 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* 公開ディスカバリ島 (#Phase2c)。search.html / browse.html / vod.html の extra_css を移植。
+   .vod-grid/.vodcard とバッジ (.gate/.lock/.dur/.ph) は public_base.html がグローバル供給。 */
+
+/* ===== 検索 (search) ===== */
+.sr {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 32px) var(--pad) 64px;
+}
+.sr h1 {
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.sr .lead {
+  color: var(--dim);
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+.sr-input {
+  width: 100%;
+  background: #11172b;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 13px 20px;
+  margin-bottom: 22px;
+  outline: none;
+}
+.sr-input:focus {
+  border-color: var(--accent);
+}
+.sr-input::placeholder {
+  color: var(--faint);
+}
+.sr h2 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--bright);
+  margin: 22px 0 10px;
+}
+.sr-chs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sr-chs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 15px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+}
+.sr-chs a .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.sr-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.sr-list li {
+  border-bottom: 1px solid var(--line-thin);
+}
+.sr-list a {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 13px 2px;
+  text-decoration: none;
+  color: inherit;
+}
+.sr-list a:hover {
+  background: rgba(56, 189, 248, 0.05);
+}
+.sr-list .st {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 13px;
+  flex: none;
+  width: 118px;
+}
+.sr-list .stt {
+  font-weight: 700;
+  min-width: 0;
+}
+.sr-list .sg {
+  margin-left: auto;
+  flex: none;
+  color: var(--faint);
+  font-size: 12px;
+}
+.sr-empty {
+  color: var(--dim);
+  padding: 36px 0;
+  text-align: center;
+}
+
+/* ===== ブラウズ (browse) ===== */
+.br {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(20px, 3.4vw, 36px) var(--pad) 64px;
+}
+.br h1 {
+  font-size: clamp(22px, 3.2vw, 30px);
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.br .lead {
+  color: var(--dim);
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+/* ジャンルタブは SegmentedNav(variant=chips・public_base.html 共有 CSS)。下の余白だけ scoped で付与。 */
+.br .segnav {
+  margin-bottom: 26px;
+}
+.br-empty {
+  color: var(--dim);
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* ===== 見逃し (vod) ===== */
+.vod {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(20px, 3.4vw, 36px) var(--pad) 64px;
+}
+.vod h1 {
+  font-size: clamp(22px, 3.2vw, 30px);
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+/* featured Hero(見逃しトップ)と下のグリッドの間隔 */
+.vod .hero {
+  margin: 16px 0 28px;
+}
+.vod .lead {
+  color: var(--dim);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.vod-h2 {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 34px 0 14px;
+}
+.vod-empty {
+  color: var(--dim);
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* ===== モバイル対応(トークン不変/レイアウトのみ) ds-mobile.md commit5/6 =====
+   vod-grid / hero は public_base.html(共有層)で対応済。ここは discover 固有のみ。
+   .sr-input の font-size:16px は iOS フォーカス時の自動ズーム回避のため下げない。 */
+@media (max-width: 480px) {
+  .sr-list a { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; align-items: baseline; }
+  .sr-list .st  { width: auto; }                 /* 118px 固定を解除(最大の崩れ) */
+  .sr-list .stt { flex: 1 1 100%; order: 2; }    /* タイトルを次行フル幅 */
+  .sr-list .sg  { margin-left: 0; order: 1; }
+  .sr-chs { gap: 8px; }
+  .sr-chs a { padding: 8px 13px; }
+}

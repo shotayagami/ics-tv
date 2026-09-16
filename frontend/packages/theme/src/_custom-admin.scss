@@ -1,0 +1,49 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+// 管理テーマの後段レイヤー (Bootstrap import の後)。Bucket B (ダーク実値) + Bucket C (固有トークン)。
+// 正本は frontend/packages/studio-ui/src/tokens.css。
+
+// ── Bucket B: ダーク面の実値 ─────────────────────────────────────
+[data-bs-theme="dark"] {
+  --bs-body-bg: #111111; // studio-ui --bg
+  --bs-body-color: #dddddd; // --fg
+  --bs-emphasis-color: #ffffff; // --strong
+  --bs-secondary-color: #888888; // --muted
+  --bs-tertiary-bg: #222222; // --surface
+  --bs-secondary-bg: #1a1a1a;
+  --bs-border-color: #333333; // --line
+  --bs-link-color: #4ec46f; // --focus
+}
+
+// form-control/select は Bootstrap が --bs-body-bg を使うが、入力欄は --bs-tertiary-bg の方が
+// ページ背景と区別できてUXが良い。Bootstrap の dark vars より後なので cascade で勝つ。
+[data-bs-theme="dark"] {
+  .form-control,
+  .form-select {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+  }
+}
+
+// ── Bucket C: studio/ops 固有トークン ────────────────────────────
+:root {
+  --accent: #22aa44;
+  --muted: #888888;
+  --surface: #222222;
+  --strong: #ffffff;
+
+  --live: #ee6633; // studio-ui --live (#e63)
+  --warn: #ec5a6a;
+
+  // ScheduleTimeline / EPG geometry
+  --track-bg: #161616;
+  --track-line: #2a2a2a;
+  --grid-line: #222222;
+  --block-live: rgba(90, 50, 40, 0.85);
+  --block-live-border: #7a4a3a;
+  --block-rec: rgba(40, 60, 90, 0.85);
+  --block-rec-border: #3a5a7a;
+
+  --tap: 32px; // 管理はポインタ前提で控えめ
+  --focus: #4ec46f;
+}

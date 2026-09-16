@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}運行 — {{ channel.name }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>運行ダッシュボード <span class="muted">/ {{ channel.name }} ({{ channel.slug }})</span></h1>
+<p><a href="{% url 'core:ops_analytics' channel.slug %}">視聴計測 (同時接続/番組別視聴) ›</a></p>
+
+<div style="display:grid; grid-template-columns: 2fr 1fr; gap:1rem; align-items:start;">
+
+  <section class="card" id="panel-now"
+           hx-get="{% url 'core:ops_panel_now' channel.slug %}"
+           hx-trigger="every 2s" hx-swap="innerHTML">
+    {% include "ops/_now_playing.html" %}
+  </section>
+
+  <section class="card" id="panel-health"
+           hx-get="{% url 'core:ops_panel_health' channel.slug %}"
+           hx-trigger="every 2s" hx-swap="innerHTML">
+    {% include "ops/_health.html" %}
+  </section>
+
+  <section class="card" id="panel-notifications"
+           hx-get="{% url 'core:ops_panel_notifications' channel.slug %}"
+           hx-trigger="every 5s" hx-swap="innerHTML">
+    {% include "ops/_notifications.html" %}
+  </section>
+
+  <section class="card" id="panel-asrun"
+           hx-get="{% url 'core:ops_panel_asrun' channel.slug %}"
+           hx-trigger="every 2s" hx-swap="innerHTML">
+    {% include "ops/_asrun.html" %}
+  </section>
+
+</div>
+
+<section class="card" style="margin-top:1rem;">
+  <h2>手動操作</h2>
+  <p class="muted">危険操作は確認ダイアログ付き。即時 INSERT → agent 配信。</p>
+  <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+    <form method="post" action="{% url 'core:op_clear_slate' channel.slug %}"
+          hx-post="{% url 'core:op_clear_slate' channel.slug %}" hx-swap="none"
+          onsubmit="return confirm('スレートを解除します。本線(1-10)が出ます。続行しますか？');">
+      {% csrf_token %}
+      <button class="btn" type="submit">スレート解除</button>
+    </form>
+    <form method="post" action="{% url 'core:op_cut_live_return' channel.slug %}"
+          hx-post="{% url 'core:op_cut_live_return' channel.slug %}" hx-swap="none"
+          onsubmit="return confirm('生(直近のライブ設定)を本線へ復帰します。続行しますか？');">
+      {% csrf_token %}
+      <button class="btn" type="submit">生を本線復帰</button>
+    </form>
+    <form method="post" action="{% url 'core:op_reload_main' channel.slug %}"
+          hx-post="{% url 'core:op_reload_main' channel.slug %}" hx-swap="none"
+          onsubmit="return confirm('現行オンエアを再ロードします。続行しますか？');">
+      {% csrf_token %}
+      <button class="btn" type="submit">本線再ロード</button>
+    </form>
+    <form method="post" action="{% url 'core:op_cm_return' channel.slug %}"
+          hx-post="{% url 'core:op_cm_return' channel.slug %}" hx-swap="none"
+          onsubmit="return confirm('CM から生へ戻します。続行しますか？');">
+      {% csrf_token %}
+      <button class="btn" type="submit">CM 戻り (生)</button>
+    </form>
+  </div>
+
+  <p class="muted" style="margin-top:.6rem;">速報テロップ (1-40)</p>
+  <form method="post" action="{% url 'core:op_overlay' channel.slug %}"
+        hx-post="{% url 'core:op_overlay' channel.slug %}" hx-swap="none"
+        style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="layer" value="40">
+    <input type="hidden" name="kind" value="text">
+    <input type="text" name="text" placeholder="速報文言" style="flex:1; min-width:18rem; padding:.3rem .5rem;">
+    <button class="btn" type="submit" name="op" value="show">出す</button>
+    <button class="btn" type="submit" name="op" value="clear">消す</button>
+  </form>
+
+  <p class="muted" style="margin-top:.6rem;">フリーグラフィック (画像+文字)</p>
+  <form method="post" action="{% url 'core:op_overlay' channel.slug %}"
+        hx-post="{% url 'core:op_overlay' channel.slug %}" hx-swap="none"
+        hx-encoding="multipart/form-data" enctype="multipart/form-data"
+        style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="graphic">
+    <label class="muted">レイヤ</label>
+    <input type="number" name="layer" value="45" min="1" max="89" style="width:4rem; padding:.3rem;">
+    <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif">
+    <input type="text" name="text" placeholder="文字(任意)" style="padding:.3rem .5rem;">
+    <label class="muted">x%</label><input type="number" name="x" value="5" style="width:3.5rem; padding:.3rem;">
+    <label class="muted">y%</label><input type="number" name="y" value="78" style="width:3.5rem; padding:.3rem;">
+    <label class="muted">w%</label><input type="number" name="w" value="25" style="width:3.5rem; padding:.3rem;">
+    <button class="btn" type="submit" name="op" value="show">出す</button>
+    <button class="btn" type="submit" name="op" value="clear">消す</button>
+  </form>
+
+  <form method="post" action="{% url 'core:op_cm_in' channel.slug %}"
+        hx-post="{% url 'core:op_cm_in' channel.slug %}" hx-swap="none"
+        style="margin-top:.8rem; display:flex; gap:.5rem; align-items:center;"
+        onsubmit="return confirm('選択した CM バンドルを生に割り込ませます (CM IN)。続行しますか？');">
+    {% csrf_token %}
+    <label class="muted">CM IN バンドル</label>
+    <select name="bundle_id" {% if not bundles %}disabled{% endif %}>
+      {% for b in bundles %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      {% if not bundles %}<option>（バンドル未登録）</option>{% endif %}
+    </select>
+    <button class="btn warn" type="submit" {% if not bundles %}disabled{% endif %}>CM IN</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block statusbar %}
+ · 未確認通知 {% if unacked_count %}<span style="color:#e63;">{{ unacked_count }}</span>{% else %}0{% endif %}
+ {% if status %} · feed={{ status.feed_state|default:"-" }}{% endif %}
+{% endblock %}

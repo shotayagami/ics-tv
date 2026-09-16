@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# manage.py dump_openapi の中間生成物 (TS クライアント schema.ts はコミットする)
+openapi.json

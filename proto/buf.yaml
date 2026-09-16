@@ -1,0 +1,14 @@
+version: v2
+modules:
+  - path: .
+    name: buf.build/icstv/icstv
+lint:
+  use:
+    - STANDARD
+  except:
+    # Phase 1 では package versioning (icstv.v1) を採用済みだが、
+    # service 名のサフィックス強制 (PlayoutAgentService) は冗長なので外す。
+    - SERVICE_SUFFIX
+breaking:
+  use:
+    - FILE

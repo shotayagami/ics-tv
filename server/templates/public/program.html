@@ -1,0 +1,90 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ program.title }} — ICS-TV{% endblock %}
+{% block og_type %}video.other{% endblock %}
+{% block og_title %}{{ program.title }} — ICS-TV{% endblock %}
+{% block og_description %}{{ program.description|default:program.channel.name|truncatechars:120 }}{% endblock %}
+{% block meta_description %}{{ program.description|default:program.channel.name|truncatechars:120 }}{% endblock %}
+{% block og_image %}{% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}{% endblock %}
+{% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+
+{% block extra_css %}
+  .pd { max-width: 980px; margin: 0 auto; padding: clamp(16px,3vw,28px) var(--pad) 64px; }
+  .pd .back { display: inline-block; color: var(--dim); font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 14px; }
+  .pd .hero { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: radial-gradient(120% 110% at 50% 0%, #16204a 0%, #0a0f24 60%, #070b1c 100%); display: flex; align-items: center; justify-content: center; }
+  .pd .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pd .hero .ph { font-weight: 800; font-size: clamp(28px,6vw,56px); color: rgba(255,255,255,.13); }
+  .pd .hero .badge-live { position: absolute; top: 14px; left: 14px; z-index: 2; }
+  .pd .row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 0 8px; }
+  .pd .row1 .nm { font-size: 13px; font-weight: 700; color: var(--dim); }
+  .pd h1 { font-size: clamp(20px,3vw,30px); font-weight: 800; line-height: 1.22; margin: 0 0 10px; }
+  .pd .meta { font-size: 14px; color: var(--dim); font-weight: 600; margin-bottom: 16px; }
+  .pd .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+  .pd .btn-play { display: inline-flex; align-items: center; gap: 9px; background: var(--accent); color: var(--accent-on); font-weight: 800; font-size: 15px; border: none; border-radius: 999px; padding: 12px 24px; cursor: pointer; text-decoration: none; }
+  /* planpill→DateTimePill(.datetime-pill)/ btn-fav→Button(.btn-pin)は public_base.html 共有層へ移行(C3) */
+  .pd .fav-form { margin: 0; }
+  .pd .btn-share { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--line); color: var(--bright); font-weight: 700; font-size: 14px; border-radius: 999px; padding: 11px 20px; cursor: pointer; text-decoration: none; font-family: inherit; }
+  .pd .btn-share:hover { border-color: var(--accent); color: var(--accent); }
+  .pd .btn-share svg { display: block; }
+  .pd .actions:empty { min-height: 46px; }
+  .pd h2 { font-size: 15px; font-weight: 800; color: var(--bright); margin: 24px 0 8px; }
+  .pd .desc { color: var(--bright2); line-height: 1.85; white-space: pre-wrap; }
+  .pd .cast { color: var(--bright2); line-height: 1.7; white-space: pre-wrap; }
+  .pd .airings { list-style: none; padding: 0; margin: 8px 0 0; }
+  .pd .airings li { border-bottom: 1px solid var(--line-thin); }
+  .pd .airings a { display: flex; gap: 12px; align-items: baseline; padding: 11px 2px; text-decoration: none; color: inherit; }
+  .pd .airings .at { color: var(--accent); font-weight: 800; font-size: 13px; }
+  .pd .airings .ach { color: var(--dim); font-size: 12px; margin-left: auto; }
+  /* ===== モバイル対応(トークン不変/レイアウトのみ) ds-mobile.md commit6/6 ===== */
+  @media (max-width: 480px) {
+    .pd .actions { flex-direction: column; align-items: stretch; }
+    .pd .actions > * { width: 100%; justify-content: center; }   /* 最大5 pill を全幅・整列 */
+    .pd .airings a { flex-wrap: wrap; }
+  }
+{% endblock %}
+
+{% block content %}
+<section class="pd">
+  <a class="back" href="{{ public_base_url }}/guide/">‹ 番組表へ</a>
+  <div class="hero">
+    {% if program.thumb_url %}<img src="{{ program.thumb_url }}" alt="">{% else %}<span class="ph">ICS-TV</span>{% endif %}
+    {% if state == "live" %}<span class="badge-live"><span class="pulse-dot"></span>ON AIR</span>{% endif %}
+  </div>
+
+  <div class="row1">
+    <span class="nm">{{ program.channel.name }}</span>
+    {% if program.resolved_genre %}<span class="chip genre">{{ program.resolved_genre }}</span>{% endif %}
+    {% if program.resolved_rating_label %}<span class="chip" style="background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger-text)">{{ program.resolved_rating_label }}</span>{% endif %}
+    {% if state == "aired" and vod_available %}<span class="chip" style="background:rgba(56,189,248,.16);color:var(--accent)">見逃し配信中</span>
+    {% elif state == "aired" and yt_archive_url %}<span class="chip" style="background:color-mix(in srgb,var(--gate-yt) 16%,transparent);color:var(--gate-yt-fg)">YouTube見逃し</span>{% endif %}
+  </div>
+  <h1>{{ program.title }}</h1>
+  <div class="meta tabnum">
+    {{ program.start_at|date:"Y/n/j(D) H:i" }}–{{ program.end_at|date:"H:i" }}
+    {% if state == "upcoming" %}・放送予定{% elif state == "live" %}・放送中{% else %}・放送終了{% endif %}
+  </div>
+
+  {# 操作バー (状態別CTA + お気に入り/リマインド/共有) は React 島が /api/v1/program/{id} から描画 (#Phase2c)。 #}
+  <div id="program-actions-island" class="actions" data-program-id="{{ program.id }}" data-base="{{ public_base_url }}"></div>
+
+  {% if program.description %}<h2>あらすじ</h2><div class="desc">{{ program.description }}</div>{% endif %}
+  {% if program.resolved_cast %}<h2>出演者</h2><div class="cast">{{ program.resolved_cast }}</div>{% endif %}
+
+  {% if upcoming_airings %}
+  <h2>今後の放送</h2>
+  <ul class="airings">
+    {% for a in upcoming_airings %}
+    <li><a href="{{ public_base_url }}/program/{{ a.id }}/">
+      <span class="at tabnum">{{ a.start_at|date:"n/j(D) H:i" }}</span>
+      <span>{{ a.title }}</span>
+      <span class="ach">{{ a.channel.name }}</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/detail/detail.js' %}?v={{ app_version }}"></script>
+{% endblock %}

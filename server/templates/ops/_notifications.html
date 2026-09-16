@@ -1,0 +1,34 @@
+<h2>通知
+  {% if unacked_count %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">未確認 {{ unacked_count }}</span>{% else %}<span class="badge live">未確認 0</span>{% endif %}
+  <a href="{% url 'core:notification_center' channel.slug %}" class="muted" style="font-size:.8rem; margin-left:.5rem;">通知センター →</a>
+</h2>
+{% if unacked %}
+  <form method="post" action="{% url 'core:op_ack_all_notifications' channel.slug %}"
+        hx-post="{% url 'core:op_ack_all_notifications' channel.slug %}" hx-swap="none"
+        style="margin:.2rem 0 .5rem;">
+    {% csrf_token %}
+    <button class="btn" type="submit" style="padding:.15rem .5rem; font-size:.8rem;">すべて既読</button>
+  </form>
+  <table>
+    {% for n in unacked %}
+      <tr>
+        <td style="white-space:nowrap;">
+          {% if n.severity == "crit" %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">CRIT</span>
+          {% elif n.severity == "warn" %}<span class="badge" style="color:#fff;background:#d80;border-color:#d80">WARN</span>
+          {% else %}<span class="badge">INFO</span>{% endif %}
+        </td>
+        <td>{{ n.message }}<br><span class="muted" style="font-size:.78rem;">{{ n.kind }} · {{ n.created_at|date:"H:i:s" }}</span></td>
+        <td style="white-space:nowrap;">
+          <form method="post" action="{% url 'core:op_ack_notification' channel.slug n.id %}"
+                hx-post="{% url 'core:op_ack_notification' channel.slug n.id %}" hx-swap="none"
+                style="margin:0;">
+            {% csrf_token %}
+            <button class="btn" type="submit" style="padding:.1rem .4rem; font-size:.78rem;">既読</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted">未確認の通知はありません</p>
+{% endif %}

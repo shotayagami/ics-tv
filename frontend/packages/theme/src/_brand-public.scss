@@ -1,0 +1,26 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+// ICS-TV 公開ブランド → Bootstrap Sass 変数の上書き (Bootstrap import の前に適用)。
+// 値の正本は frontend/packages/ui/src/tokens.css。ここには「Bootstrap が直接解決するもの」だけを写す
+// (Bucket A)。非 Bootstrap トークン (--live / --cat-* / --gate-* など) は _custom-public.scss で
+// カスタムプロパティとして温存する (Bucket C)。ダーク面の実値は _custom-public.scss の --bs-* 上書き
+// (Bucket B) で与える (Bootstrap の dark map 生成に依存せず版差に強くするため)。
+
+// ── テーマ色 (cyan) ──────────────────────────────────────────────
+$primary: #38bdf8; // tokens.css --accent
+$danger: #f43f5e; //          --danger
+$success: #22c55e; //          --cat-2
+$warning: #f59e0b; //          --cat-3
+$info: #38bdf8;
+
+// ── タイポグラフィ ───────────────────────────────────────────────
+// Noto Sans JP は SSR シェル (public_base.html) が <link> で実ロード済み。
+$font-family-sans-serif: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", Roboto,
+  "Yu Gothic", Meiryo, sans-serif;
+
+// ── 角丸 (tokens.css --radius-*) ─────────────────────────────────
+$border-radius: 9px; // --radius-md
+$border-radius-sm: 6px; // --radius-sm
+$border-radius-lg: 14px; // --radius-lg
+$border-radius-xl: 20px; // --radius-xl
+$border-radius-pill: 999px;

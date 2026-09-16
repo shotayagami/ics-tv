@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}割付ビュー — ICS-TV{% endblock %}
+{% block content %}
+<h1>割付ビュー <span class="muted">/ 日別 ad_break × placement</span></h1>
+
+<form method="get" action="{% url 'sales:allocation' %}" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.6rem">
+  <input type="date" name="date" value="{{ day }}" style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+  <select name="channel" style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+    {% for ch in channels %}<option value="{{ ch.id }}" {% if channel and ch.id == channel.id %}selected{% endif %}>{{ ch }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">表示</button>
+  {% if channel %}
+    <form method="post" action="{% url 'sales:refill' %}" hx-post="{% url 'sales:refill' %}" hx-swap="none"
+          hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline">
+      {% csrf_token %}<input type="hidden" name="channel" value="{{ channel.id }}">
+      <button class="btn" type="submit" title="未送出枠を再充填">⟳ 再充填</button>
+    </form>
+  {% endif %}
+</form>
+<p class="muted">凡例 帰属: ◉提供(sponsorship) ◇指定番組(program) ◆線引き(band) ○契約外フリー ／ 優先 ◉&gt;◇&gt;◆&gt;○。送出済枠は差替不可 (S11)。</p>
+
+{% for row in rows %}
+  <section class="card">
+    <h2 style="font-size:1rem">{{ row.program.start_at|date:"H:i" }} {{ row.program.get_type_display }}「{{ row.program.title }}」
+      {% if row.program.series_id %}<span class="muted">series#{{ row.program.series_id }}</span>{% endif %}</h2>
+    {% for b in row.breaks %}
+      <div style="border:1px solid #333;border-radius:4px;padding:.4rem;margin:.4rem 0">
+        <div class="muted" style="font-size:.85rem">ad_break#{{ b.br.id }} offset+{{ b.br.offset_ms }}ms grid{{ b.br.grid }} duration {{ b.br.duration_ms }}ms</div>
+        <table>
+          <tr><th>seq</th><th>帰属</th><th>CM / 広告主</th><th>考査</th><th>差替</th></tr>
+          {% for it in b.items %}
+            <tr>
+              <td>{{ it.item.seq }}</td>
+              <td>{% if it.match == 'sponsorship' %}◉提供{% elif it.match == 'program' %}◇指定{% elif it.match == 'band' %}◆線引{% else %}○フリー{% endif %}</td>
+              <td>{{ it.cm.advertiser }} <span class="muted">(#{{ it.cm.asset_id }})</span></td>
+              <td>{{ it.cm.get_screening_status_display }}</td>
+              <td>
+                {% if it.editable %}
+                  <form method="post" action="{% url 'sales:swap' it.item.id %}" hx-post="{% url 'sales:swap' it.item.id %}" hx-swap="none"
+                        hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline"
+                        onsubmit="this.querySelector('[name=cm_asset_id]').value=prompt('差替先 CM の asset_id')||'';return this.querySelector('[name=cm_asset_id]').value!=='';">
+                    {% csrf_token %}<input type="hidden" name="cm_asset_id">
+                    <button class="btn" style="font-size:.78rem;padding:.15rem .4rem">差替</button>
+                  </form>
+                {% else %}<span class="muted">送出済</span>{% endif %}
+              </td>
+            </tr>
+          {% empty %}<tr><td colspan="5" class="muted">充填なし</td></tr>{% endfor %}
+        </table>
+      </div>
+    {% empty %}<p class="muted">CM 枠なし</p>{% endfor %}
+  </section>
+{% empty %}
+  <p class="muted">この日・この channel に番組がありません。</p>
+{% endfor %}
+{% endblock %}
