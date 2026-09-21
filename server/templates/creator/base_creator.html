@@ -1,0 +1,57 @@
+{% load static %}<!doctype html>
+<html lang="ja" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}クリエイター向けページ — ICS-TV{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'web/bootstrap/bootstrap-admin.css' %}?v={{ app_version }}">
+<style>
+  .btn { background: var(--bs-success); color: #fff; border: 0; padding: .4rem .9rem; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn.secondary { background: var(--bs-secondary); }
+  .btn.warn { background: var(--bs-danger); }
+  .btn[disabled], .btn.disabled { background: var(--bs-secondary); cursor: not-allowed; }
+  .card { background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); padding: 1rem; margin-bottom: 1rem; }
+  .muted { color: var(--bs-secondary-color); }
+  .ok { color: var(--bs-success-text-emphasis); }
+  .err { color: var(--bs-danger-text-emphasis); }
+  form input, form select, form textarea { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color); padding: .25rem .5rem; font: inherit; }
+  .cr-nav { display: flex; gap: .8rem; align-items: center; }
+  .cr-nav a { color: var(--bs-body-color); text-decoration: none; font-size: .85rem; }
+  .cr-nav a:hover { color: var(--bs-success-text-emphasis); }
+</style>
+</head>
+<body>
+<nav class="navbar bg-body-tertiary border-bottom px-3 py-1">
+  <div class="container-fluid">
+    <span class="navbar-brand fw-bold mb-0 fs-6 me-3">ICS-TV クリエイター</span>
+    {% if creator_account %}
+    <div class="cr-nav">
+      <a href="/">ダッシュボード</a>
+      <a href="/tiers/">ティア</a>
+      <a href="/series/">番組</a>
+      <a href="/members/">会員</a>
+      <a href="/contracts/">枠契約</a>
+      <a href="/settlements/">分配明細</a>
+      <a href="/youtube/">YouTube連携</a>
+      <a href="/profile/">ページ設定</a>
+    </div>
+    <span class="ms-auto d-flex align-items-center gap-2">
+      <span class="text-secondary small">{{ creator_account.creator.name }} ({{ creator_account.email }})</span>
+      <form method="post" action="/logout/" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn secondary" style="font-size:.78rem;padding:.2rem .6rem">ログアウト</button>
+      </form>
+    </span>
+    {% endif %}
+  </div>
+</nav>
+<main class="container-fluid py-3" style="max-width:860px">
+  {% if messages %}
+  {% for message in messages %}
+  <p class="{{ message.tags }}">{{ message }}</p>
+  {% endfor %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

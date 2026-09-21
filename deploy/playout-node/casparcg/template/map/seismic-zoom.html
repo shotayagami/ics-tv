@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 震度速報 地図掲載式・ズーム版 (CG layer 38, kind=graphic, template=map/seismic-zoom)。
+     seismic.html と同じ data 契約だが、震源 + 震度3以上の観測点を囲む範囲へ SVG viewBox を
+     動的にズームする (下地/観測点の座標系・描画ロジック自体は seismic.html と共通)。
+     該当点が無ければ全国表示にフォールバック。
+     契約: play()/stop()/update(data)/next()/remove()。data 例:
+       {"maxInt":"6+","hypocenter":{"lat":34.1,"lon":135.2,"name":"和歌山県沖"},
+        "originTime":"2026-07-10T12:25:00+09:00",
+        "stations":[{"lat":33.9,"lon":135.0,"int":"7"},{"lat":34.6,"lon":135.5,"int":"6+"}],"test":false}
+     震度コード ∈ 1..4,5-,5+,6-,6+,7。出典: 気象庁。 -->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:"Noto Sans JP","Yu Gothic",sans-serif;}
+  #root{position:absolute;inset:0;opacity:0;transition:opacity 300ms ease-in-out;}
+  #root.show{opacity:1;}
+  svg{position:absolute;inset:0;}
+  .box{stroke-width:2;}
+  .bx text{font-family:"Yu Gothic",sans-serif;font-weight:900;text-anchor:middle;}
+  .epi{font:900 46px/1 sans-serif;fill:#ffffff;stroke:#111;stroke-width:4;paint-order:stroke;}
+  /* 最大震度チップ */
+  #chip{position:absolute;left:34px;top:26px;background:#7a1fa2;color:#fff;border-radius:10px;
+    padding:10px 22px;font-weight:900;display:flex;align-items:center;gap:16px;box-shadow:0 4px 14px rgba(0,0,0,.5);}
+  #chip .lb{font-size:30px;}
+  #chip .v{font-size:64px;line-height:1;}
+  #chip .v sup{font-size:32px;}
+  #time{position:absolute;left:34px;top:132px;background:rgba(20,28,44,.85);color:#fff;
+    font-size:30px;font-weight:700;padding:8px 18px;border-radius:6px;}
+  #zoomtag{position:absolute;left:34px;bottom:26px;background:rgba(20,28,44,.85);color:#ffd77a;
+    font-size:24px;font-weight:700;padding:6px 16px;border-radius:6px;}
+  #warn{position:absolute;right:34px;top:26px;background:#ffe000;color:#111;font-weight:900;
+    font-size:26px;padding:6px 16px;border-radius:4px;display:none;}
+</style>
+</head>
+<body>
+  <div id="root">
+    <svg id="map" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y="0" width="1920" height="1080" fill="#1b3a6b"/>
+      <g id="base"></g>
+      <g id="boxes"></g>
+      <g id="epi"></g>
+    </svg>
+    <div id="chip"><span class="lb">最大震度</span><span class="v" id="chipv">–</span></div>
+    <div id="time"></div>
+    <div id="zoomtag">震度3以上エリア拡大</div>
+    <div id="warn">訓練映像　実際に発生した地震ではありません</div>
+  </div>
+<script src="geo.js"></script>
+<script src="mapkit.js"></script>
+<script>
+  "use strict";
+  var M = window.ICSTV_MAP, root=document.getElementById("root");
+  var mapSvg=document.getElementById("map"), base=document.getElementById("base"), boxes=document.getElementById("boxes"), epiG=document.getElementById("epi"),
+      chipv=document.getElementById("chipv"), chip=document.getElementById("chip"), timeEl=document.getElementById("time"),
+      warn=document.getElementById("warn");
+  M.paintBase(base, {fill:"#7d9b76", stroke:"#3f5539", sw:1.2});
+
+  function chipHtml(code){ var s=M.intStyle(code); return s.l + (s.s?"<sup>"+s.s+"</sup>":""); }
+  function fmtJp(iso){ var m=/T(\d{2}):(\d{2})/.exec(iso||""); if(!m)return iso||"";
+    var dm=/-(\d{2})T/.exec(iso||""); return (dm?dm[1]+"日 ":"")+Number(m[1])+"時"+m[2]+"分ごろ"; }
+
+  // 密集回避: 高震度優先で、既存ボックスから R px 以内は間引く。
+  function thin(stations, R){
+    var kept=[];
+    stations.slice().sort(function(a,b){return M.intRank(b.int)-M.intRank(a.int);}).forEach(function(s){
+      if(typeof s.lat!=="number"||typeof s.lon!=="number")return;
+      var p=M.project(s.lat,s.lon);
+      for(var i=0;i<kept.length;i++){var q=kept[i].p;if((q[0]-p[0])*(q[0]-p[0])+(q[1]-p[1])*(q[1]-p[1])<R*R)return;}
+      kept.push({s:s,p:p});
+    });
+    return kept;
+  }
+
+  function drawBox(p, code){
+    var st=M.intStyle(code), w=52, h=42;
+    var g=M.el("g",{"class":"bx"});
+    g.appendChild(M.el("rect",{x:p[0]-w/2,y:p[1]-h/2,width:w,height:h,rx:5,fill:st.bg,
+      stroke:st.border||"rgba(0,0,0,.45)","stroke-width":st.border?4:2,"class":"box"}));
+    var t=M.el("text",{x:p[0],y:p[1]+11,fill:st.fg,"font-size":32}); t.textContent=st.l;
+    g.appendChild(t);
+    if(st.s){var sup=M.el("text",{x:p[0]+18,y:p[1]-4,fill:st.fg,"font-size":20});sup.textContent=st.s;g.appendChild(sup);}
+    return g;
+  }
+
+  // ズーム範囲算出: 震源 + 震度3以上(intRank>=3)の観測点を囲む矩形を 16:9 に補正して viewBox 化。
+  // 対象点が無ければ null (呼び出し側で全国表示 0 0 1920 1080 にフォールバック)。
+  var ZOOM_PAD = 110, MIN_W = 460, AR = 1920 / 1080;
+  function computeZoomViewBox(d){
+    var pts = [];
+    if (d.hypocenter && typeof d.hypocenter.lat === "number" && typeof d.hypocenter.lon === "number") {
+      pts.push(M.project(d.hypocenter.lat, d.hypocenter.lon));
+    }
+    (d.stations||[]).forEach(function(s){
+      if (typeof s.lat === "number" && typeof s.lon === "number" && M.intRank(s.int) >= 3) {
+        pts.push(M.project(s.lat, s.lon));
+      }
+    });
+    if (!pts.length) return null;
+    var x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+    pts.forEach(function(p){ x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1]); });
+    x0-=ZOOM_PAD; x1+=ZOOM_PAD; y0-=ZOOM_PAD; y1+=ZOOM_PAD;
+    var w=Math.max(x1-x0,MIN_W), h=Math.max(y1-y0,MIN_W/AR);
+    var cx=(x0+x1)/2, cy=(y0+y1)/2;
+    if (w/h > AR) h = w/AR; else w = h*AR;
+    w=Math.min(w,1920); h=Math.min(h,1080);
+    var x=cx-w/2, y=cy-h/2;
+    x=Math.max(0,Math.min(x,1920-w)); y=Math.max(0,Math.min(y,1080-h));
+    return [x,y,w,h].map(function(n){return Math.round(n*10)/10;});
+  }
+
+  function render(d){
+    d=d||{};
+    chipv.innerHTML = d.maxInt? chipHtml(d.maxInt) : "–";
+    if(d.maxInt){var cs=M.intStyle(d.maxInt);chip.style.background=cs.bg;chip.style.color=cs.fg;
+      chip.style.border=cs.border?("4px solid "+cs.border):"none";}
+    var epiName=(d.hypocenter&&d.hypocenter.name)||d.epicenter||"";
+    timeEl.textContent = (d.originTime? fmtJp(d.originTime):"") + (epiName? "　"+epiName:"") + (d.magnitude?"　M"+d.magnitude:"");
+    timeEl.style.display = timeEl.textContent.trim()? "block":"none";
+    warn.style.display = d.test? "block":"none";
+    var vb = computeZoomViewBox(d);
+    mapSvg.setAttribute("viewBox", vb ? vb.join(" ") : "0 0 1920 1080");
+    boxes.innerHTML="";
+    thin(d.stations||[], 46).forEach(function(o){ boxes.appendChild(drawBox(o.p,o.s.int)); });
+    epiG.innerHTML="";
+    if(d.hypocenter && typeof d.hypocenter.lat==="number" && typeof d.hypocenter.lon==="number"){
+      var p=M.project(d.hypocenter.lat,d.hypocenter.lon);
+      var t=M.el("text",{x:p[0],y:p[1]+16,"text-anchor":"middle","class":"epi"});t.textContent="✕";epiG.appendChild(t);
+    }
+  }
+  function update(data){ try{ render(typeof data==="string"?JSON.parse(data||"{}"):(data||{})); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); }
+  window.update=update;window.play=play;window.stop=stop;window.next=next;window.remove=remove;
+
+  if(location.search.indexOf("test")!==-1){
+    update({test:true,maxInt:"7",hypocenter:{lat:34.1,lon:135.15,name:"和歌山県沖"},
+      originTime:"2026-07-10T12:25:00+09:00",magnitude:"7.8",
+      stations:[
+        {lat:33.9,lon:135.0,int:"7"},{lat:34.2,lon:135.6,int:"7"},{lat:34.7,lon:135.5,int:"6+"},
+        {lat:33.5,lon:133.5,int:"6-"},{lat:34.0,lon:133.0,int:"6+"},{lat:34.6,lon:137.4,int:"5+"},
+        {lat:35.0,lon:135.8,int:"5-"},{lat:33.2,lon:132.5,int:"5-"},{lat:35.4,lon:136.7,int:"4"},
+        {lat:32.8,lon:130.7,int:"4"},{lat:34.4,lon:132.5,int:"5+"},{lat:33.6,lon:130.4,int:"3"}
+      ]});
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

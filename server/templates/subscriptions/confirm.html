@@ -1,0 +1,30 @@
+{% extends "members/base_members.html" %}
+{% block title %}お申し込み内容の確認 — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .confirm-list { list-style: none; padding: 0; margin: 0 0 16px; }
+  .confirm-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .confirm-list li:last-child { border-bottom: none; }
+  .confirm-list .k { color: var(--dim); flex: 0 0 auto; }
+  .confirm-list .v { text-align: right; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>お申し込み内容の確認</h1>
+  <p class="mhint">下記の内容でお申し込みになります。ご確認のうえ「同意して申し込む」を押してください。</p>
+  <ul class="confirm-list">
+    <li><span class="k">プラン</span><span class="v">{{ plan.name }}</span></li>
+    <li><span class="k">数量</span><span class="v">1</span></li>
+    <li><span class="k">価格</span><span class="v">¥{{ plan.amount }}（税込）/ {{ plan.get_interval_display }}</span></li>
+    <li><span class="k">契約期間</span><span class="v">{{ plan.get_interval_display }}ごとの自動更新（期間の定めなし）</span></li>
+    <li><span class="k">申込期間</span><span class="v">随時（期間の定めなし）</span></li>
+    <li><span class="k">解約条件</span><span class="v">いつでも解約可。解約後は次回更新日以降の課金は発生せず、更新日まで引き続き利用可</span></li>
+    <li><span class="k">解約方法</span><span class="v">「ご契約の管理」からオンラインで即時手続き可</span></li>
+  </ul>
+  <form method="post" action="/subscriptions/checkout/{{ plan.slug }}/">{% csrf_token %}
+    <button class="btn" type="submit">同意して申し込む</button>
+  </form>
+  <div class="mlinks">
+    <a href="/subscriptions/">プラン一覧に戻る</a> ・ <a href="/tokushoho/">特定商取引法に基づく表記</a>
+  </div>
+</div>
+{% endblock %}

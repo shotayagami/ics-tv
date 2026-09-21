@@ -1,0 +1,40 @@
+{% extends "members/base_members.html" %}
+{% block title %}会員登録 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>会員登録</h1>
+  <div class="mbenefits">
+    <h2>登録すると、できること</h2>
+    <p class="lead">登録は無料です。ライブと一部の見逃しはログイン不要ですが、登録すると次が使えます。</p>
+    <ul>
+      <li>会員限定の見逃し配信を視聴</li>
+      <li>続きから再生・視聴履歴・マイリスト</li>
+      <li>番組へのコメント投稿（本人確認後）</li>
+      <li>放送開始のリマインド通知</li>
+    </ul>
+  </div>
+  <form class="mform" method="post" action="/members/register/" novalidate>
+    {% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="merr">{{ e }}</div>{% endfor %}
+    {# 国を先に選ばせる: 以降の入力 (郵便番号) の必須・書式がここで決まる #}
+    {% include "members/_field.html" with field=form.country %}
+    {% include "members/_field.html" with field=form.email %}
+    {% include "members/_field.html" with field=form.password %}
+    {% include "members/_field.html" with field=form.password_confirm %}
+    {% include "members/_field.html" with field=form.nickname %}
+    <div class="mrow">
+      <div>{% include "members/_field.html" with field=form.birth_year %}</div>
+      <div>{% include "members/_field.html" with field=form.birth_month %}</div>
+    </div>
+    {% include "members/_field.html" with field=form.gender %}
+    {% include "members/_field.html" with field=form.postal_code %}
+    <label class="agree">
+      {{ form.agree }}
+      <span><a href="/terms/" target="_blank" rel="noopener">利用規約</a>・<a href="/privacy/" target="_blank" rel="noopener">プライバシーポリシー</a>に同意します</span>
+    </label>
+    {% for e in form.agree.errors %}<div class="merr">{{ e }}</div>{% endfor %}
+    <button class="btn" type="submit">登録する</button>
+  </form>
+  <div class="mlinks">すでに登録済みの方は <a href="/members/login/">ログイン</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}ティア設定 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">ティア設定</h1>
+
+<div class="card">
+  <table style="width:100%">
+    <thead>
+      <tr><th>level</th><th>名前</th><th style="text-align:right">月額</th><th>加入</th><th>状態</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tiers %}
+      <tr>
+        <td>{{ t.level }}</td>
+        <td>{{ t.name }}</td>
+        <td style="text-align:right">{% if t.price_minor != None %}¥{{ t.price_minor }}{% else %}無料{% endif %}</td>
+        <td>{% if t.id in joinable_tier_ids %}<span class="ok">受付中</span>{% else %}<span class="muted">準備中</span>{% endif %}</td>
+        <td>
+          {% if t.level != 0 %}
+          <form method="post" action="/tiers/{{ t.id }}/toggle/" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="btn secondary" style="font-size:.75rem;padding:.15rem .5rem">
+              {% if t.is_active %}● 有効{% else %}○ 無効{% endif %}
+            </button>
+          </form>
+          {% else %}
+          <span class="ok">● 常設</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="font-size:.95rem;font-weight:800;margin-bottom:.6rem">有料ティアを追加</h2>
+  <p class="muted" style="font-size:.78rem;margin-top:0">
+    ここで作成しただけでは「準備中」のままです。決済連携(<a href="/dashboard/">ダッシュボード</a>の
+    Stripe連携)を完了し、Stripe ダッシュボードで作成した Price ID を運営(studio)に設定してもらうと
+    「受付中」になり会員が加入できるようになります。
+  </p>
+  <form method="post" action="/tiers/new/" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+    {% csrf_token %}
+    <input type="number" name="level" min="1" placeholder="level" style="width:5rem" required>
+    <input type="text" name="name" placeholder="ティア名" style="width:10rem" required>
+    <input type="number" name="price_minor" min="0" placeholder="月額(円)" style="width:8rem" required>
+    <button type="submit" class="btn">＋ 追加</button>
+  </form>
+</div>
+{% endblock %}

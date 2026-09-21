@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}請求 — ICS-TV{% endblock %}
+{% block content %}
+<h1>請求 <span class="muted">/ 月次締め・請求書・入金</span></h1>
+
+<section class="card">
+  <h2>月次締め</h2>
+  <form method="post" action="{% url 'billing:close_month' %}"
+        hx-post="{% url 'billing:close_month' %}" hx-swap="none"
+        hx-on::after-request="if(event.detail.successful){location.reload()}else{if(confirm(event.detail.xhr.responseText+'\n\nforce で続行しますか？')){const f=this;f.querySelector('[name=force]').value='1';f.requestSubmit();}}"
+        style="display:flex; gap:.5rem; align-items:center;">
+    {% csrf_token %}
+    <input type="number" name="year" value="2026" style="width:6rem;background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+    <input type="number" name="month" value="6" min="1" max="12" style="width:4rem;background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+    <input type="hidden" name="force" value="">
+    <button class="btn" type="submit">締める</button>
+  </form>
+  <table style="margin-top:.6rem">
+    <tr><th>期</th><th>締め</th><th>請求 <span class="muted">(未発行含む)</span></th><th>入金</th><th>未収</th></tr>
+    {% for r in period_rows %}
+      <tr>
+        <td>{{ r.period.year }}-{{ r.period.month }}</td>
+        <td>{% if r.period.closed_at %}{{ r.period.closed_at|date:"Y-m-d H:i" }}{% else %}<span class="muted">未締め</span>{% endif %}</td>
+        <td>¥{{ r.invoiced }}</td>
+        <td>¥{{ r.paid }}</td>
+        <td{% if r.outstanding < 0 %} class="err"{% endif %}>¥{{ r.outstanding }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="muted">締めた期はまだありません。</td></tr>
+    {% endfor %}
+  </table>
+  <p class="muted" style="margin-top:.4rem">
+    請求 = 失効 (void) を除く請求書の合計。<strong>未発行 (draft) の請求書も含む</strong>ので、
+    締めた直後は全額が未発行になる。入金 = その期の請求書への入金の累計 (入金日ではなく請求の期で
+    寄せる) で、失効した請求書への入金は除く。未収 = 請求 − 入金。過払いのときは負になる (赤で示す)。
+    内部 API <code>backoffice_billing</code> と同じ数え方。
+  </p>
+</section>
+
+<section class="card">
+  <h2>請求書</h2>
+  {% if invoices %}
+    <table>
+      <tr><th>番号</th><th>期</th><th>請求先</th><th>小計</th><th>手数料</th><th>税</th><th>合計</th><th>状態</th><th>操作</th></tr>
+      {% for inv in invoices %}
+        <tr>
+          <td>{{ inv.invoice_number }}</td>
+          <td>{{ inv.period }}</td>
+          <td>{{ inv.contract.advertiser.name }}</td>
+          <td>{{ inv.subtotal }}</td>
+          <td>{{ inv.commission_amount }}</td>
+          <td>{{ inv.tax_amount }}</td>
+          <td>{{ inv.total }}</td>
+          <td><span class="badge {% if inv.status == 'paid' %}live{% elif inv.status == 'void' %}warn{% endif %}">{{ inv.status }}</span></td>
+          <td style="white-space:nowrap">
+            {% if inv.status == 'draft' %}
+              <form method="post" action="{% url 'billing:issue' inv.id %}" hx-post="{% url 'billing:issue' inv.id %}" hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline">
+                {% csrf_token %}<button class="btn" style="font-size:.78rem;padding:.15rem .4rem">発行</button>
+              </form>
+            {% elif inv.status == 'issued' %}
+              <form method="post" action="{% url 'billing:pay' inv.id %}" hx-post="{% url 'billing:pay' inv.id %}" hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline"
+                    onsubmit="this.querySelector('[name=paid_amount]').value=prompt('入金額',{{ inv.total }})||'';return this.querySelector('[name=paid_amount]').value!=='';">
+                {% csrf_token %}<input type="hidden" name="paid_amount"><button class="btn" style="font-size:.78rem;padding:.15rem .4rem">入金</button>
+              </form>
+              <form method="post" action="{% url 'billing:void' inv.id %}" hx-post="{% url 'billing:void' inv.id %}" hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline"
+                    onsubmit="return confirm('失効しますか？');">
+                {% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.15rem .4rem">失効</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">請求書はまだありません。月次締めで生成されます。</p>
+  {% endif %}
+</section>
+{% endblock %}

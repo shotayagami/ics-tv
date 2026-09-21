@@ -1,0 +1,10 @@
+{{ member.nickname }} 様
+
+ICS-TV の{{ label|default:"確認コード" }}は次のとおりです。
+
+    {{ code }}
+
+このコードは {{ ttl_min }} 分間有効です。
+心当たりがない場合は、このメールを破棄してください。
+
+— ICS-TV

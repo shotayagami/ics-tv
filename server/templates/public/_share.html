@@ -1,0 +1,29 @@
+{% comment %}
+共有ボタン (COMM-02)。JS 無しでも X(Twitter) intent で共有でき、navigator.share が
+あれば OS 共有シートへ昇格する (モバイル中心)。どちらも壊れない degrade 方針。
+呼び出し側で share_url / share_title を渡す:
+  {% include "public/_share.html" with share_url=request.build_absolute_uri share_title=program.title %}
+{% endcomment %}
+<style>
+  .btn-share { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--line); color: var(--bright); font-weight: 700; font-size: 14px; border-radius: 999px; padding: 11px 20px; cursor: pointer; text-decoration: none; font-family: inherit; }
+  .btn-share:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-share svg { display: block; }
+</style>
+<a class="btn-share" target="_blank" rel="noopener"
+   href="https://twitter.com/intent/tweet?text={{ share_title|urlencode }}&amp;url={{ share_url|urlencode }}"
+   data-share-url="{{ share_url }}" data-share-title="{{ share_title }}" aria-label="共有する">
+  <svg width="15" height="15" viewBox="0 0 18 18" aria-hidden="true"><circle cx="14" cy="4" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"></circle><circle cx="4" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"></circle><circle cx="14" cy="14" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"></circle><path d="M6 8 L12 5 M6 10 L12 13" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>
+  共有
+</a>
+<script>
+// 共有ボタンの進化的拡張: navigator.share があれば OS 共有シートを開く。無ければ href の X intent へ素通り。
+(function () {
+  if (window.__icstvShareInit) return; window.__icstvShareInit = true;
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest(".btn-share[data-share-url]") : null;
+    if (!a || !navigator.share) return;  // 非対応は既定の anchor 遷移 (X intent) に委ねる
+    e.preventDefault();
+    navigator.share({ title: a.getAttribute("data-share-title") || document.title, url: a.getAttribute("data-share-url") }).catch(function () {});
+  });
+})();
+</script>

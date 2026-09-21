@@ -1,0 +1,46 @@
+[project]
+name = "icstv-agent"
+version = "0.1.0"
+description = "ICS-TV playout agent — クラウド送出ノードでローカル AMCP(CasparCG) を駆動"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.12"
+dependencies = [
+    "grpcio>=1.66",
+    "protobuf>=5.28",
+    # prefetch (R2 mezzanine → ローカル媒体) の presigned URL ストリーム DL に使用
+    # (icstv_agent.main._http_download)。未宣言だと venv に入らず prefetch が毎周
+    # ModuleNotFoundError で失敗する (本編が LOADBG 404 になる) → 必須依存。
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+icstv-agent = "icstv_agent.main:main"
+
+# lint / format 設定は server/pyproject.toml を正本として継承する。
+# 同じ規約を 2 か所に書くと必ずドリフトするため、ここでは extend のみ置く
+# (生成物 icstv_proto/ の除外も継承先の extend-exclude で効く)。
+[tool.ruff]
+extend = "../server/pyproject.toml"
+# 継承元の除外は agent/ を起点にすると効かないため、生成物はここで明示的に外す。
+extend-exclude = ["icstv_proto"]
+
+# 継承元の known-first-party は server のパッケージ名なので agent 側で上書きする。
+# 生成 proto (icstv.v1) は既存コードの並びどおり third-party 扱いのままにする。
+[tool.ruff.lint.isort]
+known-first-party = ["icstv_agent"]
+
+[tool.pytest.ini_options]
+addopts = "--tb=short"
+python_files = ["test_*.py"]
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["icstv_agent*"]

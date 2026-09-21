@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 津波沿岸マップ (CG layer 38, kind=graphic, template=map/tsunami)。
+     日本地図の沿岸を津波予報区ごとに区分色で塗り、沿岸ラインをゆっくり点滅させる。
+     契約: play()/stop()/update(data)/next()/remove()。data 例:
+       {"areas":[{"code":"800","name":"沖縄本島地方","grade":"warning","arrival":"到達中","height":"3m"}],
+        "maxGrade":"warning","hypocenter":{"lat":26.0,"lon":125.8,"name":"宮古島北西沖"},
+        "magnitude":"6.4","originTime":"2026-07-03T13:04:00+09:00","test":false}
+     grade ∈ major|warning|advisory|forecast。出典: 気象庁。座標系は build-geo.mjs と共有。 -->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:"Noto Sans JP","Yu Gothic",sans-serif;}
+  #root{position:absolute;inset:0;opacity:0;transition:opacity 300ms ease-in-out;}
+  #root.show{opacity:1;}
+  svg{position:absolute;inset:0;}
+  .coast{stroke-linecap:round;stroke-linejoin:round;animation:blink 1.8s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.28}}
+  .epi{font:900 44px/1 sans-serif;fill:#ff2d2d;stroke:#fff;stroke-width:3;paint-order:stroke;}
+  /* タイトル帯 */
+  #title{position:absolute;left:0;top:0;padding:14px 34px;color:#fff;font-weight:900;
+    font-size:44px;letter-spacing:2px;background:linear-gradient(90deg,#7a0f12,rgba(122,15,18,0));}
+  #title.major{background:linear-gradient(90deg,#5b0f7a,rgba(91,15,122,0));}
+  #sub{position:absolute;left:34px;top:78px;color:#fff;font-size:30px;font-weight:700;text-shadow:0 2px 6px #000;}
+  /* 凡例 */
+  #legend{position:absolute;right:34px;bottom:28px;background:rgba(6,18,38,.82);border-radius:8px;
+    padding:12px 18px;color:#fff;font-size:24px;line-height:1.7;}
+  #legend .sw{display:inline-block;width:34px;height:14px;margin-right:10px;vertical-align:middle;border-radius:2px;}
+  /* 予想時刻/高さ 表。列幅は固定せず内容(津波予報区名は最長10字)に合わせて自動伸縮、
+     nowrapで折り返しを禁止 (右端固定=左に伸びるだけなので画面からはみ出ない)。 */
+  #tbl{position:absolute;right:34px;top:120px;border-collapse:collapse;color:#fff;
+    font-size:26px;background:rgba(6,18,38,.82);}
+  #tbl th,#tbl td{border:1px solid rgba(255,255,255,.35);padding:6px 12px;text-align:center;white-space:nowrap;}
+  #tbl thead th{background:rgba(255,255,255,.12);font-weight:700;}
+  #tbl td.nm{text-align:left;}
+  #tbl .g{font-weight:900;}
+  #warn{position:absolute;right:34px;top:24px;background:#ffe000;color:#111;font-weight:900;
+    font-size:26px;padding:6px 16px;border-radius:4px;display:none;}
+</style>
+</head>
+<body>
+  <div id="root">
+    <svg id="map" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y="0" width="1920" height="1080" fill="#08203f"/>
+      <g id="base"></g>
+      <g id="coast"></g>
+      <g id="epi"></g>
+    </svg>
+    <div id="title">津波情報</div>
+    <div id="sub"></div>
+    <div id="warn">訓練映像　実際に発生した地震ではありません</div>
+    <table id="tbl"><thead><tr><th>予報区</th><th>区分</th><th>到達予想</th><th>高さ</th></tr></thead><tbody id="tb"></tbody></table>
+    <div id="legend">
+      <div><span class="sw" style="background:#c026d3"></span>大津波警報</div>
+      <div><span class="sw" style="background:#ff2323"></span>津波警報</div>
+      <div><span class="sw" style="background:#ffdd00"></span>津波注意報</div>
+    </div>
+  </div>
+<script src="geo.js"></script>
+<script src="mapkit.js"></script>
+<script>
+  "use strict";
+  var M = window.ICSTV_MAP, root = document.getElementById("root");
+  var base = document.getElementById("base"), coastG = document.getElementById("coast"),
+      epiG = document.getElementById("epi"), title = document.getElementById("title"),
+      sub = document.getElementById("sub"), tb = document.getElementById("tb"), warn = document.getElementById("warn");
+  M.paintBase(base, {fill:"#3b4a63", stroke:"#263247", sw:1});
+  var RANK = {major:3, warning:2, advisory:1, forecast:0};
+
+  function fmtTime(iso){ var m=/T(\d{2}):(\d{2})/.exec(iso||""); return m?m[1]+":"+m[2]:(iso||""); }
+
+  function render(d){
+    d = d || {};
+    var areas = (d.areas||[]).slice().sort(function(a,b){return (RANK[b.grade]||0)-(RANK[a.grade]||0);});
+    // タイトル (最高位区分)
+    var mg = d.maxGrade || (areas[0]&&areas[0].grade) || null;
+    title.textContent = mg ? M.GRADE_LABEL[mg] : "津波情報";
+    title.className = mg==="major" ? "major" : "";
+    var epiName = (d.hypocenter&&d.hypocenter.name) || d.epicenter || "";
+    sub.textContent = (epiName ? epiName+"で地震" : "") + (d.magnitude?"　M"+d.magnitude:"") + (mg?"　"+M.GRADE_LABEL[mg]:"");
+    warn.style.display = d.test ? "block" : "none";
+    // 沿岸ライン (高位が前面になるよう低→高で追加)
+    coastG.innerHTML = "";
+    areas.slice().reverse().forEach(function(a){
+      var col = M.gradeColor(a.grade);
+      var w = a.grade==="major"?9:a.grade==="warning"?7:a.grade==="advisory"?6:4;
+      M.paintTsunamiCoast(coastG, a.code, {stroke:col, "stroke-width":w, "class":"coast"});
+    });
+    // 震源 ×
+    epiG.innerHTML = "";
+    if (d.hypocenter && typeof d.hypocenter.lat==="number" && typeof d.hypocenter.lon==="number"){
+      var p = M.project(d.hypocenter.lat, d.hypocenter.lon);
+      var t = M.el("text",{x:p[0],y:p[1]+15,"text-anchor":"middle","class":"epi"}); t.textContent="✕";
+      epiG.appendChild(t);
+    }
+    // 表 (警報/注意報のみ・高位順)
+    tb.innerHTML = "";
+    areas.filter(function(a){return a.grade!=="forecast";}).forEach(function(a){
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td class='nm'>"+(a.name||a.code)+"</td>"+
+        "<td class='g' style='color:"+M.gradeColor(a.grade)+"'>"+M.GRADE_LABEL[a.grade]+"</td>"+
+        "<td>"+(a.arrival||"—")+"</td><td>"+(a.height||"—")+"</td>";
+      tb.appendChild(tr);
+    });
+    document.getElementById("tbl").style.display = tb.children.length? "table":"none";
+  }
+
+  function update(data){ try{ render(typeof data==="string"?JSON.parse(data||"{}"):(data||{})); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+
+  if (location.search.indexOf("test")!==-1){
+    update({test:true, maxGrade:"major",
+      hypocenter:{lat:33.0,lon:134.5,name:"四国沖"}, magnitude:"8.6", originTime:"2026-01-01T00:00:00+09:00",
+      areas:[
+        {code:"550",name:"高知県",grade:"major",arrival:"ただちに",height:"巨大"},
+        {code:"540",name:"愛媛県宇和海沿岸",grade:"warning",arrival:"到達中",height:"3m"},
+        {code:"520",name:"和歌山県",grade:"warning",arrival:"12:50",height:"3m"},
+        {code:"800",name:"沖縄本島地方",grade:"advisory",arrival:"13:10",height:"1m"}
+      ]});
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

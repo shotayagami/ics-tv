@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 番組名・特集テロップ (lower third)。CG layer 1-30 系 (casparcg.md §3.3)。
+     UPDATE で title/sub を差し替える。契約 play()/stop()/update(data)/next()/remove()。
+     data 例 {"title":"夜のニュース","sub":"特集 地域経済"}。-->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #t { position:absolute; left:64px; bottom:140px; opacity:0; transform:translateX(-24px);
+       transition:opacity 450ms ease, transform 450ms ease; }
+  #t.show { opacity:1; transform:translateX(0); }
+  .title { display:inline-block; background:#c5102e; color:#fff; font-size:44px; font-weight:700;
+           padding:10px 26px; }
+  .sub { display:block; margin-top:6px; background:rgba(10,10,16,.82); color:#fff; font-size:28px;
+         padding:8px 22px; max-width:1100px; }
+</style>
+</head>
+<body>
+  <div id="t"><span class="title" id="title">　</span><span class="sub" id="sub"></span></div>
+<script>
+  "use strict";
+  var el=document.getElementById("t"), titleEl=document.getElementById("title"), subEl=document.getElementById("sub");
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if(o.title!=null) titleEl.textContent=o.title;
+      if(o.sub!=null){ subEl.textContent=o.sub; subEl.style.display=o.sub?"block":"none"; } }catch(e){} }
+  function play(){ el.classList.add("show"); }
+  function stop(){ el.classList.remove("show"); }
+  function next(){}
+  function remove(){ el.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){ update('{"title":"夜のニュース","sub":"特集 地域経済"}'); setTimeout(play,300); }
+</script>
+</body>
+</html>

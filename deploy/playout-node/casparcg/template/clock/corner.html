@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 朝・夕の左上時計 (CG layer 1-36、cg-layers.md / casparcg.md §1.1)。日本の一般的なTV放送で
+     朝・夕の情報番組帯に画面左上へ出す時刻表示。resolver が daypart 窓 (channel.clock_windows) を
+     絶対 show_at/hide_at の cg_cue に合成し、agent (OverlayManager) が窓開始で show / 終了で hide する。
+     契約: play()/stop()/update(data)/next()/remove()。
+     data 例 {"seconds":false,"date":false,"style":{"font_family":"noto-sans-jp","position":"top-left",...}}。
+     style キーが無い場合は全デフォルト値を適用 (後方互換)。
+     時刻進行はこのテンプレ内 JS が自走 (server 送信不要)。送出ノードは UTC 運用のため
+     必ず timeZone:"Asia/Tokyo" で JST 固定整形する (lbar/standard.html と同手法)。 -->
+
+<!-- Bootstrap utilities のみ (Reboot/reset 無し → 既存スタイル破壊なし) -->
+<link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap-utilities.min.css">
+
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent; }
+  /* 構造スタイル (変更不可の固定レイアウト) */
+  #clock { position:absolute;
+           box-sizing:border-box; text-align:center;
+           opacity:0; }
+  #time  { font-variant-numeric:tabular-nums; line-height:1.05; letter-spacing:.03em; }
+  #date  { letter-spacing:.06em; margin-top:2px; display:none; }
+  #clock.with-date #date { display:block; }
+
+  /* アニメーション @keyframes (Bootstrap 非対応のため自前) */
+  @keyframes icsClockFadeIn    { from{opacity:0}          to{opacity:1} }
+  @keyframes icsClockFadeOut   { from{opacity:1}          to{opacity:0} }
+  @keyframes icsClockSlideDown { from{opacity:0;transform:translateY(-18px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes icsClockSlideUp   { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-18px)} }
+  @keyframes icsClockZoomIn    { from{opacity:0;transform:scale(.82)} to{opacity:1;transform:scale(1)} }
+  @keyframes icsClockZoomOut   { from{opacity:1;transform:scale(1)} to{opacity:0;transform:scale(.82)} }
+</style>
+</head>
+<body>
+  <div id="clock">
+    <div id="time"></div>
+    <div id="date"></div>
+  </div>
+<script>
+"use strict";
+var el     = document.getElementById("clock"),
+    timeEl = document.getElementById("time"),
+    dateEl = document.getElementById("date");
+var showSeconds = false, showDate = false, timer = null;
+var currentAnim = null;  // 現在のアニメーション設定
+
+// ---- スタイル定数 ----
+
+// Google Fonts マッピング: slug → {family, weights}
+// ★ frontend/apps/studio/src/clockFonts.ts の FONTS と揃えること。
+var GOOGLE_FONT_MAP = {
+  // 日本語（ゴシック）
+  "noto-sans-jp":     { family: "Noto Sans JP",           weights: "400;700;900" },
+  "zen-kaku-gothic":  { family: "Zen Kaku Gothic New",    weights: "400;700;900" },
+  "zen-kaku-antique": { family: "Zen Kaku Gothic Antique", weights: "400;700;900" },
+  "biz-udgothic":     { family: "BIZ UDGothic",           weights: "400;700" },
+  "m-plus-1p":        { family: "M PLUS 1p",              weights: "400;700;900" },
+  "murecho":          { family: "Murecho",                weights: "400;700;900" },
+  "sawarabi-gothic":  { family: "Sawarabi Gothic",        weights: "400" },
+  // 日本語（明朝）
+  "noto-serif-jp":    { family: "Noto Serif JP",          weights: "400;700;900" },
+  "shippori-mincho":  { family: "Shippori Mincho",        weights: "400;700;800" },
+  "zen-old-mincho":   { family: "Zen Old Mincho",         weights: "400;700;900" },
+  "kaisei-decol":     { family: "Kaisei Decol",           weights: "400;700" },
+  "sawarabi-mincho":  { family: "Sawarabi Mincho",        weights: "400" },
+  // 日本語（丸・装飾）
+  "zen-maru-gothic":  { family: "Zen Maru Gothic",        weights: "400;700;900" },
+  "mplus-rounded":    { family: "M PLUS Rounded 1c",      weights: "400;700;900" },
+  "kosugi-maru":      { family: "Kosugi Maru",            weights: "400" },
+  "dela-gothic-one":  { family: "Dela Gothic One",        weights: "400" },
+  "reggae-one":       { family: "Reggae One",             weights: "400" },
+  "rocknroll-one":    { family: "RocknRoll One",          weights: "400" },
+  "yuji-syuku":       { family: "Yuji Syuku",             weights: "400" },
+  // 欧文（表示）
+  "oswald":           { family: "Oswald",                 weights: "400;700" },
+  "bebas-neue":       { family: "Bebas Neue",             weights: "400" },
+  "anton":            { family: "Anton",                  weights: "400" },
+  "saira-condensed":  { family: "Saira Condensed",        weights: "400;700;900" },
+  "teko":             { family: "Teko",                   weights: "400;700" },
+  // 欧文（テック・SF）
+  "orbitron":         { family: "Orbitron",               weights: "400;700;900" },
+  "michroma":         { family: "Michroma",               weights: "400" },
+  "rajdhani":         { family: "Rajdhani",               weights: "400;700" },
+  "chakra-petch":     { family: "Chakra Petch",           weights: "400;700" },
+  "exo-2":            { family: "Exo 2",                  weights: "400;700;800" },
+  // 欧文（モノスペース）
+  "share-tech-mono":  { family: "Share Tech Mono",        weights: "400" },
+  "space-mono":       { family: "Space Mono",             weights: "400;700" },
+  "jetbrains-mono":   { family: "JetBrains Mono",         weights: "400;700;800" },
+  "ibm-plex-mono":    { family: "IBM Plex Mono",          weights: "400;700" }
+};
+
+// Bootstrap utility class マッピング (shadow / radius)
+var BS_SHADOW = { "none":"shadow-none", "sm":"shadow-sm", "md":"shadow", "lg":"shadow-lg" };
+var BS_RADIUS = { "none":"rounded-0", "sm":"rounded-1", "md":"rounded-3", "lg":"rounded-4", "pill":"rounded-pill" };
+
+// 位置プリセット (ARIB アクションセーフ 1.25%=24px)
+var POS_MAP = {
+  "top-left":     { left:"1.25%",  top:"1.25%",  right:"",      bottom:"" },
+  "top-right":    { left:"",       top:"1.25%",  right:"1.25%", bottom:"" },
+  "bottom-left":  { left:"1.25%",  top:"",       right:"",      bottom:"1.25%" },
+  "bottom-right": { left:"",       top:"",       right:"1.25%", bottom:"1.25%" }
+};
+
+// テキストエフェクト → text-shadow 値
+var EFFECT_MAP = {
+  "none":         "none",
+  "soft-shadow":  "0 1px 3px rgba(0,0,0,.6)",
+  "hard-outline": "-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000",
+  "glow":         "0 0 8px rgba(255,255,255,.9),0 0 16px rgba(100,180,255,.7)"
+};
+
+// アニメーション設定
+var ANIM_MAP = {
+  "none":       { inKF:"",                  outKF:"",                 dur:0 },
+  "fade":       { inKF:"icsClockFadeIn",    outKF:"icsClockFadeOut",  dur:400 },
+  "slide-down": { inKF:"icsClockSlideDown", outKF:"icsClockSlideUp",  dur:350 },
+  "zoom":       { inKF:"icsClockZoomIn",    outKF:"icsClockZoomOut",  dur:350 }
+};
+
+// ---- ユーティリティ ----
+
+var _loadedFont = null;
+function loadGoogleFont(slug) {
+  if (!slug || slug === "noto-sans-jp" || slug === _loadedFont) return;
+  var f = GOOGLE_FONT_MAP[slug];
+  if (!f) return;
+  var prev = document.getElementById("gf-link");
+  if (prev) prev.parentNode.removeChild(prev);
+  var link = document.createElement("link");
+  link.id = "gf-link"; link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=" +
+    f.family.replace(/ /g, "+") + ":wght@" + f.weights + "&display=swap";
+  document.head.appendChild(link);
+  _loadedFont = slug;
+}
+
+function validHex(v, fallback) {
+  return (typeof v === "string" && /^#[0-9A-Fa-f]{6}$/.test(v)) ? v : fallback;
+}
+function validSize(v) {
+  var n = parseInt(v, 10);
+  return (n >= 36 && n <= 80) ? n : 54;
+}
+function validWeight(v) {
+  var n = parseInt(v, 10);
+  return ([400,700,900].indexOf(n) !== -1) ? n : 700;
+}
+function validOpacity(v) {
+  var n = parseFloat(v);
+  return (n >= 0 && n <= 1) ? n : 0.8;
+}
+
+function getBgPreset(preset, opacity) {
+  var op = validOpacity(opacity);
+  switch (preset) {
+    case "dark-solid":    return "rgba(12,18,32," + op + ")";
+    case "dark-pill":     return "rgba(12,18,32," + op + ")";  // radius は Bootstrap class が担う
+    case "frosted":       return "rgba(12,18,32," + (op * 0.45) + ")";
+    case "none":          return "transparent";
+    default:              // dark-gradient
+      return "linear-gradient(180deg,rgba(12,18,32," + op + "),rgba(12,18,32," + (op * 0.76) + "))";
+  }
+}
+
+// Bootstrap shadow/radius クラスを付け替える
+function applyBsClasses(shadowKey, radiusKey) {
+  // 既存の shadow-* / rounded-* を除去
+  var classes = el.className.split(" ").filter(function(c) {
+    return !/^(shadow|rounded)/.test(c);
+  });
+  var sc = BS_SHADOW[shadowKey] || BS_SHADOW["md"];
+  var rc = BS_RADIUS[radiusKey] || BS_RADIUS["md"];
+  classes.push(sc, rc);
+  el.className = classes.join(" ").trim();
+}
+
+// ---- スタイル適用 ----
+
+function applyStyle(s) {
+  s = s || {};
+  var pos = POS_MAP[s.position] || POS_MAP["top-left"];
+  el.style.left   = pos.left;   el.style.right  = pos.right;
+  el.style.top    = pos.top;    el.style.bottom = pos.bottom;
+
+  // Bootstrap utility class で shadow / radius を制御
+  applyBsClasses(s.box_shadow || "md", s.border_radius || "md");
+
+  // 背景 (Bootstrap 非対応 → インライン)
+  el.style.background     = getBgPreset(s.bg_preset, s.bg_opacity);
+  el.style.backdropFilter = (s.bg_preset === "frosted") ? "blur(12px) saturate(1.4)" : "";
+  el.style.padding        = "10px 22px";
+
+  // フォント (Google Fonts 動的ロード)
+  var slug = s.font_family || "noto-sans-jp";
+  loadGoogleFont(slug);
+  var f = GOOGLE_FONT_MAP[slug];
+  el.style.fontFamily = f ? ('"' + f.family + '",sans-serif') : '"Noto Sans JP",sans-serif';
+
+  // 時刻スタイル
+  timeEl.style.fontSize   = validSize(s.time_size) + "px";
+  timeEl.style.fontWeight = validWeight(s.font_weight);
+  timeEl.style.color      = validHex(s.time_color, "#ffffff");
+  timeEl.style.textShadow = EFFECT_MAP[s.text_effect] || EFFECT_MAP["soft-shadow"];
+
+  // 縁取り
+  var sw = (s.stroke_width === "1" || s.stroke_width === "2" || s.stroke_width === "4") ? s.stroke_width : "none";
+  var sc = validHex(s.stroke_color, "#000000");
+  var strokeCss = (sw !== "none") ? sw + "px " + sc : "";
+  timeEl.style.webkitTextStroke = strokeCss;
+  dateEl.style.webkitTextStroke = strokeCss;
+
+  // 日付スタイル
+  dateEl.style.color    = validHex(s.date_color, "#cfe3ff");
+  dateEl.style.fontSize = Math.round(validSize(s.time_size) * 0.407) + "px";  // 54px 基準で 22px
+
+  // アニメーション設定を記憶 (play/stop で使用)
+  currentAnim = ANIM_MAP[s.entrance_anim] || ANIM_MAP["fade"];
+}
+
+// ---- CasparCG テンプレート契約 ----
+
+// JST(Asia/Tokyo) の各要素を取り出す。送出ノードは UTC 運用なので timeZone を明示する。
+function jstParts() {
+  var p = {};
+  new Intl.DateTimeFormat("ja-JP", {
+    timeZone:"Asia/Tokyo", hour12:false,
+    hour:"2-digit", minute:"2-digit", second:"2-digit",
+    weekday:"short", month:"numeric", day:"numeric"
+  }).formatToParts(new Date()).forEach(function(x){ p[x.type] = x.value; });
+  return p;
+}
+
+function tick() {
+  var p = jstParts();
+  var h = String(parseInt(p.hour, 10));  // 先頭ゼロ無し (例「6:07」)
+  var t = h + ":" + p.minute;
+  if (showSeconds) t += ":" + p.second;
+  timeEl.textContent = t;
+  if (showDate) dateEl.textContent = p.month + "/" + p.day + " (" + p.weekday + ")";
+}
+
+function update(data) {
+  try {
+    var o = (typeof data === "string") ? JSON.parse(data || "{}") : (data || {});
+    if ("seconds" in o) showSeconds = !!o.seconds;
+    if ("date" in o) { showDate = !!o.date; el.classList.toggle("with-date", showDate); }
+    applyStyle(o.style || {});  // style サブキー。無ければ {} でデフォルト適用 (後方互換)
+    tick();
+  } catch(e) {}
+}
+
+function play() {
+  if (!currentAnim) applyStyle({});  // update() より先に play() が来た場合のフォールバック
+  var a = currentAnim || ANIM_MAP["fade"];
+  if (a.dur > 0) {
+    el.style.animation = a.inKF + " " + a.dur + "ms ease forwards";
+  } else {
+    el.style.animation = "";
+  }
+  el.style.opacity = "";
+  el.classList.add("show");
+  if (!timer) { timer = setInterval(tick, 1000); tick(); }
+}
+
+function stop() {
+  var a = currentAnim || ANIM_MAP["fade"];
+  if (a.dur > 0 && a.outKF) {
+    el.style.animation = a.outKF + " " + a.dur + "ms ease forwards";
+    var snapEl = el;
+    setTimeout(function() {
+      snapEl.classList.remove("show");
+      snapEl.style.animation = "";
+    }, a.dur);
+  } else {
+    el.style.animation = "";
+    el.classList.remove("show");
+  }
+}
+
+function next() {}
+
+function remove() {
+  el.style.animation = "";
+  el.classList.remove("show");
+  if (timer) { clearInterval(timer); timer = null; }
+}
+
+window.update = update; window.play = play; window.stop = stop;
+window.next = next; window.remove = remove;
+
+// ?test でブラウザ確認用 (スタイルオプション付き)
+if (location.search.indexOf("test") !== -1) {
+  update(JSON.stringify({
+    seconds: false, date: true,
+    style: {
+      font_family: "noto-sans-jp", time_size: 54, font_weight: 700,
+      time_color: "#ffffff", date_color: "#cfe3ff",
+      text_effect: "soft-shadow", bg_preset: "dark-gradient", bg_opacity: 0.8,
+      box_shadow: "md", border_radius: "md", entrance_anim: "fade", position: "top-left"
+    }
+  }));
+  setTimeout(play, 300);
+}
+</script>
+</body>
+</html>

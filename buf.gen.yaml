@@ -1,0 +1,14 @@
+version: v2
+# Python は server/ と agent/ の両方に生成 (両プロセスが proto に依存)。
+# 将来 agent を Go へ部分置換する際は plugins に Go ターゲットを追加するだけで済む。
+inputs:
+  - directory: proto
+plugins:
+  - remote: buf.build/protocolbuffers/python:v28.3
+    out: server/icstv_proto
+  - remote: buf.build/grpc/python:v1.66.2
+    out: server/icstv_proto
+  - remote: buf.build/protocolbuffers/python:v28.3
+    out: agent/icstv_proto
+  - remote: buf.build/grpc/python:v1.66.2
+    out: agent/icstv_proto

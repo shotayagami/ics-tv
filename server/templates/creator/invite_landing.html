@@ -1,0 +1,26 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}クリエイター招待 — ICS-TV{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;margin:3rem auto;text-align:center">
+  {% if invalid %}
+  <h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">招待が見つかりません</h1>
+  <p class="muted" style="font-size:.85rem">URLが正しいかご確認ください。</p>
+  {% elif expired %}
+  <h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">招待の期限が切れています</h1>
+  <p class="muted" style="font-size:.85rem">運営に再発行を依頼してください。</p>
+  {% elif accepted %}
+  <h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">この招待は既に使用済みです</h1>
+  <p class="muted" style="font-size:.85rem">既にアカウントをお持ちの場合は <a href="/login/">こちら</a> からサインインしてください。</p>
+  {% else %}
+  <h1 style="font-size:1.1rem;font-weight:800;margin-bottom:.6rem">{{ invitation.creator.name }} への招待</h1>
+  <p class="muted" style="font-size:.85rem;margin-bottom:1.2rem">
+    ICS-TV から「{{ invitation.creator.name }}」のクリエイターとして招待されています。<br>
+    招待先メールアドレス: {{ invitation.email }}
+  </p>
+  <a class="btn" href="/auth/google/start/?invite={{ invitation.token }}">Googleでサインインして参加</a>
+  <p class="muted" style="font-size:.75rem;margin-top:1rem">
+    ※ 招待されたメールアドレスと同じGoogleアカウントでサインインしてください。
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

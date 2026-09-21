@@ -1,0 +1,15 @@
+{% extends "members/base_members.html" %}
+{% block title %}メールアドレス変更 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>メールアドレスの変更</h1>
+  <p class="mhint">新しいメールアドレスに確認コードを送ります。確認が完了するまで現在のアドレスのままです。</p>
+  <form class="mform" method="post" action="/members/email/" novalidate>
+    {% csrf_token %}
+    {% include "members/_field.html" with field=form.new_email %}
+    {% include "members/_field.html" with field=form.password %}
+    <button class="btn" type="submit">確認コードを送信</button>
+  </form>
+  <div class="mlinks"><a href="/members/">マイページに戻る</a></div>
+</div>
+{% endblock %}

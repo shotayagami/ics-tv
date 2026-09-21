@@ -1,0 +1,347 @@
+{% extends "public_base.html" %}
+{% block title %}{{ creator.name }} ファンクラブ — ICS-TV{% endblock %}
+{% block og_title %}{{ creator.name }} ファンクラブ — ICS-TV{% endblock %}
+{% block og_description %}{{ creator.description|default:creator.name|truncatechars:120 }}{% endblock %}
+{% block meta_description %}{{ creator.description|default:creator.name|truncatechars:120 }}{% endblock %}
+{% block og_image %}{% if creator.cover_url %}<meta property="og:image" content="{{ creator.cover_url }}">{% elif creator.avatar_url %}<meta property="og:image" content="{{ creator.avatar_url }}">{% endif %}{% endblock %}
+{% block twitter_card %}{% if creator.cover_url %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+
+{% block extra_css %}
+/* ===== クリエイター公開ファンクラブページ (#27 §10.2) =====
+   series_detail.html の言語 (カード/エピソードグリッド/投稿リスト) を踏襲し、
+   creator.theme_color があるときだけ .fcp スコープで --accent を差し替える。 */
+.fcp { max-width: 980px; margin: 0 auto; padding: 0 0 64px; }
+
+/* カバーヒーロー */
+.fcp-hero { position: relative; width: 100%; aspect-ratio: 16/6; overflow: hidden;
+  background: radial-gradient(120% 110% at 50% 0%, color-mix(in srgb, var(--accent) 24%, #0a0f24) 0%, #0a0f24 60%, #070b1c 100%); }
+.fcp-hero img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fcp-hero .hero-overlay { position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(7,11,28,.92) 0%, rgba(7,11,28,.35) 55%, rgba(7,11,28,.15) 100%); }
+
+/* プロフィールヘッダ (カバーに重ねる) */
+.fcp-head { padding: 0 var(--pad); margin-top: -44px; position: relative; display: flex;
+  gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.fcp-avatar { width: 88px; height: 88px; border-radius: 50%; border: 3px solid var(--bg);
+  background: color-mix(in srgb, var(--accent) 30%, #0d1530); overflow: hidden; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; font-weight: 800; color: rgba(255,255,255,.85); }
+.fcp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.fcp-head-main { flex: 1; min-width: 0; padding-bottom: 6px; }
+.fcp-head-main .kicker { font-size: 12px; font-weight: 700; color: var(--dim); letter-spacing: .04em; }
+.fcp-head-main h1 { font-size: clamp(20px,4vw,28px); font-weight: 800; line-height: 1.2;
+  margin: 2px 0 0; overflow-wrap: anywhere; min-width: 0; }
+.fcp-desc { padding: 14px var(--pad) 0; color: var(--bright2); line-height: 1.85;
+  white-space: pre-wrap; max-width: 720px; }
+
+/* SNS リンク (series_detail の sd-sns-link と同型) */
+.fcp-sns { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px var(--pad) 0; align-items: center; }
+.fcp-sns a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 13px; transition: border-color .15s, background .15s; }
+.fcp-sns a:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.fcp-sns a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* セクション見出し */
+.fcp-sec { padding: 0 var(--pad); }
+.fcp-sec h2 { font-size: 15px; font-weight: 800; color: var(--bright); margin: 28px 0 12px; }
+
+/* 参加/プランカード (sd-fc-card と同型) */
+.fcp-join-card { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  padding: 16px 18px; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; }
+.fcp-join-card .fc-joined { font-size: 13px; font-weight: 700; color: #4ade80; }
+.btn-join { font-weight: 800; font-size: 14px; border-radius: 999px; padding: 10px 22px;
+  text-decoration: none; background: var(--accent); color: #06131f; border: none; cursor: pointer; }
+.btn-join:hover { filter: brightness(1.08); }
+.btn-join:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-join:active { transform: translateY(1px); }
+.btn-leave { font-weight: 700; font-size: 12px; border-radius: 999px; padding: 6px 14px;
+  background: transparent; color: var(--dim); border: 1px solid var(--line); cursor: pointer; }
+.btn-leave:hover { border-color: var(--accent); color: var(--bright); }
+.btn-leave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sd-fc-upgrade { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sd-fc-tier { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: var(--bright2); }
+.sd-fc-tier .btn-join { font-size: 12px; padding: 5px 14px; }
+.sd-fc-tier .fc-current { font-size: 12px; font-weight: 700; color: #4ade80; white-space: nowrap; }
+.sd-fc-pending { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border: 1px dashed var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: var(--dim); }
+.fc-legal-link { display: block; margin-top: 8px; font-size: 11px; color: var(--dim); text-decoration: none; }
+.fcp-card-link { font-size: 13px; font-weight: 700; color: var(--accent); text-decoration: none; }
+
+/* 番組シェルフ / 放送予定 (ep-card と同型) */
+.fcp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.ep-card { display: block; text-decoration: none; color: inherit;
+  border-radius: 10px; overflow: hidden; border: 1px solid var(--line);
+  background: var(--card); transition: border-color .15s; }
+.ep-card:hover { border-color: var(--accent); }
+.ep-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ep-thumb { position: relative; aspect-ratio: 16/9; background: #0d1530; overflow: hidden; }
+.ep-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ep-thumb .ph { display: flex; align-items: center; justify-content: center;
+  height: 100%; font-weight: 800; font-size: clamp(14px,3vw,22px); color: rgba(255,255,255,.12); }
+.ep-body { padding: 10px 12px 12px; }
+.ep-body .ep-title { font-size: 13px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
+.ep-body .ep-meta { font-size: 12px; color: var(--dim); font-weight: 600; }
+.ep-body .ep-state-upcoming { color: var(--accent); }
+
+/* 投稿フィード (post-list と同型 + シリーズ名) */
+.post-list { list-style: none; padding: 0; margin: 0; }
+.post-list li { border-bottom: 1px solid var(--line-thin); }
+.post-list a { display: flex; gap: 10px; align-items: center; padding: 12px 2px;
+  text-decoration: none; color: inherit; }
+.post-list a:hover .post-title { color: var(--accent); }
+.post-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.post-list .post-series { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 8px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+  white-space: nowrap; flex-shrink: 0; }
+.post-list .post-title { font-size: 14px; font-weight: 600; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-list .post-date { font-size: 12px; color: var(--dim); white-space: nowrap; flex-shrink: 0; }
+.post-list .lock { font-size: 13px; flex-shrink: 0; }
+
+/* メンバーチャット */
+.fc-chat-list { max-height: 420px; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--card); padding: 8px 14px; }
+.fc-chat-msg { padding: 9px 0; border-bottom: 1px solid var(--line-thin); }
+.fc-chat-msg:last-child { border-bottom: none; }
+.fc-chat-msg .m-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.fc-chat-msg .m-nick { font-weight: 800; color: var(--bright); }
+.fc-chat-msg .m-badge { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.fc-chat-msg .m-time { color: var(--dim); }
+.fc-chat-msg .m-del { margin-left: auto; }
+.fc-chat-msg .m-del button { background: none; border: none; color: var(--dim); cursor: pointer;
+  font-size: 13px; padding: 0 4px; }
+.fc-chat-msg .m-del button:hover { color: var(--danger-text); }
+.fc-chat-msg .m-body { font-size: 14px; color: var(--bright2); line-height: 1.6; margin-top: 2px;
+  overflow-wrap: anywhere; }
+.fc-chat-empty { color: var(--dim); font-size: 13px; padding: 14px 0; }
+.fc-chat-form { display: flex; gap: 10px; margin-top: 10px; align-items: flex-end; }
+.fc-chat-form textarea { flex: 1; background: #0c1226; border: 1px solid var(--line);
+  border-radius: 9px; color: var(--fg); padding: 10px 12px; font-size: 14px; font-family: inherit;
+  resize: vertical; }
+.fc-chat-form textarea:focus { outline: none; border-color: var(--accent); }
+.fc-chat-form .btn-join { flex: none; }
+.fc-chat-gate { font-size: 13px; color: var(--dim); border: 1px dashed var(--line);
+  border-radius: 10px; padding: 12px 16px; margin-top: 8px; }
+.fc-chat-gate a { color: var(--accent); }
+
+.fcp-messages { padding: 16px var(--pad) 0; }
+.fcp-messages .msg { padding: 11px 14px; border-radius: 9px; font-size: 14px; font-weight: 600;
+  margin-bottom: 8px; }
+.fcp-messages .msg.success { background: rgba(74,222,128,.12); color: #4ade80; }
+.fcp-messages .msg.error { background: rgba(248,113,113,.12); color: var(--danger-text); }
+.fcp-messages .msg.info { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+
+@media (max-width: 760px) {
+  .fcp-hero { aspect-ratio: 16/9; }
+  .fcp-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+@media (max-width: 480px) {
+  .fcp-grid { grid-template-columns: 1fr; }
+  .fcp-avatar { width: 72px; height: 72px; }
+}
+{% endblock %}
+
+{% block content %}
+<div class="fcp"{% if theme_color %} style="--accent: {{ theme_color }};"{% endif %}>
+
+  {% if messages %}
+  <div class="fcp-messages">
+    {% for message in messages %}
+    <div class="msg {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# カバー + プロフィールヘッダ #}
+  <div class="fcp-hero">
+    {% if creator.cover_url %}<img class="cover" src="{{ creator.cover_url }}" alt="">{% endif %}
+    <div class="hero-overlay"></div>
+  </div>
+  <div class="fcp-head">
+    <div class="fcp-avatar">
+      {% if creator.avatar_url %}<img src="{{ creator.avatar_url }}" alt="{{ creator.name }}">{% else %}{{ creator.name|first }}{% endif %}
+    </div>
+    <div class="fcp-head-main">
+      <div class="kicker">ファンクラブ</div>
+      <h1>{{ creator.name }}</h1>
+    </div>
+  </div>
+  {% if creator.description %}<div class="fcp-desc">{{ creator.description }}</div>{% endif %}
+
+  {% if creator.sns_x_url or creator.sns_youtube_url or creator.sns_instagram_url or creator.website_url %}
+  <div class="fcp-sns">
+    {% if creator.sns_x_url %}<a href="{{ creator.sns_x_url }}" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.636 5.905-5.636ZM17.083 20.25h1.833L7.084 4.126H5.117z"/></svg>X</a>{% endif %}
+    {% if creator.sns_youtube_url %}<a href="{{ creator.sns_youtube_url }}" target="_blank" rel="noopener">YouTube</a>{% endif %}
+    {% if creator.sns_instagram_url %}<a href="{{ creator.sns_instagram_url }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+    {% if creator.website_url %}<a href="{{ creator.website_url }}" target="_blank" rel="noopener">Web サイト</a>{% endif %}
+  </div>
+  {% endif %}
+
+  {# 参加 / プラン #}
+  <div class="fcp-sec">
+    <h2>メンバーシップ</h2>
+    {% if my_level is not None %}
+    <div class="fcp-join-card">
+      <div>
+        <div class="fc-joined">✓ 参加中{% if my_level > 0 %}（有料プラン）{% endif %}</div>
+        <a class="fcp-card-link" href="{{ public_base_url }}/members/fanclub/{{ creator.slug }}/card/">デジタル会員証を表示</a>
+      </div>
+      <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/leave/">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn-leave">{% if my_level > 0 %}ご契約を管理する{% else %}退会する{% endif %}</button>
+      </form>
+    </div>
+    {% elif member %}
+    <div class="fcp-join-card">
+      <div>無料で参加すると限定コンテンツが見られます。</div>
+      <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/join/">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn-join">ファンクラブに参加(無料)</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="fcp-join-card">
+      <div>無料で参加すると限定コンテンツが見られます。</div>
+      <a class="btn-join" href="{{ public_base_url }}/members/login/?next={{ request.get_full_path|urlencode }}">ログインして参加</a>
+    </div>
+    {% endif %}
+    {% if member %}{% include "public/_fc_tiers.html" %}{% endif %}
+    <a href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tokushoho/" class="fc-legal-link">特定商取引法に基づく表記</a>
+  </div>
+
+  {# 会員限定チャット (#27 §3.1 Should、Fanicon グルチャ型) #}
+  {% if creator.chat_required_level is not None %}
+  <div class="fcp-sec" id="fc-chat">
+    <h2>メンバーチャット</h2>
+    {% if can_chat %}
+    <div class="fc-chat-list" id="fc-chat-list" data-slug="{{ creator.slug }}">
+      {% for msg in chat_messages %}
+      <div class="fc-chat-msg" data-mid="{{ msg.id }}">
+        <div class="m-head">
+          <span class="m-nick">{{ msg.member.nickname }}</span>
+          {% if msg.badge %}<span class="m-badge">{{ msg.badge }}</span>{% endif %}
+          <span class="m-time tabnum">{{ msg.created_at|date:"n/j H:i" }}</span>
+          {% if member and msg.member_id == member.pk %}
+          <form class="m-del" method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/chat/{{ msg.id }}/delete/">
+            {% csrf_token %}<button type="submit" aria-label="削除">×</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="m-body">{{ msg.body|linebreaksbr }}</div>
+      </div>
+      {% empty %}
+      <div class="fc-chat-empty">まだ発言はありません。最初のひとことをどうぞ。</div>
+      {% endfor %}
+    </div>
+    {% if member.is_verified %}
+    <form class="fc-chat-form" method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/chat/post/">
+      {% csrf_token %}
+      <textarea name="body" maxlength="500" rows="2" placeholder="メッセージを入力（{{ member.nickname }}）" required></textarea>
+      <button type="submit" class="btn-join">送信</button>
+    </form>
+    {% else %}
+    <div class="fc-chat-gate">発言するには<a href="{{ public_base_url }}/members/verify-required/">本人確認</a>が必要です。</div>
+    {% endif %}
+    <script>
+    (function () {
+      var list = document.getElementById("fc-chat-list");
+      if (!list || !("WebSocket" in window)) return;
+      var proto = location.protocol === "https:" ? "wss" : "ws";
+      var ws = new WebSocket(proto + "://" + location.host + "/ws/fc/" + list.dataset.slug + "/chat/");
+      ws.onmessage = function (ev) {
+        var data;
+        try { data = JSON.parse(ev.data); } catch (e) { return; }
+        if (!data || data.type !== "chat.new" || !data.message) return;
+        var m = data.message;
+        if (list.querySelector('[data-mid="' + m.id + '"]')) return; // 自分の POST 後リロードと重複
+        var el = document.createElement("div");
+        el.className = "fc-chat-msg";
+        el.dataset.mid = m.id;
+        var head = document.createElement("div"); head.className = "m-head";
+        var nick = document.createElement("span"); nick.className = "m-nick"; nick.textContent = m.nickname;
+        head.appendChild(nick);
+        if (m.badge) { var b = document.createElement("span"); b.className = "m-badge"; b.textContent = m.badge; head.appendChild(b); }
+        var t = document.createElement("span"); t.className = "m-time tabnum"; t.textContent = m.time;
+        head.appendChild(t);
+        var body = document.createElement("div"); body.className = "m-body"; body.textContent = m.body;
+        el.appendChild(head); el.appendChild(body);
+        var empty = list.querySelector(".fc-chat-empty"); if (empty) empty.remove();
+        list.appendChild(el);
+        list.scrollTop = list.scrollHeight;
+      };
+    })();
+    </script>
+    {% elif member %}
+    <div class="fc-chat-gate">
+      メンバーチャットは{% if creator.chat_required_level == 0 %}ファンクラブ会員{% else %}対象プランの会員{% endif %}だけが参加できます。
+    </div>
+    {% else %}
+    <div class="fc-chat-gate"><a href="{{ public_base_url }}/members/login/?next={{ request.get_full_path|urlencode }}">ログイン</a>してファンクラブに参加すると閲覧できます。</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# 番組 #}
+  {% if series_list %}
+  <div class="fcp-sec">
+    <h2>番組</h2>
+    <div class="fcp-grid">
+      {% for s in series_list %}
+      <a class="ep-card" href="{{ public_base_url }}/series/{% if s.slug %}{{ s.slug }}{% else %}{{ s.id }}{% endif %}/">
+        <div class="ep-thumb">
+          {% if s.thumbnail_url %}<img src="{{ s.thumbnail_url }}" alt="">{% else %}<div class="ph">ICS-TV</div>{% endif %}
+        </div>
+        <div class="ep-body">
+          <div class="ep-title">{{ s.title }}</div>
+          {% if s.genre %}<div class="ep-meta">{{ s.genre }}</div>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# 放送予定 #}
+  {% if upcoming %}
+  <div class="fcp-sec">
+    <h2>放送予定</h2>
+    <ul class="post-list">
+      {% for p in upcoming %}
+      <li>
+        <a href="{{ public_base_url }}/program/{{ p.id }}/">
+          <span class="post-series">{{ p.channel.name }}</span>
+          <span class="post-title">{{ p.title }}</span>
+          <span class="post-date tabnum">{{ p.start_at|date:"n/j(D) H:i" }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# 投稿フィード #}
+  {% if posts %}
+  <div class="fcp-sec">
+    <h2>投稿</h2>
+    <ul class="post-list">
+      {% for post in posts %}
+      <li>
+        <a href="{{ public_base_url }}/series/{{ post.series_id }}/p/{{ post.id }}/">
+          {% if post.locked %}<span class="lock" title="ファンクラブ限定">🔒</span>{% endif %}
+          <span class="post-series">{{ post.series.title|truncatechars:12 }}</span>
+          <span class="post-title">{{ post.title }}</span>
+          {% if post.published_at %}<span class="post-date tabnum">{{ post.published_at|date:"n/j(D)" }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

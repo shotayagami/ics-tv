@@ -1,0 +1,5 @@
+{# 単一フォームフィールド (ラベル+入力+ヒント+エラー)。.mform 内でスタイルが当たる。 #}
+<label for="{{ field.id_for_label }}">{{ field.label }}</label>
+{{ field }}
+{% if field.help_text %}<div class="mhint">{{ field.help_text }}</div>{% endif %}
+{% for e in field.errors %}<div class="merr">{{ e }}</div>{% endfor %}

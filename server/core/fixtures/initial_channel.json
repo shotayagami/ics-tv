@@ -1,0 +1,36 @@
+[
+  {
+    "model": "core.channel",
+    "pk": 1,
+    "fields": {
+      "name": "ICS-TV 1ch",
+      "slug": "ch1",
+      "enabled": true,
+      "cf_live_input_id": null,
+      "youtube_channel_id": null,
+      "youtube_stream_key": null,
+      "youtube_livestream_id": null,
+      "youtube_ingest_url": null,
+      "agent_token": null,
+      "default_filler": null,
+      "created_at": "2026-06-09T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.channel",
+    "pk": 2,
+    "fields": {
+      "name": "ICS-TV 2ch",
+      "slug": "ch2",
+      "enabled": true,
+      "cf_live_input_id": null,
+      "youtube_channel_id": null,
+      "youtube_stream_key": null,
+      "youtube_livestream_id": null,
+      "youtube_ingest_url": null,
+      "agent_token": null,
+      "default_filler": null,
+      "created_at": "2026-06-15T00:00:00Z"
+    }
+  }
+]

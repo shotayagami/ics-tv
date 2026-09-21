@@ -1,0 +1,10 @@
+{% comment %}サムネのファイルアップロード欄。引数: current_url(任意・現在のサムネURL)。
+親フォームに enctype="multipart/form-data" と name="thumbnail_file" が必要。{% endcomment %}
+<div class="field">
+  <label>サムネ画像をアップロード（任意）</label>
+  <div style="display:flex;align-items:center;gap:.6rem">
+    {% include "partials/thumb.html" with url=current_url size=48 %}
+    <input type="file" name="thumbnail_file" accept="image/jpeg,image/png,image/webp,image/gif">
+  </div>
+  <span class="muted" style="font-size:.78rem">アップロードすると R2 に保存され、上の「サムネ URL」より優先されます（JPEG/PNG/WebP/GIF・5MB以内）。<br>推奨サイズ: <strong>PC 1920×720px</strong>（16:6）／ <strong>SP 1280×720px</strong>（16:9・PC 画像の中央 2/3 相当）— 重要な被写体は横中央に寄せると両対応。</span>
+</div>

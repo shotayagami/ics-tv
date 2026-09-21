@@ -1,0 +1,27 @@
+{% extends "public_base.html" %}
+{% block title %}ファンクラブ限定コンテンツ — ICS-TV{% endblock %}
+{% block meta_description %}このコンテンツはファンクラブ限定です。{% endblock %}
+
+{% block extra_css %}
+  .fcwall { max-width: 560px; margin: 0 auto; padding: clamp(40px,10vw,96px) var(--pad) 96px; text-align: center; }
+  .fcwall .rate { display: inline-block; font-weight: 800; font-size: 18px; padding: 8px 16px; border-radius: 8px;
+                  background: rgba(56,189,248,.14); color: var(--accent); margin-bottom: 20px; }
+  .fcwall h1 { font-size: clamp(20px,4vw,26px); font-weight: 800; margin: 0 0 14px; }
+  .fcwall p { color: var(--dim); line-height: 1.85; font-size: 14px; margin: 0 0 10px; }
+  .fcwall .acts { margin-top: 26px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .fcwall .btn { font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 8px; text-decoration: none;
+                 background: var(--card); color: var(--bright2); border: 1px solid var(--line); }
+{% endblock %}
+
+{% block content %}
+<section class="fcwall">
+  <div class="rate">ファンクラブ限定</div>
+  <h1>まだご覧いただけません</h1>
+  <p>このコンテンツはファンクラブ限定です。現在は準備中のため、こちらのプランでのご視聴はまだご利用いただけません。</p>
+  {% if program.series_id %}
+  <div class="acts">
+    <a class="btn" href="{{ program.series.public_url }}">‹ 番組ページへ</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

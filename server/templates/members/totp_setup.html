@@ -1,0 +1,17 @@
+{% extends "members/base_members.html" %}
+{% block title %}認証アプリ登録 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>認証アプリの登録</h1>
+  <p class="mhint">認証アプリでこの QR コードを読み取るか、下のキーを手入力してください。</p>
+  <div style="display:flex;justify-content:center;margin:18px auto;background:#fff;padding:14px;border-radius:12px;max-width:220px;">{{ qr_svg|safe }}</div>
+  <div style="text-align:center;font-family:monospace;font-size:15px;letter-spacing:.08em;color:var(--bright);word-break:break-all;">{{ secret }}</div>
+  <form class="mform" method="post" action="/members/2fa/totp/setup/" novalidate>
+    {% csrf_token %}
+    <label for="code">アプリに表示された6桁コード</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+    <button class="btn" type="submit">登録を完了する</button>
+  </form>
+  <div class="mlinks"><a href="/members/2fa/">2段階認証設定に戻る</a></div>
+</div>
+{% endblock %}

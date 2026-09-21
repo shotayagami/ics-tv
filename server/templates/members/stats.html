@@ -1,0 +1,54 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}会員統計 — ICS-TV{% endblock %}
+{% block content %}
+<h1>会員統計</h1>
+<p class="muted">収集した属性の集計値（個人は特定しません）。</p>
+
+<div class="card">
+  <h2>概要</h2>
+  総会員数: <strong>{{ total }}</strong> ／
+  本人確認済: <strong class="ok">{{ verified }}</strong> ／
+  未確認: <strong class="err">{{ unverified }}</strong>
+</div>
+
+<div class="card">
+  <h2>年齢層</h2>
+  <table>
+    {% for label, n in age_rows %}<tr><td style="padding-right:1.5rem;">{{ label }}</td><td><strong>{{ n }}</strong></td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>性別</h2>
+  <table>
+    {% for label, n in gender_rows %}<tr><td style="padding-right:1.5rem;">{{ label }}</td><td><strong>{{ n }}</strong></td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>居住国</h2>
+  {% if country_rows %}
+  <table>
+    {% for label, n in country_rows %}<tr><td style="padding-right:1.5rem;">{{ label }}</td><td><strong>{{ n }}</strong></td></tr>{% endfor %}
+  </table>
+  {% else %}<span class="muted">データなし</span>{% endif %}
+</div>
+
+<div class="card">
+  <h2>地域（郵便番号 上3桁・上位15）</h2>
+  <p class="muted">日本在住の会員のみを母数とします（郵便番号の体系が国ごとに異なるため）。</p>
+  {% if region_rows %}
+  <table>
+    {% for prefix, n in region_rows %}<tr><td style="padding-right:1.5rem;"><code>{{ prefix }}</code></td><td><strong>{{ n }}</strong></td></tr>{% endfor %}
+  </table>
+  {% else %}<span class="muted">データなし</span>{% endif %}
+  {% if region_overseas_excluded %}<p class="muted">海外在住 {{ region_overseas_excluded }} 名を除外しています。</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>2段階認証</h2>
+  <table>
+    {% for label, n in tfa_rows %}<tr><td style="padding-right:1.5rem;">{{ label }}</td><td><strong>{{ n }}</strong></td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

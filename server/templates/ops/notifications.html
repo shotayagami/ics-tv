@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}通知センター — {{ channel.name }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>通知センター <span class="muted">/ {{ channel.name }} ({{ channel.slug }})</span></h1>
+<p><a href="{% url 'core:ops_dashboard' channel.slug %}" class="muted">← 運行ダッシュボード</a></p>
+
+<section class="card">
+  <form method="post" action="{% url 'core:op_ack_all_notifications' channel.slug %}"
+        hx-post="{% url 'core:op_ack_all_notifications' channel.slug %}" hx-swap="none"
+        style="margin-bottom:.6rem;">
+    {% csrf_token %}
+    <button class="btn" type="submit">未確認をすべて既読</button>
+  </form>
+  {% if rows %}
+    <table>
+      <tr><th>severity</th><th>kind</th><th>message</th><th>発生</th><th>状態</th></tr>
+      {% for n in rows %}
+        <tr>
+          <td>
+            {% if n.severity == "crit" %}<span class="badge" style="color:#fff;background:var(--warn);border-color:var(--warn)">CRIT</span>
+            {% elif n.severity == "warn" %}<span class="badge" style="color:#fff;background:#d80;border-color:#d80">WARN</span>
+            {% else %}<span class="badge">INFO</span>{% endif %}
+          </td>
+          <td class="muted">{{ n.kind }}</td>
+          <td>{{ n.message }}</td>
+          <td style="white-space:nowrap;">{{ n.created_at|date:"m/d H:i:s" }}</td>
+          <td style="white-space:nowrap;">
+            {% if n.acknowledged_at %}
+              <span class="muted">既読 {{ n.acknowledged_at|date:"H:i" }}</span>
+            {% else %}
+              <form method="post" action="{% url 'core:op_ack_notification' channel.slug n.id %}"
+                    hx-post="{% url 'core:op_ack_notification' channel.slug n.id %}" hx-swap="none"
+                    style="margin:0;">
+                {% csrf_token %}
+                <button class="btn" type="submit" style="padding:.1rem .5rem;">既読</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">通知はありません</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}権利 — ICS-TV{% endblock %}
+{% block content %}
+<h1>権利・コンプライアンス <span class="muted">/ 配信権</span></h1>
+
+<section class="card">
+  <h2 style="margin-top:0">配信権 期限切れ間近 <span class="muted">/ VOD 許諾が 30 日以内に終了</span></h2>
+  <table>
+    <thead><tr><th>番組</th><th>チャンネル</th><th>権利元</th><th>VOD終了</th></tr></thead>
+    <tbody>
+      {% for r in expiring %}
+      <tr>
+        <td>{{ r.program.title }}</td><td>{{ r.program.channel.name }}</td>
+        <td>{{ r.holder }}</td><td class="tabnum">{{ r.available_until|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="muted">30 日以内に終了する VOD 配信権はありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">配信権の登録/編集は admin（DistributionRight）から。VOD 公開はここで自動ゲートされます。</p>
+</section>
+{% endblock %}

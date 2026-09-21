@@ -1,0 +1,80 @@
+[Unit]
+Description=ICS-TV HLS ABR ladder (%i): MediaMTX RTMP(h264) -> 720p/480p/144p/audio -> tmpfs (公開プレイヤー画質切替)
+# テンプレートユニット: icstv-hls-ladder@<slug> (例 icstv-hls-ladder@ch2)。%i=<slug>。
+#
+# 公開プレイヤーの画質切替/音声のみ/144p 用 ABR ladder を生成する。本線送出 (icstv-encoder@<slug> の
+# CasparCG UDP -> h264_vaapi -> CF/MediaMTX tee) からは完全分離した独立プロセスにしている:
+#   - 入力は icstv-encoder が MediaMTX へ publish 済みの h264 (rtmp://127.0.0.1:1935/hls/<slug>)。
+#     CasparCG の生 UDP(mpeg2video) を直接 ladder に通すと、encoder 再起動時の 0x0 起動フレームで
+#     scale_vaapi が SEGV し、同一プロセスだった CF/MediaMTX leg ごと本線が落ちる事故が出た (実証済)。
+#     MediaMTX 経由の h264 はクリーンなので 0x0 問題が無く、かつ poster と同様に複数 consumer 可。
+#   - この ladder が落ちても本線送出 (CF/MediaMTX/poster) は無傷。ABR が一時的に止まるだけ。
+# VAAPI で HW デコード -> fps=30 -> split -> scale_vaapi(480p/144p) -> h264_vaapi×3 + 音声のみ aac を
+# tmpfs /run/icstv-hls/<slug>/ へフラット書き出し (master.m3u8 + 720p/480p/144p/audio.m3u8 + *_N.ts)。
+# nginx(:8889) が静的配信 -> tv.example.com/hls2。
+#
+# ⚠️ 容量: 送出ノードは単一 iGPU(UHD630)+3 コアで 24/7 720p60 を出しており、CasparCG 合成だけで GPU の
+#   render エンジン(RCS) を ~80% 使う。scale_vaapi は UHD630 では VEBox(VECS) でなく RCS で動くため、
+#   ladder を 60fps にすると RCS が定常 100% に飽和し本線フレーム落ちのリスクが出る。よって ladder は
+#   fps=30 に落として VPP/encode を半減させる (公開プレイヤーは 30fps で十分。CF/YouTube は別 encoder で
+#   60fps 維持)。GOP=60 (=2s@30fps、hls_time 2s と整合)。本線に影響が出たら systemctl stop で即分離可。
+#
+# 注: systemd unit 内では %v(kernel release)/%d も specifier のため、ffmpeg へ渡す var_stream_map の
+#   %v / segment の %d は %%v / %%d とエスケープする。
+After=mediamtx.service icstv-encoder@%i.service
+Wants=mediamtx.service
+
+[Service]
+Type=simple
+User=casparcg
+Group=casparcg
+# DVR/タイムシフト窓 (#PLAYER-03・決定#24): HLS_LIST_SIZE × hls_time(2s) = 巻き戻せる秒数。
+# 既定 30 = ~60s (tmpfs コスト ≈ 60×0.87MB/s ≈ 52MB。4GB 筐体に対し無視可)。delete_segments で
+# 上限固定なので RAM は窓幅で頭打ち。EnvironmentFile より前に置き、encoder-<slug>.env で上書き可
+# (本格 DVR = 1h 窓は tmpfs では OOM。出力をディスク退避してから引き上げる = Phase C・別 issue)。
+Environment=HLS_LIST_SIZE=30
+# V480_BITRATE / V144_BITRATE / AUDIO_ONLY_BITRATE / VBITRATE / GOP 等は encoder と同じ env を共用。
+EnvironmentFile=/etc/icstv/encoder-%i.env
+# HLS ladder の tmpfs 出力先。プロセス権限で自動作成 (mode 0755 で nginx www-data から読める)。
+RuntimeDirectory=icstv-hls/%i
+RuntimeDirectoryMode=0755
+# 入力ソース (MediaMTX hls/%i = encoder の RTMP tee leg) が ready になるまで待ってから ffmpeg を起動する。
+# これが無いと、encoder tee の瞬断 (RCS 飽和下で発生しうる) で ffmpeg が rtmp 入力 I/O error → 即 exit →
+# Restart=always が 3s 毎に再起動 → RuntimeDirectory(tmpfs) が毎回ワイプされ /hls2 が長時間壊れる (実機で
+# 25分の flap を観測)。ソース ready 待ちにすると、瞬断時は tight loop せず待機し、復帰後に一度だけ起動する。
+#
+# 2026-08-06: 上の待ちは「瞬断」しか想定できておらず、非オンエア帯 (現状 12h/日) には効いていなかった。
+# seq 60 で 60 秒しか待たず、ループを抜けても最後の sleep の exit 0 がそのまま返り、さらに先頭 - で
+# ExecStartPre の失敗が無視されるため、結局 ffmpeg が起動して rtmp I/O error で即死していた。
+# RestartSec=3 と合わせて周期 63 秒 = 実測 56-57 回/時の再起動ループになり、その度に RuntimeDirectory が
+# 作り直されて /hls2 が壊れ続けていた (restart counter 633、mediamtx の "ERR [API] path not found" も
+# このポーリング由来で 3396 件/時)。オフエアの実体は encoder の RTMP tee leg が i/o timeout で切れて
+# path ごと消えることで、CasparCG がオンエアに戻るまで復帰しない (2026-08-06 は 2 時間 4 分の欠落を観測)。
+# 対処: 待ちを無制限 (until + TimeoutStartSec=infinity) にし、ソース復帰まで start-pre で待機させる。
+# 1 回のオフエアにつき起動 1 回で済み、tmpfs のワイプも 1 回で収まる。先頭 - も外す (ソースが無いまま
+# ffmpeg を起動しても無意味なので、失敗したら ExecStart へ進ませない)。ポーリングは 1s -> 5s。
+# %i=slug。grep は引用符を避け ready..true で "ready":true を照合 (. が " と : を 1 文字ずつ吸収)。
+TimeoutStartSec=infinity
+ExecStartPre=/bin/bash -c 'until curl -fsS --max-time 2 http://127.0.0.1:9997/v3/paths/get/hls/%i 2>/dev/null | grep -q ready..true; do sleep 5; done'
+ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel warning \
+  -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format vaapi \
+  -i rtmp://127.0.0.1:1935/hls/%i \
+  -filter_complex "[0:v]fps=30,split=3[v720][v480s][v144s];[v480s]scale_vaapi=w=854:h=480[v480];[v144s]scale_vaapi=w=256:h=144[v144]" \
+  -map "[v720]" -map "[v480]" -map "[v144]" -map 0:a -map 0:a -map 0:a -map 0:a \
+    -c:v:0 h264_vaapi -b:v:0 ${VBITRATE} -maxrate:v:0 ${VBITRATE} -bufsize:v:0 ${VBUFSIZE} -g:v:0 60 \
+    -c:v:1 h264_vaapi -b:v:1 ${V480_BITRATE} -maxrate:v:1 ${V480_BITRATE} -bufsize:v:1 ${V480_BUFSIZE} -g:v:1 60 \
+    -c:v:2 h264_vaapi -b:v:2 ${V144_BITRATE} -maxrate:v:2 ${V144_BITRATE} -bufsize:v:2 ${V144_BUFSIZE} -g:v:2 60 \
+    -c:a aac -b:a:0 128k -b:a:1 128k -b:a:2 96k -b:a:3 ${AUDIO_ONLY_BITRATE} -ar 48000 \
+    -f hls -hls_time 2 -hls_list_size ${HLS_LIST_SIZE} \
+      -hls_flags delete_segments+independent_segments+program_date_time \
+      -hls_segment_type mpegts \
+      -hls_segment_filename /run/icstv-hls/%i/%%v_%%d.ts \
+      -master_pl_name master.m3u8 \
+      -var_stream_map "v:0,a:0,name:720p v:1,a:1,name:480p v:2,a:2,name:144p a:3,name:audio" \
+      /run/icstv-hls/%i/%%v.m3u8
+Restart=always
+RestartSec=3
+Environment=LIBVA_DRIVER_NAME=iHD
+
+[Install]
+WantedBy=multi-user.target

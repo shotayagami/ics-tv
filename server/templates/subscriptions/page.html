@@ -1,0 +1,54 @@
+{% extends "members/base_members.html" %}
+{% block title %}プラン・サブスクリプション — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .plan { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .plan-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .plan-name { font-weight: 800; font-size: 17px; }
+  .plan-price { font-weight: 800; color: var(--accent); }
+  .plan-price small { color: var(--dim); font-weight: 600; }
+  .plan-feats { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .plan-feats li { font-size: 12px; background: rgba(56,189,248,.12); color: var(--bright); padding: 3px 9px; border-radius: 6px; }
+  .plan-feats li.soon { background: rgba(148,163,184,.12); color: var(--dim); }
+  .plan .btn { margin-top: 0; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>プラン・サブスクリプション</h1>
+  {% if not configured %}<div class="mbanner">現在、課金は準備中です。</div>{% endif %}
+
+  {% if sub and sub.is_active %}
+    <ul class="mlist">
+      <li><span class="k">現在のプラン</span><span>{{ sub.plan.name|default:"—" }}</span></li>
+      <li><span class="k">状態</span><span><span class="mbadge ok">{{ sub.get_status_display }}</span></span></li>
+      <li><span class="k">次回更新</span><span>{{ sub.current_period_end|date:"Y/m/d"|default:"—" }}{% if sub.cancel_at_period_end %}（期末で解約予定）{% endif %}</span></li>
+    </ul>
+    <form method="post" action="/subscriptions/portal/">{% csrf_token %}
+      <button class="btn" type="submit">プラン変更・解約・支払い方法</button>
+    </form>
+  {% else %}
+    <p class="mhint">加入すると、コメント特典（会員バッジ・連投制限の緩和）が利用できます。高画質・広告非表示・会員限定コンテンツは順次提供予定です（「準備中」表示）。</p>
+    {% for p in plans %}
+    <div class="plan">
+      <div class="plan-h">
+        <span class="plan-name">{{ p.name }}</span>
+        <span class="plan-price">¥{{ p.amount }}<small>/{{ p.get_interval_display }}</small></span>
+      </div>
+      <ul class="plan-feats">
+        {% for label, active in p.perk_list %}
+        <li{% if not active %} class="soon"{% endif %}>{{ label }}{% if not active %}（準備中）{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% if configured and p.stripe_price_id %}
+      <a class="btn" href="/subscriptions/checkout/{{ p.slug }}/confirm/">このプランで加入</a>
+      {% else %}
+      <button class="btn" type="button" disabled>このプランで加入</button>
+      {% endif %}
+    </div>
+    {% empty %}<div class="mhint">利用可能なプランがまだありません。</div>{% endfor %}
+  {% endif %}
+
+  <div class="mlinks">
+    <a href="/members/">マイページに戻る</a> ・ <a href="/tokushoho/">特定商取引法に基づく表記</a>
+  </div>
+</div>
+{% endblock %}

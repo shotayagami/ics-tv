@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 緊急地震速報テロップ パターン2: 縦書き 地域名のみ (CG layer 38, template=map/eew-band)。
+     画面左に縦帯: 「緊急地震速報」(縦・赤) → 「○○で地震」(縦) → 強い揺れが予想される地域名を
+     縦書き多列で。地図なし。震度地図(map/seismic)と重ねる運用も想定 (帯は左のみ描画・他は透過)。
+     契約: play()/stop()/update(data)/next()/remove()。data 例:
+       {"epicenter":"北海道道北","regions":["北海道道北","北海道道央","北海道道南","北海道道東"],"test":false} -->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:"Noto Sans JP","Yu Gothic",sans-serif;}
+  #root{position:absolute;inset:0;opacity:0;transition:opacity 300ms ease-in-out;}
+  #root.show{opacity:1;}
+  #band{position:absolute;left:0;top:0;height:1080px;display:flex;flex-direction:row-reverse;
+    align-items:stretch;gap:0;padding:0;}
+  /* 縦書き見出し列 (最左): 緊急地震速報(赤) + ○○で地震(紺) */
+  #head{writing-mode:vertical-rl;text-orientation:upright;display:flex;flex-direction:row;
+    background:linear-gradient(180deg,#0b1c3a,#0b1c3a);}
+  #head .ttl{background:#d51a1a;color:#fff;font-weight:900;font-size:52px;letter-spacing:6px;
+    padding:22px 10px;text-align:center;}
+  #head .epi{background:#12305e;color:#fff;font-weight:900;font-size:46px;letter-spacing:6px;
+    padding:22px 12px;text-align:center;}
+  /* 地域名: 縦書き。各名は塊のまま続けて縦に並べ、列高で折り返す (列数=行数を最小化)。 */
+  #regions{writing-mode:vertical-rl;text-orientation:upright;background:rgba(11,28,58,.92);
+    color:#fff;font-weight:800;font-size:42px;letter-spacing:3px;line-height:1.2;
+    height:1080px;box-sizing:border-box;padding:24px 16px;}
+  #regions span{display:inline-block;margin:0 0 26px;white-space:nowrap;}
+  #warn{position:absolute;left:340px;top:26px;background:#ffe000;color:#111;font-weight:900;
+    font-size:24px;padding:5px 14px;border-radius:4px;display:none;}
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="band">
+      <div id="regions"></div>
+      <div id="head">
+        <div class="ttl">緊急地震速報</div>
+        <div class="epi" id="hepi"></div>
+      </div>
+    </div>
+    <div id="warn">訓練映像　実際に発生した地震ではありません</div>
+  </div>
+<script>
+  "use strict";
+  var root=document.getElementById("root"), hepi=document.getElementById("hepi"),
+      regionsEl=document.getElementById("regions"), warn=document.getElementById("warn");
+  function render(d){
+    d=d||{};
+    hepi.textContent=(d.epicenter?d.epicenter:"")+"で地震";
+    warn.style.display=d.test?"block":"none";
+    regionsEl.innerHTML="";
+    (d.regions||[]).forEach(function(nm){
+      var s=document.createElement("span"); s.textContent=nm; regionsEl.appendChild(s);
+    });
+  }
+  function update(data){ try{ render(typeof data==="string"?JSON.parse(data||"{}"):(data||{})); }catch(e){} }
+  function play(){ root.classList.add("show"); }
+  function stop(){ root.classList.remove("show"); }
+  function next(){}
+  function remove(){ root.classList.remove("show"); }
+  window.update=update;window.play=play;window.stop=stop;window.next=next;window.remove=remove;
+
+  if(location.search.indexOf("test")!==-1){
+    update({test:true, epicenter:"北海道道北",
+      regions:["北海道道北","北海道道央","北海道道南","北海道道東","青森県","秋田県","岩手県"]});
+    setTimeout(play,300);
+  }
+</script>
+</body>
+</html>

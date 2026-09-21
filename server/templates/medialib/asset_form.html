@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}素材編集 — ICS-TV{% endblock %}
+{% block content %}
+<h1>素材編集 <span class="muted">/ {{ asset.title }}</span></h1>
+<p><a class="muted" href="{% url 'medialib:dashboard' %}">← 素材・CM へ戻る</a></p>
+<section class="card" style="max-width:48rem">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="badge warn" style="display:block;margin-bottom:.5rem">{{ form.non_field_errors|striptags }}</div>{% endif %}
+    {% for f in form %}
+      <div class="field">
+        <label>{{ f.label }}</label>
+        {{ f }}
+        {% if f.help_text %}<span class="muted" style="display:block;font-size:.8rem">{{ f.help_text }}</span>{% endif %}
+        {% if f.errors %}<span class="badge warn">{{ f.errors|striptags }}</span>{% endif %}
+      </div>
+    {% endfor %}
+    {% include "partials/thumb_upload.html" with current_url=asset.thumbnail_url %}
+    <div style="margin-top:.8rem; display:flex; gap:.5rem;">
+      <button class="btn" type="submit">保存</button>
+      <a class="btn" style="background:#444" href="{% url 'medialib:dashboard' %}">キャンセル</a>
+    </div>
+  </form>
+  <p class="muted" style="font-size:.82rem;margin-top:.8rem">
+    尺 / 解像度 / fps / codec は正規化が自動取得します（編集対象外）。
+    現在: 尺 <strong>{{ asset.duration_display }}</strong> ·
+    {{ asset.width|default:"—" }}x{{ asset.height|default:"—" }} ·
+    正規化 {{ asset.get_normalize_status_display }}
+  </p>
+</section>
+
+<section class="card" style="max-width:48rem">
+  <h2 style="font-size:1rem;margin:0 0 .6rem">プレビュー（正規化後）</h2>
+  {% if preview_url %}
+    <video controls preload="metadata" style="max-width:100%;max-height:60vh;background:#000;display:block" src="{{ preview_url }}"></video>
+    <p class="muted" style="font-size:.8rem;margin-top:.4rem">
+      正規化済み mezzanine <code>{{ asset.r2_key }}</code> の署名付きプレビュー。
+      表示されない / 期限切れの場合は
+      <button class="btn" type="button" id="preview-reload" style="font-size:.78rem;padding:.1rem .4rem;background:#444">署名URL再取得</button>
+    </p>
+  {% elif asset.r2_key %}
+    <p class="muted">プレビューURLを取得できませんでした（R2 未設定など）。R2 key: <code>{{ asset.r2_key }}</code></p>
+  {% else %}
+    <p class="muted">正規化後の mezzanine がまだありません（正規化 {{ asset.get_normalize_status_display }}）。</p>
+  {% endif %}
+</section>
+{% if preview_url %}
+<script>
+// 署名URL は期限付き。失効時は再取得して <video> に差し替える (delivery QC と同パターン)。
+document.getElementById("preview-reload")?.addEventListener("click", async function () {
+  try {
+    const r = await fetch("{% url 'medialib:asset_preview_url' asset.id %}");
+    if (!r.ok) throw new Error(await r.text());
+    const { url } = await r.json();
+    document.querySelector("video").src = url;
+  } catch (e) { alert("再取得失敗: " + e.message); }
+});
+</script>
+{% endif %}
+{% endblock %}

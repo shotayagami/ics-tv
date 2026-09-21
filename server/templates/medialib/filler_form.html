@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}フィラー — ICS-TV{% endblock %}
+{% block content %}
+<h1>フィラー{% if not is_new %} <span class="muted">/ {{ playlist.name }}</span>{% endif %}</h1>
+<p><a class="muted" href="{% url 'medialib:dashboard' %}">← 素材・CM へ戻る</a></p>
+
+<section class="card" style="max-width:48rem">
+  <h2>{% if is_new %}新規作成{% else %}基本情報{% endif %}</h2>
+  <form method="post">{% csrf_token %}
+    {% for f in form %}
+      <div class="field"><label>{{ f.label }}</label>{{ f }}{% if f.errors %}<span class="badge warn">{{ f.errors|striptags }}</span>{% endif %}</div>
+    {% endfor %}
+    <button class="btn" type="submit">{% if is_new %}作成{% else %}保存{% endif %}</button>
+  </form>
+</section>
+
+{% if not is_new %}
+<section class="card">
+  <h2>ループ素材 <span class="muted">{{ items|length }} 本</span></h2>
+  {% if assets %}
+    <form action="{% url 'medialib:filler_item_add' playlist.id %}"
+          hx-post="{% url 'medialib:filler_item_add' playlist.id %}" hx-swap="none"
+          hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}"
+          style="display:flex; gap:.5rem; align-items:center;">
+      {% csrf_token %}
+      <select name="asset_id">{% for a in assets %}<option value="{{ a.id }}">[{{ a.get_kind_display }}] {{ a.title }} ({{ a.duration_display }})</option>{% endfor %}</select>
+      <button class="btn" type="submit">＋ 追加</button>
+    </form>
+  {% else %}
+    <p class="muted">追加できる素材がありません（フィラー/バンパー/スレート等の素材を納品→正規化してください）。</p>
+  {% endif %}
+  {% if items %}
+    <table style="margin-top:.6rem">
+      <tr><th>#</th><th>素材</th><th>操作</th></tr>
+      {% for it in items %}
+        <tr>
+          <td class="muted">{{ forloop.counter }}</td>
+          <td>[{{ it.asset.get_kind_display }}] {{ it.asset.title }} <span class="muted">({{ it.asset.duration_display }})</span></td>
+          <td style="white-space:nowrap">
+            <form action="{% url 'medialib:filler_item_move' it.id %}" hx-post="{% url 'medialib:filler_item_move' it.id %}" hx-swap="none" hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline">{% csrf_token %}<input type="hidden" name="direction" value="up"><button class="btn" style="font-size:.78rem;padding:.1rem .35rem" {% if forloop.first %}disabled{% endif %}>↑</button></form>
+            <form action="{% url 'medialib:filler_item_move' it.id %}" hx-post="{% url 'medialib:filler_item_move' it.id %}" hx-swap="none" hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline">{% csrf_token %}<input type="hidden" name="direction" value="down"><button class="btn" style="font-size:.78rem;padding:.1rem .35rem" {% if forloop.last %}disabled{% endif %}>↓</button></form>
+            <form action="{% url 'medialib:filler_item_delete' it.id %}" hx-post="{% url 'medialib:filler_item_delete' it.id %}" hx-swap="none" hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline" onsubmit="return confirm('この素材をフィラーから外しますか？');">{% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.1rem .35rem">削除</button></form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">まだ素材がありません。</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

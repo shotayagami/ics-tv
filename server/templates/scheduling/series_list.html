@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}週間編成 — ICS-TV{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
+  <h1>週間基本編成 <span class="muted">/ {{ channel.name }}</span></h1>
+  <form method="post" action="{% url 'scheduling:series_expand' channel.slug %}"
+        onsubmit="return confirm('有効な週間スロットを4週先まで番組へ展開します。よろしいですか？');" style="margin:0">
+    {% csrf_token %}<button class="btn" type="submit">いま展開（4週先まで）</button>
+  </form>
+</div>
+<p class="muted" style="font-size:.82rem">
+  曜日×開始時刻×尺の定型編成を登録 →「展開」で N 週先まで番組を自動生成（手動編成と重なる枠はスキップ）。展開は週次でも自動実行されます。
+</p>
+<p style="font-size:.85rem">
+  <a class="btn" style="font-size:.82rem" href="{% url 'scheduling:graphic_cues' channel.slug 'filler' channel.id %}">🖼 フィラー基本グラフィック</a>
+  <span class="muted" style="font-size:.78rem">（フィラー再生中に常時適用）</span>
+</p>
+{% if expanded %}<div class="badge live" style="margin:.4rem 0">展開しました（作成/スキップ = {{ expanded }}）</div>{% endif %}
+
+<section class="card" style="max-width:48rem">
+  <h2>新規シリーズ</h2>
+  <form method="post" enctype="multipart/form-data" style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="badge warn" style="flex-basis:100%">{{ form.non_field_errors|striptags }}</div>{% endif %}
+    {% for f in form %}<div class="field" style="margin:0"><label>{{ f.label }}</label>{{ f }}</div>{% endfor %}
+    <div class="field" style="margin:0"><label>サムネ画像 (任意)</label><input type="file" name="thumbnail_file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
+    <button class="btn" type="submit">作成</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>シリーズ <span class="muted">{{ rows|length }}</span></h2>
+  {% if rows %}
+    <table>
+      <tr><th>タイトル</th><th>状態</th><th>スロット</th><th></th></tr>
+      {% for r in rows %}
+        <tr>
+          <td>
+            <span style="display:inline-flex;align-items:center;gap:.5rem">
+              {% include "partials/thumb.html" with url=r.s.thumbnail_url size=34 %}
+              <a href="{% url 'scheduling:series_edit' channel.slug r.s.id %}">{{ r.s.title }}</a>
+            </span>
+          </td>
+          <td>{% if r.s.is_active %}<span class="badge live">有効</span>{% else %}<span class="badge">無効</span>{% endif %}</td>
+          <td>{{ r.n_slots }}</td>
+          <td><a class="muted" href="{% url 'scheduling:series_edit' channel.slug r.s.id %}">編集</a></td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}<p class="muted">シリーズがありません。上で作成してください。</p>{% endif %}
+</section>
+{% endblock %}

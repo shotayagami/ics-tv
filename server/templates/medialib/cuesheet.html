@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}キューシート — {{ asset.title }}{% endblock %}
+{% block content %}
+<h1>キューシート <span class="muted">/ {{ asset.get_kind_display }}「{{ asset.title }}」</span></h1>
+<p><a class="muted" href="{% url 'medialib:dashboard' %}">← 素材・CM へ戻る</a></p>
+
+{% if asset.normalize_status != 'ready' %}
+<section class="card" style="border-color:#d9b15a">
+  {% if asset.normalize_status == 'processing' or asset.normalize_status == 'pending' %}
+    ⚙ <strong>正規化中</strong>（{{ asset.get_normalize_status_display }}）— 素材尺はエンコード完了後に確定します。
+    完了したらこの画面をリロードしてください（尺が出てからキューシートを組めます）。
+  {% else %}
+    ✕ <strong>正規化 {{ asset.get_normalize_status_display }}</strong> — 素材尺が未確定です。素材・CM 画面で「再正規化」してください。
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:baseline;">
+    <span>素材尺 <strong>{{ asset_duration_disp }}</strong></span>
+    <span class="muted">本編合計 {{ content_total_disp }}</span>
+    <span class="muted">配置時の総尺 (素材尺+ΣCM) {{ airtime_disp }}</span>
+    {% if rows %}
+      {% if is_valid %}<span class="badge live">●整合OK</span>
+      {% else %}<span class="badge warn">⚠ {{ valid_error }}</span>{% endif %}
+    {% endif %}
+  </div>
+  <p class="muted" style="font-size:.82rem; margin:.5rem 0 0">
+    本編セグメントの累積尺が CM枠の挿入位置になります。本編の合計が素材尺と一致すると整合OK。
+    配置済みの録画番組には編成表の「キューシート適用」で展開できます。
+  </p>
+</section>
+
+<section class="card">
+  <h2>行を追加</h2>
+  <form method="post" action="{% url 'medialib:cuepoint_add' asset.id %}"
+        hx-post="{% url 'medialib:cuepoint_add' asset.id %}" hx-swap="none"
+        hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}"
+        x-data="{kind:'content'}" style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+    {% csrf_token %}
+    <select name="kind" x-model="kind">
+      <option value="content">本編</option>
+      <option value="ad_break">CM枠</option>
+    </select>
+    <label class="muted">尺
+      <input type="number" name="min" min="0" value="0" style="width:3.5rem"> 分
+      <input type="number" name="sec" min="0" max="59" value="0" style="width:3.5rem"> 秒
+      <input type="number" name="ms" min="0" max="999" value="0" style="width:4rem"> ミリ秒
+    </label>
+    <span x-show="kind==='ad_break'">
+      <select name="grid">{% for v, label in grids %}<option value="{{ v }}">{{ label }}枠</option>{% endfor %}</select>
+    </span>
+    <input type="text" name="label" placeholder="ラベル (任意・例 Aパート)" style="width:12rem">
+    <button class="btn" type="submit">＋ 追加</button>
+    {% if remaining_ms %}
+      <button class="btn" type="button" style="background:#36506f"
+        title="素材尺ぴったりになる本編をワンクリック追加"
+        @click="$root.querySelector('[name=kind]').value='content';$root.querySelector('[name=min]').value={{ remaining_min }};$root.querySelector('[name=sec]').value={{ remaining_sec }};$root.querySelector('[name=ms]').value={{ remaining_ms_only }};">残尺 {{ remaining_disp }} を充填</button>
+    {% endif %}
+  </form>
+  <p class="muted" style="font-size:.8rem;margin-top:.4rem">
+    素材尺 = <strong>{{ asset.duration_ms|default:"—" }}ms</strong>{% if remaining_ms %} · 残り本編 <strong>{{ remaining_ms }}ms</strong>（{{ remaining_disp }}）{% elif asset.duration_ms and rows %} · 残り 0ms（整合）{% endif %}
+    。秒未満の端数は「ミリ秒」枠で合わせてください。
+  </p>
+</section>
+
+<section class="card">
+  <h2>構成</h2>
+  {% if rows %}
+    <table>
+      <tr><th>#</th><th>種別</th><th>尺</th><th>挿入位置</th><th>ラベル</th><th>操作</th></tr>
+      {% for r in rows %}
+        <tr>
+          <td class="muted">{{ forloop.counter }}</td>
+          <td>{% if r.p.kind == 'ad_break' %}<span class="badge">▓ CM枠 {{ r.p.get_grid_display }}</span>{% else %}本編{% endif %}</td>
+          <td style="white-space:nowrap">{{ r.dur }}</td>
+          <td class="muted" style="white-space:nowrap">{% if r.offset %}素材内 {{ r.offset }}{% else %}—{% endif %}</td>
+          <td>{{ r.p.label|default:"" }}</td>
+          <td style="white-space:nowrap">
+            <form method="post" action="{% url 'medialib:cuepoint_move' r.p.id %}" hx-post="{% url 'medialib:cuepoint_move' r.p.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline">
+              {% csrf_token %}<input type="hidden" name="direction" value="up"><button class="btn" style="font-size:.78rem;padding:.1rem .35rem" {% if forloop.first %}disabled{% endif %}>↑</button>
+            </form>
+            <form method="post" action="{% url 'medialib:cuepoint_move' r.p.id %}" hx-post="{% url 'medialib:cuepoint_move' r.p.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline">
+              {% csrf_token %}<input type="hidden" name="direction" value="down"><button class="btn" style="font-size:.78rem;padding:.1rem .35rem" {% if forloop.last %}disabled{% endif %}>↓</button>
+            </form>
+            <form method="post" action="{% url 'medialib:cuepoint_delete' r.p.id %}" hx-post="{% url 'medialib:cuepoint_delete' r.p.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}" style="display:inline" onsubmit="return confirm('この行を削除しますか？');">
+              {% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.1rem .35rem">削除</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">まだ行がありません。「本編 → CM枠 → 本編 …」の順に追加してください。</p>
+  {% endif %}
+</section>
+{% endblock %}

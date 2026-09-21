@@ -1,0 +1,24 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}番組 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">番組</h1>
+<p class="muted" style="font-size:.8rem">番組の紐付けは運営が行います。ここでは投稿の管理ができます。</p>
+<div class="card">
+  <table style="width:100%">
+    <thead>
+      <tr><th>番組</th><th>チャンネル</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for link in links %}
+      <tr>
+        <td>{{ link.series.title }}</td>
+        <td class="muted">{{ link.series.channel.name }}</td>
+        <td><a class="btn" style="font-size:.78rem;padding:.2rem .6rem" href="/series/{{ link.series_id }}/posts/">投稿を管理 ›</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="muted">紐付けられた番組がありません。運営に紐付けを依頼してください。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

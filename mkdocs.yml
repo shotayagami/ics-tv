@@ -1,0 +1,34 @@
+site_name: 'icstv'
+nav:
+  - Home: index.md
+  - Overview: overview.md
+  - Usage: usage.md
+  - Design:
+      - Data Model: datamodel.md
+      - Scheduler: scheduler.md
+      - CasparCG: casparcg.md
+      - CG Layers: cg-layers.md
+      - YouTube: youtube.md
+      - Sales: sales.md
+      - Fanclub: fanclub.md
+      - Timekeeper Live: timekeeper-live.md
+      - Site-only Broadcast: site-only-broadcast.md
+      - Viewing Experience: viewing-experience.md
+      - Normalize Offload: normalize-offload.md
+      - ARIB Safety Zone: arib-safety-zone.md
+      - Backoffice Service Split: backoffice-service-split.md
+      - Delivery Service Split: delivery-service-split.md
+      - Refactor Service Split: refactor-service-split.md
+      - "(歴史) Delivery (移管済み)": delivery.md
+  - UI:
+      - UI 全体IA: ui.md
+      - UI Operations: ui-operations.md
+      - UI Sales: ui-sales.md
+      - "(歴史) UI Delivery (移管済み)": ui-delivery.md
+  - Operations:
+      - 運行・監視: operations.md
+      - R2 Layout: r2-layout.md
+      - バックアップと復旧: backup-restore.md
+  - Requirements: requirements.md
+plugins:
+  - techdocs-core

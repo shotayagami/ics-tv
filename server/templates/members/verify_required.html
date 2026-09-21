@@ -1,0 +1,11 @@
+{% extends "members/base_members.html" %}
+{% block title %}本人確認が必要です — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>本人確認が必要です</h1>
+  <p class="mhint">この機能を利用するには、メールまたは認証アプリで本人確認を完了してください。</p>
+  <a class="btn" href="/members/verify/email/">メールで確認する</a>
+  <a class="btn ghost" href="/members/2fa/totp/setup/">認証アプリを登録する</a>
+  <div class="mlinks"><a href="/members/">マイページに戻る</a></div>
+</div>
+{% endblock %}

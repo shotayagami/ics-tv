@@ -1,0 +1,42 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}YouTube連携 — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<h1 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem">YouTube連携</h1>
+
+<p class="muted" style="font-size:.8rem">
+  ご自身のYouTubeチャンネルへ本編を同時配信(シミュルキャスト)するための宛先設定です。
+  実際に配信されるかは運営が枠契約で「クリエイター自チャンネル」を選んでいる場合のみです
+  (<a href="/contracts/">枠契約</a>を確認してください)。同一映像の二重配信はYouTube側で
+  収益化リスクとなりうるため、サムネイル・タイトル等の差異化を推奨します。
+</p>
+
+<div class="card">
+  <h2 style="font-size:.95rem;font-weight:800;margin-bottom:.6rem">ストリームキー</h2>
+  <p class="muted" style="font-size:.78rem;margin-top:0">
+    YouTube Studio の「配信を開始」画面で確認できる、ご自身のチャンネルの永続ストリームキーを貼り付けてください。
+    OAuth連携は不要です。設定済みの値はセキュリティのため画面に再表示しません。
+  </p>
+  <p style="font-size:.85rem">
+    現在の状態:
+    {% if creator.youtube_destination_stream_key %}
+      <span class="ok">設定済み</span>
+    {% else %}
+      <span class="muted">未設定</span>
+    {% endif %}
+  </p>
+  <form method="post" action="/youtube/" style="display:flex;flex-direction:column;gap:.6rem;max-width:32rem">
+    {% csrf_token %}
+    <label>
+      <div class="muted" style="font-size:.78rem;margin-bottom:.2rem">配信先 URL (通常は変更不要)</div>
+      <input type="text" name="ingest_url" value="{{ creator.youtube_destination_ingest_url }}" style="width:100%" required>
+    </label>
+    <label>
+      <div class="muted" style="font-size:.78rem;margin-bottom:.2rem">ストリームキー (空欄のまま保存すると現在の値を維持します)</div>
+      <input type="password" name="stream_key" placeholder="新しいストリームキーを入力する場合のみ" style="width:100%" autocomplete="off">
+    </label>
+    <div>
+      <button type="submit" class="btn">保存</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

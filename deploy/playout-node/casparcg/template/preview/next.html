@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 次番組予告 (CG layer 1-40、casparcg.md §3.4)。画面上部に「次は HH:MM ○○○」を常設。
+     フィラー中は常時 / 番組枠は残り3分〜終了 / CM 中は退避、を agent (OverlayManager) が制御する。
+     契約: play()/stop()/update(data)/next()/remove()。data 例 {"title":"番組名","start":"2026-06-14T12:00:00+09:00"}。
+     start は ISO 文字列。表示は JST(Asia/Tokyo) HH:MM に整形する (送出ノードは UTC 運用のため明示)。
+     デザインは後付け前提の最小スタイル。 -->
+<style>
+  html, body { margin:0; width:1920px; height:1080px; overflow:hidden; background:transparent;
+               font-family:"Noto Sans JP",sans-serif; }
+  #preview { position:absolute; left:0; top:0; width:100%; height:60px;
+             background:linear-gradient(90deg, rgba(12,18,32,.85), rgba(12,18,32,.5));
+             color:#fff; display:flex; align-items:center; gap:18px; padding:0 28px; box-sizing:border-box;
+             transform:translateY(-100%); transition:transform 400ms ease-in-out, padding-left 300ms ease; }
+  #preview.show { transform:translateY(0); }
+  /* 朝夕の左上時計(layer36)表示中は文言を右へ寄せて時計(左上 約1.25%〜)を避ける。clockAvoid データで切替。 */
+  #preview.avoid-clock { padding-left:240px; }
+  .label { font-weight:700; font-size:22px; color:#ffd479; letter-spacing:.06em; }
+  #start { font-variant-numeric:tabular-nums; font-size:24px; color:#7fd0ff; }
+  #title { font-size:24px; font-weight:600; }
+</style>
+</head>
+<body>
+  <div id="preview">
+    <span class="label">次の番組</span>
+    <span id="start"></span>
+    <span id="title"></span>
+  </div>
+<script>
+  "use strict";
+  var el = document.getElementById("preview"),
+      startEl = document.getElementById("start"),
+      titleEl = document.getElementById("title");
+  function fmtStart(iso){
+    if(!iso) return "";
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return iso;
+    return d.toLocaleTimeString("en-GB", {hour12:false, hour:"2-digit", minute:"2-digit", timeZone:"Asia/Tokyo"});
+  }
+  function update(data){ try{ var o=(typeof data==="string")?JSON.parse(data||"{}"):(data||{});
+      if("title" in o) titleEl.textContent = o.title || "";
+      if("start" in o) startEl.textContent = fmtStart(o.start);
+      if("clockAvoid" in o) el.classList.toggle("avoid-clock", !!o.clockAvoid); }catch(e){} }
+  function play(){ el.classList.add("show"); }
+  function stop(){ el.classList.remove("show"); }   // CM 中等の退避 (常設なので remove はしない)
+  function next(){}
+  function remove(){ el.classList.remove("show"); }
+  window.update=update; window.play=play; window.stop=stop; window.next=next; window.remove=remove;
+  if(location.search.indexOf("test")!==-1){ update('{"title":"テスト番組","start":"2026-06-14T21:00:00+09:00"}'); setTimeout(play,300); }
+</script>
+</body>
+</html>

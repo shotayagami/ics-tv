@@ -1,0 +1,55 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ program.title }} — 見逃し配信 — ICS-TV{% endblock %}
+{% block og_type %}video.other{% endblock %}
+{% block og_title %}{{ program.title }} — 見逃し配信 — ICS-TV{% endblock %}
+{% block og_description %}{{ program.description|default:program.channel.name|truncatechars:120 }}{% endblock %}
+{% block meta_description %}{{ program.description|default:program.channel.name|truncatechars:120 }}{% endblock %}
+{% block og_image %}{% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}{% endblock %}
+{% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+
+{% block extra_css %}
+  .vodd { max-width: 980px; margin: 0 auto; padding: clamp(16px,3vw,28px) var(--pad) 64px; }
+  .vodd .back { display: inline-block; color: var(--dim); font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 14px; }
+  .vodd .stage { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+  .vodd video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; }
+  .vodd .info { margin-top: 18px; }
+  .vodd .row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .vodd .row1 .nm { font-size: 13px; font-weight: 700; color: var(--dim); }
+  .vodd h1 { font-size: clamp(20px,3vw,28px); font-weight: 800; line-height: 1.25; margin: 0 0 8px; }
+  .vodd .meta { font-size: 13px; color: var(--dim); font-weight: 600; margin-bottom: 14px; }
+  .vodd .desc { color: var(--bright2); line-height: 1.8; white-space: pre-wrap; }
+{% endblock %}
+
+{% block content %}
+<section class="vodd">
+  <a class="back" href="{{ public_base_url }}/vod/">‹ 見逃し一覧へ</a>
+  {# 録画プレイヤー (続きから再生 + 視聴位置記録) は React 島 (#Phase2c)。署名URLは data 属性で渡す (本体は no-store)。 #}
+  {# 字幕 VTT は同一オリジン相対パスで渡す (<track> はゲート付きプロキシ配信・cookie 同送のため相対必須)。 #}
+  <div id="vod-player-island" class="stage" data-mode="vod"
+       data-play-url="{{ play_url }}"
+       data-resume="{{ resume_ms|default:0 }}"
+       {% if program.playback_asset.has_caption %}data-captions="/vod/{{ program.id }}/captions.vtt"{% endif %}
+       {% if member %}data-progress="{{ public_base_url }}/members/watch/{{ program.id }}/progress/"{% endif %}
+       {% if program.thumb_url %}data-poster="{{ program.thumb_url }}"{% endif %}></div>
+  <div class="info">
+    <div class="row1">
+      <span class="nm">{{ program.channel.name }}</span>
+      {% if program.resolved_genre %}<span class="chip genre">{{ program.resolved_genre }}</span>{% endif %}
+      {% if program.resolved_rating_label %}<span class="chip" style="background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger-text)">{{ program.resolved_rating_label }}</span>{% endif %}
+      {% if program.vod_visibility == "members" %}<span class="chip" style="background:color-mix(in srgb,var(--gate-members) 16%,transparent);color:var(--gate-members)">会員限定</span>
+      {% elif program.vod_visibility == "subscribers" %}<span class="chip" style="background:color-mix(in srgb,var(--gate-subscribers) 16%,transparent);color:var(--gate-subscribers-fg)">サブスク限定</span>{% endif %}
+    </div>
+    <h1>{{ program.title }}</h1>
+    <div class="meta tabnum">{{ program.start_at|date:"Y/n/j(D) H:i" }} 放送{% if program.asset.duration_ms %} ・ {{ program.asset.duration_display }}{% endif %}</div>
+    {% if program.description %}<div class="desc">{{ program.description }}</div>{% endif %}
+    <div class="share-row" style="margin-top:18px">{% include "public/_share.html" with share_url=request.build_absolute_uri share_title=program.title %}</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+{# 進捗POST の CSRF cookie を確実化 (島は cookie から X-CSRFToken を読む)。 #}
+{% if member %}<form style="display:none">{% csrf_token %}</form>{% endif %}
+<script type="module" src="{% static 'web/detail/detail.js' %}?v={{ app_version }}"></script>
+{% endblock %}

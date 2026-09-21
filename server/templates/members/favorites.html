@@ -1,0 +1,29 @@
+{% extends "members/base_members.html" %}
+{% block title %}マイリスト — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .fvlist { list-style: none; padding: 0; margin: 14px 0 4px; }
+  .fvlist li { border-bottom: 1px solid var(--line-thin); }
+  .fvlist a { display: flex; flex-direction: column; gap: 3px; padding: 13px 2px; text-decoration: none; color: inherit; }
+  .fvlist a:hover { background: rgba(56,189,248,.05); }
+  .fvlist .ft { font-size: 15px; font-weight: 700; }
+  .fvlist .fm { font-size: 12px; color: var(--dim); font-weight: 600; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>マイリスト</h1>
+  <p class="mhint">あとで見る番組として保存したものです。</p>
+  {% if programs %}
+  <ul class="fvlist">
+    {% for p in programs %}
+    <li><a href="/program/{{ p.id }}/">
+      <span class="ft">{{ p.title }}</span>
+      <span class="fm tabnum">{{ p.channel.name }} ・ {{ p.start_at|date:"n/j(D) H:i" }}{% if p.resolved_genre %} ・ {{ p.resolved_genre }}{% endif %}</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="mhint">まだ登録がありません。番組ページの「☆ あとで見る」から追加できます。</p>
+  {% endif %}
+  <div class="mlinks"><a href="/guide/">番組表へ</a> ・ <a href="/members/">マイページ</a></div>
+</div>
+{% endblock %}

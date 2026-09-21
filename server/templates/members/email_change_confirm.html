@@ -1,0 +1,15 @@
+{% extends "members/base_members.html" %}
+{% block title %}メールアドレス変更 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>新しいメールアドレスの確認</h1>
+  <p class="mhint">{{ pending_email }} に送信した6桁コードを入力してください。</p>
+  <form class="mform" method="post" action="/members/email/confirm/" novalidate>
+    {% csrf_token %}
+    <label for="code">確認コード</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+    <button class="btn" type="submit">変更を確定</button>
+  </form>
+  <div class="mlinks"><a href="/members/email/">アドレスを入力し直す</a></div>
+</div>
+{% endblock %}

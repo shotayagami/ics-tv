@@ -1,0 +1,108 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}{{ channel.slug }} 枠ダッシュボード — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>枠ダッシュボード — {{ channel.name }} <code>{{ channel.slug }}</code></h1>
+<p><a href="{% url 'core:channel_settings' channel.slug %}" style="color:#aaf">← channel 設定に戻る</a></p>
+
+<section class="card">
+  <h2>YouTube 枠 (新しい順 24 件)</h2>
+  {% if slots %}
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid #444;color:#888">
+          <th style="text-align:left;padding:.3rem">window_start</th>
+          <th style="text-align:left;padding:.3rem">window_end</th>
+          <th style="text-align:left;padding:.3rem">status</th>
+          <th style="text-align:left;padding:.3rem">broadcast_id</th>
+          <th style="text-align:left;padding:.3rem">title</th>
+          <th style="text-align:left;padding:.3rem">watch</th>
+          <th style="text-align:left;padding:.3rem">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in slots %}
+          <tr style="border-bottom:1px solid #2a2a2a">
+            <td style="padding:.3rem">{{ s.window_start|date:"Y-m-d H:i" }}</td>
+            <td style="padding:.3rem">{{ s.window_end|date:"H:i" }}</td>
+            <td style="padding:.3rem">
+              {% if s.status == 'live' %}<span class="ok">●LIVE</span>
+              {% elif s.status == 'ready' %}(●)ready
+              {% elif s.status == 'testing' %}(~)testing
+              {% elif s.status == 'complete' %}[v]complete
+              {% elif s.status == 'error' %}<span class="err">[!]error</span>
+              {% else %}[.]{{ s.status }}{% endif %}
+            </td>
+            <td style="padding:.3rem"><code>{{ s.broadcast_id|default:"-" }}</code></td>
+            <td style="padding:.3rem">{{ s.title|default:"-"|truncatechars:40 }}{% if s.manual %} <span title="手動編集済" style="color:#4a4">✎</span>{% endif %}</td>
+            <td style="padding:.3rem">
+              {% if s.broadcast_id %}<a href="https://www.youtube.com/watch?v={{ s.broadcast_id }}" target="_blank" rel="noopener" style="color:#aaf">watch</a>{% endif %}
+            </td>
+            <td style="padding:.3rem;white-space:nowrap">
+              {% if s.broadcast_id and s.status == 'ready' or s.status == 'testing' %}
+                <form method="post" action="{% url 'core:slot_transition' s.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="target" value="live">
+                  <button type="submit" class="btn" style="font-size:.8rem;padding:.2rem .5rem">→live</button>
+                </form>
+              {% endif %}
+              {% if s.broadcast_id and s.status == 'live' %}
+                <form method="post" action="{% url 'core:slot_transition' s.id %}" style="display:inline"
+                      onsubmit="return confirm('複製: {{ s.title|escapejs }} を complete に遷移します。続行しますか？');">
+                  {% csrf_token %}
+                  <input type="hidden" name="target" value="complete">
+                  <button type="submit" class="btn" style="font-size:.8rem;padding:.2rem .5rem">→complete</button>
+                </form>
+              {% endif %}
+              <form method="post" action="{% url 'core:slot_delete' s.id %}" style="display:inline"
+                    onsubmit="return confirm('slot {{ s.id }} を削除します ({{ s.window_start|date:'H:i' }})。続行しますか？');">
+                {% csrf_token %}
+                <button type="submit" class="btn warn" style="font-size:.8rem;padding:.2rem .5rem">削除</button>
+              </form>
+              <button type="button" class="btn" style="font-size:.8rem;padding:.2rem .5rem;margin-left:.3rem;background:#456"
+                      onclick="var e=document.getElementById('edit-{{ s.id }}');e.hidden=!e.hidden">✎ 編集</button>
+            </td>
+          </tr>
+          {% if s.error %}
+            <tr><td colspan="7" style="padding:.2rem .6rem;color:#d34;font-size:.85rem">error: {{ s.error|truncatechars:200 }}</td></tr>
+          {% endif %}
+          {# 編集パネルは枠をはみ出さないよう全幅 (colspan=7) の行で開く #}
+          <tr id="edit-{{ s.id }}" hidden>
+            <td colspan="7" style="padding:.6rem;background:#161616;border-bottom:1px solid #2a2a2a">
+              <div style="max-width:640px">
+                <form method="post" action="{% url 'core:slot_meta_update' s.id %}">
+                  {% csrf_token %}
+                  <label style="display:block;color:#888;font-size:.78rem;margin-bottom:.15rem">タイトル</label>
+                  <input name="title" value="{{ s.title|default:'' }}" maxlength="300" required placeholder="タイトル"
+                         style="width:100%;box-sizing:border-box;margin-bottom:.5rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.3rem">
+                  <label style="display:block;color:#888;font-size:.78rem;margin-bottom:.15rem">キャプション (任意・1行1番組など)</label>
+                  <textarea name="description" rows="4" placeholder="キャプション"
+                         style="width:100%;box-sizing:border-box;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.3rem">{{ s.description|default:'' }}</textarea>
+                  <div style="margin-top:.5rem">
+                    <button type="submit" class="btn" style="font-size:.85rem;padding:.3rem .8rem">
+                      {% if s.broadcast_id %}保存して YouTube へ反映{% else %}保存{% endif %}
+                    </button>
+                  </div>
+                </form>
+                <form method="post" action="{% url 'core:slot_apply_template' s.id %}" style="margin-top:.6rem;border-top:1px solid #333;padding-top:.5rem"
+                      onsubmit="return confirm('現在のテンプレートでタイトル/キャプションを再生成し{% if s.broadcast_id %} YouTube へ反映{% endif %}します (手動編集は破棄)。続行しますか？');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn" style="font-size:.85rem;padding:.3rem .8rem;background:#46c">↻ テンプレートを反映</button>
+                  <span class="muted" style="margin-left:.5rem;font-size:.78rem">youtube_config のテンプレ + 編成からタイトル/説明を再生成</span>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">枠なし。OAuth 連携 + 永続 liveStream 作成 + youtube_config 設定後、Celery beat が自動で生成します。</p>
+  {% endif %}
+</section>
+
+<p class="muted" style="margin-top:1rem;font-size:.85rem">
+  操作: ready/testing → live は transition(live), live → complete は transition(complete)。
+  削除は liveBroadcasts.delete + DB 行削除 (API 失敗時は DB のみ削除して状態を復旧可能に保つ)。
+  再作成は次回 Celery beat (generate_slots_all, 10 分周期) で window_start ベースに自動補完。
+</p>
+{% endblock %}

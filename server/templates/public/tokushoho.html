@@ -1,0 +1,66 @@
+{% extends "public_base.html" %}
+{% block title %}特定商取引法に基づく表記 — ICS-TV{% endblock %}
+{% block content %}
+<section class="legal">
+  <h1>特定商取引法に基づく表記</h1>
+
+  <div class="alert alert-warning" role="alert">
+    <strong>この文書は雛形です。</strong> 制定日・改定日・本文の内容 (支払方法・解約・返金などの条件) は、自社のサービス内容に合わせて書き換えてから公開してください。
+  </div>
+  <p class="updated">制定日: 2026年6月18日 / 運営者: ICS-TV（Circle ICS）</p>
+
+  <h2>販売事業者</h2>
+  <p>{{ operator_legal_name|default:"—" }}</p>
+
+  <h2>運営統括責任者</h2>
+  <p>{{ operator_representative_name|default:"—" }}</p>
+
+  <h2>所在地・電話番号</h2>
+  {% if operator_hide_contact_details %}
+  <p>請求があった場合は遅滞なく開示します。お問い合わせは下記メールアドレスへお願いします。</p>
+  {% else %}
+  <p>{{ operator_address|default:"—" }}</p>
+  <p>{{ operator_phone|default:"—" }}</p>
+  {% endif %}
+
+  <h2>お問い合わせ先</h2>
+  <p>
+    {% if operator_contact_email %}
+    <a href="mailto:{{ operator_contact_email }}">{{ operator_contact_email }}</a>
+    {% else %}
+    —
+    {% endif %}
+  </p>
+
+  <h2>販売価格</h2>
+  {% if plans %}
+  <ul>
+    {% for p in plans %}<li>{{ p.name }}: {{ p.amount }}円（税込）／{{ p.get_interval_display }}</li>{% endfor %}
+  </ul>
+  <p>最新の価格・プラン内容は<a href="/subscriptions/">プランページ</a>に表示のとおりです。</p>
+  {% else %}
+  <p>各プランの価格は<a href="/subscriptions/">プランページ</a>に表示のとおりです。</p>
+  {% endif %}
+
+  <h2>商品代金以外の必要料金</h2>
+  <p>本サービスの利用に必要なインターネット通信料・通信機器等は、お客様のご負担となります。</p>
+
+  <h2>支払方法</h2>
+  <p>クレジットカード（Stripe による決済）。カード情報は決済代行事業者（Stripe）が取り扱い、当社では保持しません。</p>
+
+  <h2>支払時期</h2>
+  <p>お申し込み時に初回分を課金し、以降は各更新日に自動的に課金されます（サブスクリプション）。</p>
+
+  <h2>役務の提供時期</h2>
+  <p>決済完了後、ただちにご利用いただけます。</p>
+
+  <h2>解約・自動更新</h2>
+  <p>サブスクリプションは自動更新されます。<a href="/subscriptions/">プランページ</a>または Stripe カスタマーポータルからいつでも解約でき、解約後は次回更新日以降の課金は発生しません（更新日までは引き続きご利用いただけます）。</p>
+
+  <h2>返品・返金</h2>
+  <p>デジタル役務の性質上、提供開始後の返金（日割り返金を含む）は原則として行いません。決済に関する不具合等は上記お問い合わせ先までご連絡ください。</p>
+
+  <h2>動作環境</h2>
+  <p>最新版の主要ブラウザ（Chrome / Safari / Edge / Firefox 等）での利用を推奨します。</p>
+</section>
+{% endblock %}

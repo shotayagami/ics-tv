@@ -1,0 +1,14 @@
+{% comment %}
+WS ブロードキャスト用の 1 コメント (#COMM-01)。comment_post が作成後にこれを描画して配信し、
+クライアントが data-cid で重複を弾いて comments-list に追記する。削除ボタンは付けない
+(配信先の本人判定ができないため。本人はリロードで削除ボタン付きの行を得る)。
+{% endcomment %}
+<div class="comment" data-cid="{{ c.id }}">
+  <div class="c-head">
+    <span class="c-nick">{{ c.member.nickname }}</span>
+    {% if badge %}<span class="c-badge" title="コメント特典会員">★会員</span>{% endif %}
+    <span class="c-time tabnum">{{ c.created_at|date:"n/j H:i" }}</span>
+    {% if c.program_title %}<span class="c-prog">{{ c.program_title }}</span>{% endif %}
+  </div>
+  <div class="c-body">{{ c.body|linebreaksbr }}</div>
+</div>

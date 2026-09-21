@@ -1,0 +1,264 @@
+name: ci
+# 秘密を一切使わない CI。配備・イメージの push・署名のジョブは含めていない。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # 取り消すのは PR の古い run だけ。main では各コミットの結果を残す。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: icstv
+          POSTGRES_PASSWORD: icstv  # pragma: allowlist secret
+          POSTGRES_DB: icstv
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U icstv"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgres://icstv:icstv@localhost:5432/icstv  # pragma: allowlist secret
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: ci-insecure-key  # pragma: allowlist secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          # package.json に packageManager が足されると、既定では黙ってキャッシュが有効になる。
+          package-manager-cache: false
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+      # 秘密漏れと衛生の検査を先に回す。後段が落ちても結果が PR に残るようにするため。
+      # mypy と django の 2 フックは server/.venv を前提にするので、下で直接実行する。
+      - name: pre-commit hooks (ruff, detect-secrets, file hygiene)
+        working-directory: ${{ github.workspace }}
+        env:
+          SKIP: mypy,django-check,django-makemigrations-check,buf-lint
+        run: pre-commit run --all-files --show-diff-on-failure
+      - name: Django system check
+        run: python manage.py check --fail-level WARNING
+      - name: Migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+      - name: OpenAPI schema and generated types are up to date
+        run: |
+          python manage.py dump_openapi --out ../openapi.json
+          npm --prefix ../frontend ci
+          npm --prefix ../frontend run gen:api
+          git diff --exit-code -- ../openapi.json ../frontend/packages/api/src/schema.ts
+      - name: Install buf (pinned, checksum-verified; no third-party action)
+        working-directory: ${{ github.workspace }}
+        env:
+          BUF_VERSION: "1.73.0"
+          BUF_SHA256: "8f2986298ad08f0cc1bf999b9797b7c383adf32d7edf0f73d6f1e1a701baeac1"  # pragma: allowlist secret
+        run: |
+          set -eu
+          curl -sSL -o "$RUNNER_TEMP/buf" "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-x86_64"
+          echo "${BUF_SHA256}  $RUNNER_TEMP/buf" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/buf"
+      - name: buf lint (proto)
+        working-directory: ${{ github.workspace }}
+        run: |
+          "$RUNNER_TEMP/buf" lint proto
+      - name: Generated protobuf code is identical in server and agent
+        working-directory: ${{ github.workspace }}
+        run: diff -r server/icstv_proto agent/icstv_proto
+      - name: SPDX license headers
+        run: python ../tools/spdx_headers.py --check
+      - name: mypy
+        run: mypy .
+      - name: pytest (excluding grpc and e2e; grpc needs a running server and is not run here)
+        run: pytest -q -m "not grpc and not e2e"
+
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest -q
+
+  # proto/ の契約を実サーバへ実際に張って検証する。test ジョブは -m "not grpc" で
+  # 除外している (要 grpc サーバ起動)。
+  grpc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: icstv
+          POSTGRES_PASSWORD: icstv  # pragma: allowlist secret
+          POSTGRES_DB: icstv
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U icstv"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgres://icstv:icstv@localhost:5432/icstv  # pragma: allowlist secret
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: ci-insecure-key  # pragma: allowlist secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+      # gRPC サーバは別プロセスで DATABASE_URL を直接参照する (tests/api/test_grpc_smoke.py
+      # の live_agent_token フィクスチャと同じ前提)。pytest 自身の test DB とは別に、この
+      # DB を先に migrate しておく必要がある。
+      - name: Migrate the database the gRPC server will use
+        run: python manage.py migrate --no-input
+      - name: Start the gRPC server (background)
+        run: |
+          set -eu
+          python manage.py grpcserve --bind 0.0.0.0:50051 &
+          echo $! > "$RUNNER_TEMP/grpcserve.pid"
+          port_open() { python3 -c "import socket,sys; s=socket.socket(); s.settimeout(1); sys.exit(0 if s.connect_ex(('127.0.0.1', 50051)) == 0 else 1)"; }
+          for i in $(seq 1 30); do
+            kill -0 "$(cat "$RUNNER_TEMP/grpcserve.pid")" 2>/dev/null || {
+              echo "grpcserve exited before it became ready" >&2; exit 1; }
+            port_open && exit 0
+            sleep 1
+          done
+          echo "gRPC server did not open port 50051 within 30s" >&2
+          exit 1
+      - name: pytest (grpc; needs the server started above)
+        run: pytest -q -m grpc
+      - name: Stop the gRPC server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/grpcserve.pid")" 2>/dev/null || true
+
+  # 依存の既知脆弱性。結果はコードの変更と無関係に変わる (新しい CVE の公開で赤になる) ので、
+  # 他の検査を止めないよう独立したジョブにしてある。
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - name: pip-audit (runtime dependencies)
+        run: pip-audit --strict --progress-spinner off -r requirements.txt
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm -w @icstv/studio run test:upload
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: [test, frontend]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: icstv
+          POSTGRES_PASSWORD: icstv  # pragma: allowlist secret
+          POSTGRES_DB: icstv
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U icstv"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://icstv:icstv@localhost:5432/icstv  # pragma: allowlist secret
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: ci-insecure-key  # pragma: allowlist secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Place the frontend build where the server serves it
+        run: |
+          set -eu
+          mkdir -p server/frontend_dist/{player,guide,home,discover,detail,studio,ops,bootstrap}
+          cp -r frontend/apps/web/dist/.              server/frontend_dist/
+          cp -r frontend/apps/player/dist/.           server/frontend_dist/player/
+          cp -r frontend/apps/guide/dist/.            server/frontend_dist/guide/
+          cp -r frontend/apps/home/dist/.             server/frontend_dist/home/
+          cp -r frontend/apps/discover/dist/.         server/frontend_dist/discover/
+          cp -r frontend/apps/detail/dist/.           server/frontend_dist/detail/
+          cp -r frontend/apps/studio/dist/.           server/frontend_dist/studio/
+          cp -r frontend/apps/ops/dist/.              server/frontend_dist/ops/
+          cp -r frontend/apps/bootstrap-public/dist/. server/frontend_dist/bootstrap/
+          cp -r frontend/apps/bootstrap-admin/dist/.  server/frontend_dist/bootstrap/
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        working-directory: server
+        run: pip install -r requirements-dev.txt
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+      - name: Run e2e tests
+        working-directory: server
+        run: pytest -q -m e2e --tb=short

@@ -1,0 +1,23 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}番組表 — ICS-TV{% endblock %}
+
+{% block extra_head %}
+  {# 番組表は React 島 (#Phase2)。グリッド/日付ナビ/自動スクロールは /static/web/guide が API から描画。 #}
+  <link rel="stylesheet" href="{% static 'web/guide/guide.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+{# 表示日は島が URL の ?date= から取る (data-base-date 非依存)。島マウントまで/JS無しでも空白を見せないよう shell に骨組みと noscript を置く。 #}
+<div id="guide-island" data-home-base="{{ public_base_url }}">
+  <section class="guide-page">
+    <div class="guide-head"><h1>番組表</h1></div>
+    <div class="sk sk-guide" aria-hidden="true"></div>
+  </section>
+  <noscript><p class="island-noscript">番組表の表示には JavaScript が必要です。<a href="{{ public_base_url }}/guide/week/">週間番組表</a> もご利用ください。</p></noscript>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/guide/guide.js' %}?v={{ app_version }}"></script>
+{% endblock %}

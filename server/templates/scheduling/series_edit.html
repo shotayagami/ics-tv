@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}週間編成: {{ series.title }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>週間編成 <span class="muted">/ {{ series.title }}</span></h1>
+<p><a class="muted" href="{% url 'scheduling:series_list' channel.slug %}">← 週間編成一覧</a></p>
+
+<section class="card" style="max-width:48rem">
+  <h2>シリーズ情報</h2>
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="badge warn" style="display:block;margin-bottom:.5rem">{{ form.non_field_errors|striptags }}</div>{% endif %}
+    {% for f in form %}<div class="field"><label>{{ f.label }}</label>{{ f }}</div>{% endfor %}
+    {% include "partials/thumb_upload.html" with current_url=series.thumbnail_url %}
+    <button class="btn" type="submit">保存</button>
+  </form>
+  <p style="margin-top:.6rem">
+    <a class="btn" style="font-size:.85rem" href="{% url 'scheduling:graphic_cues' channel.slug 'series' series.id %}">🖼 自動グラフィックセット編集</a>
+    <span class="muted" style="font-size:.78rem">（展開時に各回へコピー）</span>
+  </p>
+  <form method="post" action="{% url 'scheduling:series_delete' channel.slug series.id %}" style="margin-top:.5rem"
+        onsubmit="return confirm('このシリーズと全スロットを削除しますか？（展開済みの番組は残ります）');">
+    {% csrf_token %}<button class="btn warn" style="font-size:.8rem;padding:.15rem .5rem">シリーズ削除</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>スロット <span class="muted">{{ rows|length }}</span></h2>
+  {% if rows %}
+    <table>
+      <tr><th>パターン</th><th>次回展開</th><th>開始</th><th>尺(分)</th><th>種別</th><th>素材/生</th><th>キュー</th><th>有効期間</th><th></th></tr>
+      {% for r in rows %}
+        <tr>
+          <td style="white-space:nowrap">{{ r.slot.recurrence_label }}</td>
+          <td class="muted" style="white-space:nowrap;font-size:.78rem">
+            {% for d in r.slot.upcoming_dates|slice:":4" %}{{ d|date:"n/j" }}{% if not forloop.last %}・{% endif %}{% empty %}—{% endfor %}
+          </td>
+          <td style="white-space:nowrap">{{ r.slot.start_time|time:"H:i" }}</td>
+          <td>{{ r.dur_min }}</td>
+          <td>{{ r.slot.get_program_type_display }}</td>
+          <td class="muted">{% if r.slot.default_asset %}{{ r.slot.default_asset.title }}{% elif r.slot.live_source %}◆{{ r.slot.live_source.name }}{% else %}—{% endif %}</td>
+          <td style="white-space:nowrap">
+            {% if r.slot.default_asset %}
+              {% if r.has_cue %}<a class="badge" style="background:#2a4;font-size:.7rem" href="{% url 'medialib:cuesheet' r.slot.default_asset_id %}">✓ 自動</a>
+              {% else %}<a class="muted" style="font-size:.72rem" href="{% url 'medialib:cuesheet' r.slot.default_asset_id %}">＋ 作成</a>{% endif %}
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td class="muted" style="white-space:nowrap">{{ r.slot.effective_from|date:"y/m/d" }}〜{{ r.slot.effective_to|date:"y/m/d"|default:"" }}</td>
+          <td style="white-space:nowrap">
+            <a class="muted" style="font-size:.78rem" href="{% url 'scheduling:slot_edit' channel.slug r.slot.id %}">編集</a>
+            <form method="post" action="{% url 'scheduling:slot_delete' channel.slug r.slot.id %}" style="display:inline"
+                  onsubmit="return confirm('このスロットを削除しますか？');">
+              {% csrf_token %}<button class="btn warn" style="font-size:.75rem;padding:.1rem .4rem">削除</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}<p class="muted">スロットがありません。下で追加してください。</p>{% endif %}
+
+  <h3 style="margin-top:1rem;font-size:1rem">スロット追加</h3>
+  {% if slot_form.non_field_errors %}
+    <div class="badge warn" style="display:block;margin-bottom:.4rem">{{ slot_form.non_field_errors|striptags }}</div>
+  {% endif %}
+  <form method="post" action="{% url 'scheduling:slot_add' channel.slug series.id %}"
+        x-data="{ kind: '{{ slot_form.recurrence_kind.value|default:'weekly' }}' }"
+        style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+    {% csrf_token %}
+    <div class="field" style="margin:0">
+      <label>繰り返し</label>
+      <select name="recurrence_kind" x-model="kind">
+        {% for val, lbl in slot_form.recurrence_kind.field.choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field" style="margin:0" x-show="kind==='weekly' || kind==='monthly_nth_dow'">
+      <label>{{ slot_form.dow.label }}</label>{{ slot_form.dow }}
+    </div>
+    <div class="field" style="margin:0" x-show="kind==='monthly_nth_dow'" x-cloak>
+      <label>{{ slot_form.weeks_csv.label }}</label>{{ slot_form.weeks_csv }}
+      {% if slot_form.weeks_csv.errors %}<span class="badge warn" style="font-size:.7rem">{{ slot_form.weeks_csv.errors|striptags }}</span>{% endif %}
+    </div>
+    <div class="field" style="margin:0" x-show="kind==='days_of_month'" x-cloak>
+      <label>{{ slot_form.days_csv.label }}</label>{{ slot_form.days_csv }}
+      {% if slot_form.days_csv.errors %}<span class="badge warn" style="font-size:.7rem">{{ slot_form.days_csv.errors|striptags }}</span>{% endif %}
+    </div>
+    <div class="field" style="margin:0" x-show="kind==='days_ending'" x-cloak>
+      <label>{{ slot_form.ending_csv.label }}</label>{{ slot_form.ending_csv }}
+      {% if slot_form.ending_csv.errors %}<span class="badge warn" style="font-size:.7rem">{{ slot_form.ending_csv.errors|striptags }}</span>{% endif %}
+    </div>
+    {% for f in slot_form %}
+      {% if f.name == 'start_time' or f.name == 'duration_min' or f.name == 'program_type' or f.name == 'default_asset' or f.name == 'live_source' or f.name == 'effective_from' or f.name == 'effective_to' %}
+      <div class="field" style="margin:0">
+        <label>{{ f.label }}</label>{{ f }}
+        {% if f.errors %}<span class="badge warn" style="font-size:.7rem">{{ f.errors|striptags }}</span>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    <button class="btn" type="submit">＋ 追加</button>
+  </form>
+  <p class="muted" style="font-size:.78rem;margin-top:.4rem">録画は「既定素材」必須・生は「live source」必須。尺は分。第N曜/指定日/末尾日は変則編成。</p>
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% comment %}
+見逃し番組カード (#VOD-01)。見逃し一覧・トップの新着見逃し/おすすめで共用。
+呼び出し側は `it` (= {program, can_watch}) をループ変数として渡す (include は親 context を継承)。
+{% endcomment %}
+{% with p=it.program %}
+<a class="vodcard" href="{{ public_base_url }}/vod/{{ p.id }}/">
+  <div class="vthumb">
+    {% if p.thumb_url %}<img src="{{ p.thumb_url }}" alt="" loading="lazy">{% else %}<span class="ph">ICS-TV</span>{% endif %}
+    {% if p.vod_visibility == "members" %}<span class="gate members">会員限定</span>
+    {% elif p.vod_visibility == "subscribers" %}<span class="gate subscribers">サブスク限定</span>{% endif %}
+    {% if not it.can_watch %}<span class="lock">🔒</span>{% endif %}
+    {% if p.asset.duration_ms %}<span class="dur tabnum">{{ p.asset.duration_display }}</span>{% endif %}
+  </div>
+  <div class="vbody">
+    <div class="vrow">
+      <span class="nm">{{ p.channel.name }}</span>
+      {% if p.resolved_genre %}<span class="g chip genre">{{ p.resolved_genre }}</span>{% endif %}
+    </div>
+    <div class="vttl">{{ p.title }}</div>
+    <div class="vmeta tabnum">{{ p.start_at|date:"n/j(D) H:i" }} 放送</div>
+  </div>
+</a>
+{% endwith %}

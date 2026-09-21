@@ -1,0 +1,13 @@
+[Unit]
+Description=ICS-TV 送出ヘルス監視を 30 秒周期で起動
+
+[Timer]
+# 起動直後は CasparCG の初期化 (EGL/CEF) が終わるまで待つ。早すぎると健全な起動中を
+# 「AMCP 無応答」と誤検知して再起動ループに入る。
+OnBootSec=90
+OnUnitActiveSec=30
+AccuracySec=1s
+Unit=icstv-watchdog.service
+
+[Install]
+WantedBy=timers.target

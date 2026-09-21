@@ -1,0 +1,33 @@
+{% extends "members/base_members.html" %}
+{% block title %}視聴履歴 — ICS-TV{% endblock %}
+{% block extra_css %}{{ block.super }}
+  .hslist { list-style: none; padding: 0; margin: 14px 0 4px; }
+  .hslist li { border-bottom: 1px solid var(--line-thin); }
+  .hslist a { display: flex; flex-direction: column; gap: 4px; padding: 13px 2px; text-decoration: none; color: inherit; }
+  .hslist a:hover { background: rgba(56,189,248,.05); }
+  .hslist .ht { font-size: 15px; font-weight: 700; }
+  .hslist .hm { font-size: 12px; color: var(--dim); font-weight: 600; }
+  .hslist .hbar { height: 4px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 2px; }
+  .hslist .hbar > i { display: block; height: 100%; background: var(--accent); }
+  .hslist .done { color: var(--accent); font-weight: 700; }
+{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>視聴履歴</h1>
+  <p class="mhint">最近見た番組です。途中の番組は続きから再生できます。</p>
+  {% if rows %}
+  <ul class="hslist">
+    {% for w in rows %}
+    <li><a href="/program/{{ w.program_id }}/">
+      <span class="ht">{{ w.program.title }}</span>
+      <span class="hm tabnum">{{ w.program.channel.name }} ・ {{ w.updated_at|date:"n/j H:i" }}{% if w.completed %} ・ <span class="done">視聴済み</span>{% endif %}</span>
+      {% if w.duration_ms and not w.completed %}<span class="hbar"><i style="width:{% widthratio w.position_ms w.duration_ms 100 %}%"></i></span>{% endif %}
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="mhint">まだ視聴履歴がありません。</p>
+  {% endif %}
+  <div class="mlinks"><a href="/vod/">見逃し一覧へ</a> ・ <a href="/members/">マイページ</a></div>
+</div>
+{% endblock %}

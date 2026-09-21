@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}視聴計測 — {{ channel.name }} — ICS-TV{% endblock %}
+{% block content %}
+<h1>視聴計測 <span class="muted">/ {{ channel.name }} ({{ channel.slug }})</span></h1>
+<p><a href="{% url 'core:ops_dashboard' channel.slug %}">‹ 運行ダッシュボードへ</a></p>
+
+<div style="display:grid; grid-template-columns: 1fr 2fr; gap:1rem; align-items:start;">
+
+  <section class="card" id="panel-concurrent"
+           hx-get="{% url 'core:ops_panel_concurrent' channel.slug %}"
+           hx-trigger="every 5s" hx-swap="innerHTML">
+    {% include "ops/_concurrent.html" %}
+  </section>
+
+  <section class="card">
+    <h2>番組別ユニーク視聴 <span class="muted">(累計・上位)</span></h2>
+    {% if top_programs %}
+    <table>
+      <thead><tr><th>番組</th><th>ch</th><th>放送</th><th style="text-align:right">ユニーク視聴</th></tr></thead>
+      <tbody>
+        {% for p in top_programs %}
+        <tr>
+          <td>{{ p.title }}</td>
+          <td>{{ p.channel.name }}</td>
+          <td class="muted">{{ p.start_at|date:"n/j H:i" }}</td>
+          <td style="text-align:right"><strong>{{ p.n }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">まだ視聴データがありません。ライブ視聴が始まると番組別の視聴数が貯まります。</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

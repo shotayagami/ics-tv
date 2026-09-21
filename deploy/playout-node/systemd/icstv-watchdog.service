@@ -1,0 +1,14 @@
+[Unit]
+Description=ICS-TV 送出ヘルス監視 (AMCP/本線/encoder/YouTube枝/MediaMTX/HLS を確認し復旧)
+# 周期起動は icstv-watchdog.timer が行う。単体では 1 回だけ走る。
+# 2026-08-18 まで scripts/watchdog.sh は「書かれているが配備されていない」状態だった
+# (install.sh は systemd/*.service しか配置せず、watchdog 用の unit が存在しなかった)。
+# その結果 AMCP 無応答を検知する仕組みが動いておらず、1h35m のオンエア断を人手で復旧している。
+After=casparcg-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/icstv-watchdog.sh
+# casparcg の SIGKILL → 再起動待ちで 30s 程度かかることがある。timer 周期を超えても
+# systemd は同一 unit の二重起動を抑止するので、次回発火にずれ込むだけで取りこぼしはない。
+TimeoutStartSec=120

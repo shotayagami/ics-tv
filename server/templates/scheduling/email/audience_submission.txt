@@ -1,0 +1,13 @@
+番組フォームへの新着投稿があります。
+
+番組: {{ form.series.title }}
+フォーム: {{ form.title }} ({{ form.get_kind_display }})
+投稿日時: {{ sub.created_at }}
+投稿者: {{ sub.submitter_name }}{% if sub.submitter_email %} <{{ sub.submitter_email }}>{% endif %}
+
+--- 投稿内容 ---
+{% for key, value in data.items %}{{ key }}: {{ value }}
+{% endfor %}
+--- ここまで ---
+
+スタジオから確認・対応できます。

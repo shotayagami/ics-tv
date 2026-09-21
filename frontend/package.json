@@ -1,0 +1,29 @@
+{
+  "name": "icstv-frontend",
+  "license": "AGPL-3.0-or-later",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ICS-TV frontend (React/TS). Phase 0 foundation: 共有 UI トークン + web アプリシェル + ninja API 型クライアント。",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm -ws --if-present run typecheck",
+    "build": "npm -w @icstv/bootstrap-public run build && npm -w @icstv/bootstrap-admin run build && npm -w @icstv/web run build && npm -w @icstv/player run build && npm -w @icstv/guide run build && npm -w @icstv/home run build && npm -w @icstv/discover run build && npm -w @icstv/detail run build && npm -w @icstv/studio run build && npm -w @icstv/ops run build",
+    "dev": "npm -w @icstv/web run dev",
+    "gen:api": "npm -w @icstv/api run gen:api"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "npm:@typescript/typescript6@^6.0.2"
+    }
+  }
+}

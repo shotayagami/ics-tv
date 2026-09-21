@@ -1,0 +1,27 @@
+{# 有料ティア一覧と会員ごとの操作 (#27 §3.1)。fc_tiers=[{tier, action}] / my_membership を前提。 #}
+{% if fc_tiers or my_membership.pending_tier %}
+<div class="sd-fc-upgrade">
+  {% if my_membership.pending_tier %}
+  <div class="sd-fc-pending">
+    <span>{{ my_membership.pending_tier_effective_at|date:"n月j日" }} から「{{ my_membership.pending_tier.name }}」へ変更予定</span>
+    <form method="post" action="{{ public_base_url }}/fanclub/{{ creator.slug }}/change/cancel/">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn-leave">予約を取り消す</button>
+    </form>
+  </div>
+  {% endif %}
+  {% for row in fc_tiers %}
+  <div class="sd-fc-tier">
+    <span>{{ row.tier.name }} — ¥{{ row.tier.price_minor }}/月</span>
+    {% if row.action == "current" %}
+    <span class="fc-current">現在のプラン</span>
+    {% elif row.action == "join" %}
+    <a class="btn-join" href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tiers/{{ row.tier.id }}/confirm/?next={{ request.get_full_path|urlencode }}">加入する</a>
+    {% else %}
+    <a class="btn-join" href="{{ public_base_url }}/fanclub/{{ creator.slug }}/tiers/{{ row.tier.id }}/change/confirm/?next={{ request.get_full_path|urlencode }}">{% if row.action == "upgrade" %}アップグレード{% else %}ダウングレード{% endif %}</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

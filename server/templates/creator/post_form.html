@@ -1,0 +1,51 @@
+{% extends "creator/base_creator.html" %}
+{% block title %}{% if post %}投稿を編集{% else %}投稿を作成{% endif %} — ICS-TV クリエイター{% endblock %}
+{% block content %}
+<a href="/series/{{ series.id }}/posts/" class="muted" style="font-size:.8rem;text-decoration:none">‹ {{ series.title }} の投稿</a>
+<h1 style="font-size:1.1rem;font-weight:800;margin:.5rem 0 1rem">{% if post %}投稿を編集{% else %}投稿を作成{% endif %}</h1>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">種別</label>
+    <select name="kind" style="width:100%">
+      <option value="article" {% if post.kind == "article" or not post %}selected{% endif %}>記事・お知らせ</option>
+      <option value="campaign" {% if post.kind == "campaign" %}selected{% endif %}>キャンペーン応募</option>
+    </select>
+  </div>
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">タイトル</label>
+    <input type="text" name="title" value="{{ post.title|default:'' }}" style="width:100%" required>
+  </div>
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">本文</label>
+    <textarea name="body" style="width:100%;min-height:140px">{{ post.body|default:"" }}</textarea>
+  </div>
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">画像/動画 URL(任意)</label>
+    <input type="text" name="media_url" value="{{ post.media_url|default:'' }}" style="width:100%">
+  </div>
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">応募フォーム URL(キャンペーンのみ)</label>
+    <input type="text" name="form_url" value="{{ post.form_url|default:'' }}" style="width:100%">
+  </div>
+  <div style="margin-bottom:.8rem">
+    <label style="display:block;font-size:.85rem;font-weight:700;margin-bottom:.2rem">公開範囲</label>
+    <select name="fc_required_level" style="width:100%">
+      <option value="" {% if post.fc_required_level == None %}selected{% endif %}>完全公開(誰でも閲覧可)</option>
+      <option value="0" {% if post.fc_required_level == 0 %}selected{% endif %}>無料会員以上</option>
+      {% for t in tier_choices %}
+      <option value="{{ t.level }}" {% if post.fc_required_level == t.level %}selected{% endif %}>
+        有料ティア「{{ t.name }}」(level{{ t.level }})以上{% if t.level not in joinable_levels %} — 加入導線は準備中{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;margin-bottom:1rem">
+    <input type="checkbox" name="is_published" {% if post.is_published %}checked{% endif %}>
+    公開する
+  </label>
+  <button type="submit" class="btn">保存</button>
+  <a href="/series/{{ series.id }}/posts/" class="btn secondary">キャンセル</a>
+</form>
+{% endblock %}

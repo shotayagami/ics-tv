@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}素材・CM — ICS-TV{% endblock %}
+{% block content %}
+<h1>素材・CM <span class="muted">/ 正規化状態・CM 在庫・考査（全 ch 共有）</span></h1>
+
+<section class="card">
+  <div style="display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap;">
+    <h2 style="margin:0">素材 <span class="muted">{{ assets|length }} 件{% if assets|length == 200 %}+{% endif %}</span></h2>
+    <form method="get" style="margin:0 0 0 auto; display:flex; gap:.4rem; align-items:center;">
+      <select name="kind" onchange="this.form.submit()">
+        <option value="">種別: すべて</option>
+        {% for v, label in kinds %}<option value="{{ v }}" {% if v == sel_kind %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <select name="status" onchange="this.form.submit()">
+        <option value="">状態: すべて</option>
+        {% for v, label in statuses %}<option value="{{ v }}" {% if v == sel_status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      {% if sel_kind or sel_status %}<a class="muted" href="{% url 'medialib:dashboard' %}">クリア</a>{% endif %}
+    </form>
+  </div>
+  {% if assets %}
+    <table style="margin-top:.6rem">
+      <tr><th>ID</th><th></th><th>種別</th><th>タイトル</th><th>尺</th><th>正規化</th><th>R2 key</th><th>操作</th></tr>
+      {% for a in assets %}
+        <tr>
+          <td class="muted">{{ a.id }}</td>
+          <td>{% include "partials/thumb.html" with url=a.thumbnail_url size=34 %}</td>
+          <td style="white-space:nowrap">{{ a.get_kind_display }}
+            {% if a.usable_as_program and a.kind != 'program' %}<span class="badge" title="番組としても編成可">＋番組</span>{% endif %}
+            {% if a.usable_as_filler and a.kind != 'filler' %}<span class="badge" title="フィラーとしても使用可">＋フィラー</span>{% endif %}
+            {% if a.rerun_eligible %}<span class="badge" title="フィラー送出中に番組表/現在放送中へ再放送として露出">再放送</span>{% endif %}
+          </td>
+          <td>{{ a.title }}</td>
+          <td style="white-space:nowrap">{{ a.duration_display }}</td>
+          <td style="white-space:nowrap">
+            {% if a.passthrough %}<span class="badge live" title="原本のまま素材化(長尺のため映像は再エンコード省略・音声のみloudnorm)。送出可">●原本</span>
+            {% elif a.normalize_status == 'ready' %}<span class="badge live">●ready</span>
+            {% elif a.normalize_status == 'processing' %}<span class="badge">◐processing</span>
+            {% elif a.normalize_status == 'pending' %}<span class="badge">○pending</span>
+            {% else %}<span class="badge warn" title="{{ a.normalize_error|default:'' }}">✕failed</span>{% endif %}
+          </td>
+          <td class="muted" style="font-size:.8rem; word-break:break-all">{{ a.r2_key|default:"—" }}</td>
+          <td style="white-space:nowrap">
+            <form method="post" action="{% url 'medialib:renormalize' a.id %}"
+                  hx-post="{% url 'medialib:renormalize' a.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}"
+                  style="display:inline" onsubmit="return confirm('「{{ a.title|escapejs }}」を再正規化キューに投入しますか？');">
+              {% csrf_token %}<button class="btn" style="font-size:.78rem;padding:.15rem .4rem">再正規化</button>
+            </form>
+            {% if a.kind == 'program' %}
+              <a style="font-size:.78rem" href="{% url 'medialib:cuesheet' a.id %}">キューシート{% if a.id in cue_asset_ids %} ✓{% endif %}</a>
+            {% endif %}
+            <a class="muted" style="font-size:.78rem" href="{% url 'medialib:asset_edit' a.id %}">編集</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">該当する素材がありません。素材は納品ポータル (ICS-DELIVERY) でアップロード→正規化すると追加されます。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>CM <span class="muted">{{ cm_rows|length }} 件{% if n_screening_pending %} · 未考査 {{ n_screening_pending }}{% endif %}</span>
+    <a class="btn" style="font-size:.75rem;padding:.1rem .5rem;margin-left:.6rem" href="{% url 'medialib:cm_new' %}">＋ CM 登録</a></h2>
+  {% if cm_rows %}
+    <table style="margin-top:.6rem">
+      <tr><th></th><th>広告主</th><th>グリッド</th><th>キャンペーン</th><th>消化</th><th>在庫</th><th>考査</th><th>操作</th></tr>
+      {% for r in cm_rows %}
+        <tr>
+          <td>{% include "partials/thumb.html" with url=r.cm.asset.thumbnail_url size=30 %}</td>
+          <td>{{ r.cm.advertiser }}</td>
+          <td style="white-space:nowrap">{{ r.cm.get_grid_display }}</td>
+          <td style="white-space:nowrap" class="muted">
+            {% if r.cm.campaign_start or r.cm.campaign_end %}{{ r.cm.campaign_start|date:"y/m/d"|default:"?" }}–{{ r.cm.campaign_end|date:"y/m/d"|default:"?" }}{% else %}—{% endif %}
+          </td>
+          <td style="white-space:nowrap">{{ r.cm.aired_count }}{% if r.cm.max_airings %}/{{ r.cm.max_airings }}{% else %}<span class="muted">/∞</span>{% endif %}</td>
+          <td style="white-space:nowrap"><span class="badge {{ r.stock.css }}">{{ r.stock.label }}</span></td>
+          <td style="white-space:nowrap">
+            {% if r.cm.screening_status == 'approved' %}<span class="badge live">考査OK</span>
+            {% elif r.cm.screening_status == 'rejected' %}<span class="badge warn">考査NG</span>
+            {% else %}<span class="badge">未考査</span>{% endif %}
+          </td>
+          <td style="white-space:nowrap">
+            {% if r.cm.screening_status != 'approved' %}
+              <form method="post" action="{% url 'medialib:screening' r.cm.asset_id %}" hx-post="{% url 'medialib:screening' r.cm.asset_id %}" hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline">
+                {% csrf_token %}<input type="hidden" name="decision" value="approve"><button class="btn" style="font-size:.78rem;padding:.15rem .4rem">OK</button>
+              </form>
+            {% endif %}
+            {% if r.cm.screening_status != 'rejected' %}
+              <form method="post" action="{% url 'medialib:screening' r.cm.asset_id %}" hx-post="{% url 'medialib:screening' r.cm.asset_id %}" hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline"
+                    onsubmit="return confirm('考査NG にしますか？');">
+                {% csrf_token %}<input type="hidden" name="decision" value="reject"><button class="btn warn" style="font-size:.78rem;padding:.15rem .4rem">NG</button>
+              </form>
+            {% endif %}
+            <a class="muted" style="font-size:.78rem" href="{% url 'medialib:cm_edit' r.cm.asset_id %}">編集</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">CM はまだありません。<a href="{% url 'medialib:cm_new' %}">CM 登録</a>。</p>
+  {% endif %}
+</section>
+
+<section class="card" style="display:flex; gap:2rem; flex-wrap:wrap;">
+  <div style="flex:1; min-width:16rem;">
+    <h2>CM 束 <span class="muted">{{ bundles|length }}</span>
+      <a class="btn" style="font-size:.72rem;padding:.05rem .4rem;margin-left:.4rem" href="{% url 'medialib:bundle_new' %}">＋</a></h2>
+    {% if bundles %}
+      <table>
+        <tr><th>名称</th><th>本数</th></tr>
+        {% for b in bundles %}<tr><td><a class="muted" href="{% url 'medialib:bundle_edit' b.id %}">{{ b.name }}</a></td><td>{{ b.n }}</td></tr>{% endfor %}
+      </table>
+    {% else %}<p class="muted">なし。<a href="{% url 'medialib:bundle_new' %}">追加</a></p>{% endif %}
+  </div>
+  <div style="flex:1; min-width:16rem;">
+    <h2>フィラー <span class="muted">{{ fillers|length }}</span>
+      <a class="btn" style="font-size:.72rem;padding:.05rem .4rem;margin-left:.4rem" href="{% url 'medialib:filler_new' %}">＋</a></h2>
+    {% if fillers %}
+      <table>
+        <tr><th>名称</th><th>本数</th></tr>
+        {% for f in fillers %}<tr><td><a class="muted" href="{% url 'medialib:filler_edit' f.id %}">{{ f.name }}</a></td><td>{{ f.n }}</td></tr>{% endfor %}
+      </table>
+    {% else %}<p class="muted">なし。<a href="{% url 'medialib:filler_new' %}">追加</a></p>{% endif %}
+  </div>
+</section>
+{% endblock %}

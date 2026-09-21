@@ -1,0 +1,7 @@
+<h2>同時視聴者数 <span class="muted">(直近90秒)</span></h2>
+<table>
+  <tr><th>合計</th><td><strong style="font-size:1.5rem">{{ concurrent_total }}</strong> 人</td></tr>
+  {% for r in concurrent_rows %}
+  <tr><th>{{ r.channel.name }} <span class="muted">({{ r.channel.slug }})</span></th><td>{{ r.concurrent }} 人</td></tr>
+  {% endfor %}
+</table>

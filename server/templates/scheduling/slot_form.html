@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}スロット編集 — ICS-TV{% endblock %}
+{% block content %}
+<h1>スロット編集 <span class="muted">/ {{ series.title }}</span></h1>
+<p><a class="muted" href="{% url 'scheduling:series_edit' channel.slug series.id %}">← シリーズへ戻る</a></p>
+<section class="card" style="max-width:48rem">
+  <form method="post" x-data="{ kind: '{{ form.recurrence_kind.value|default:'weekly' }}' }">{% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="badge warn" style="display:block;margin-bottom:.6rem">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+
+    <div class="field">
+      <label>繰り返し</label>
+      <select name="recurrence_kind" x-model="kind">
+        {% for val, lbl in form.recurrence_kind.field.choices %}
+          <option value="{{ val }}">{{ lbl }}</option>
+        {% endfor %}
+      </select>
+      {% if form.recurrence_kind.errors %}<span class="badge warn">{{ form.recurrence_kind.errors|striptags }}</span>{% endif %}
+    </div>
+
+    <!-- 曜日: 毎週 / 第N曜 で使用 -->
+    <div class="field" x-show="kind==='weekly' || kind==='monthly_nth_dow'">
+      <label>{{ form.dow.label }}</label>{{ form.dow }}
+      {% if form.dow.errors %}<span class="badge warn">{{ form.dow.errors|striptags }}</span>{% endif %}
+    </div>
+
+    <!-- 第N曜: 週番号 CSV -->
+    <div class="field" x-show="kind==='monthly_nth_dow'" x-cloak>
+      <label>{{ form.weeks_csv.label }}</label>{{ form.weeks_csv }}
+      <span class="muted" style="font-size:.78rem">月内の第何週か。例: 2,4 = 第2・第4 ◯曜</span>
+      {% if form.weeks_csv.errors %}<span class="badge warn">{{ form.weeks_csv.errors|striptags }}</span>{% endif %}
+    </div>
+
+    <!-- 毎月の指定日: 日 CSV -->
+    <div class="field" x-show="kind==='days_of_month'" x-cloak>
+      <label>{{ form.days_csv.label }}</label>{{ form.days_csv }}
+      <span class="muted" style="font-size:.78rem">例: 1,15 = 毎月1日・15日</span>
+      {% if form.days_csv.errors %}<span class="badge warn">{{ form.days_csv.errors|striptags }}</span>{% endif %}
+    </div>
+
+    <!-- 末尾が指定の日: 末尾桁 CSV -->
+    <div class="field" x-show="kind==='days_ending'" x-cloak>
+      <label>{{ form.ending_csv.label }}</label>{{ form.ending_csv }}
+      <span class="muted" style="font-size:.78rem">下1桁。例: 5 = 5/15/25日</span>
+      {% if form.ending_csv.errors %}<span class="badge warn">{{ form.ending_csv.errors|striptags }}</span>{% endif %}
+    </div>
+
+    {% for f in form %}
+      {% if f.name == 'start_time' or f.name == 'duration_min' or f.name == 'program_type' or f.name == 'default_asset' or f.name == 'live_source' or f.name == 'effective_from' or f.name == 'effective_to' %}
+      <div class="field">
+        <label>{{ f.label }}</label>{{ f }}
+        {% if f.errors %}<span class="badge warn">{{ f.errors|striptags }}</span>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+
+    <div style="display:flex;gap:.5rem;margin-top:.6rem">
+      <button class="btn" type="submit">保存</button>
+      <a class="btn" style="background:#444" href="{% url 'scheduling:series_edit' channel.slug series.id %}">キャンセル</a>
+    </div>
+  </form>
+  <p class="muted" style="font-size:.78rem;margin-top:.6rem">録画は「既定素材」必須・生は「live source」必須。尺は分。曜日は毎週/第N曜のみ使用。</p>
+</section>
+{% endblock %}

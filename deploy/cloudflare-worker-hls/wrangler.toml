@@ -1,0 +1,20 @@
+name = "icstv-hls-auth"
+main = "src/index.js"
+compatibility_date = "2026-07-29"
+
+# 本線ライブの ABR ladder だけを対象にする。/hls (MediaMTX、poster/生入力終端) は
+# cookieCheck 302 + Cookie セッションで別系統なので触らない。
+routes = [
+  { pattern = "tv.example.com/hls2/*", zone_name = "example.com" },
+]
+
+[vars]
+# 段階導入用のフラグ。false の間は検証結果を x-icstv-hls-auth ヘッダに出すだけで素通しする。
+# 2026-07-30 に監視モードでの判定確認 (正当 token=ok / 無し・改竄・期限切れ・別channel=invalid)
+# と実再生の連鎖 (master → 子プレイリスト → セグメント) を確認したうえで true へ切替済み。
+# 障害時のロールバックは "false" に戻して wrangler deploy (数秒で反映、伝播に十数秒)。
+HLS_AUTH_ENFORCE = "true"
+
+# HLS_SIGNING_KEY は secret として投入する (リポジトリには置かない):
+#   wrangler secret put HLS_SIGNING_KEY
+# 値は Django 側の ICSTV_HLS_SIGNING_KEY と同一にすること。

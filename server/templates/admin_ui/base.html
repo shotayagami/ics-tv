@@ -1,0 +1,35 @@
+{% load static %}<!doctype html>
+<html lang="ja" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}admin UI — ICS-TV{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'web/bootstrap/bootstrap-admin.css' %}?v={{ app_version }}">
+<style>
+  /* compat: child templates use these class names without modification */
+  .btn { background: var(--bs-success); color: #fff; border: 0; padding: .4rem .9rem; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn.warn { background: var(--bs-danger); }
+  .btn[disabled], .btn.disabled { background: var(--bs-secondary); cursor: not-allowed; }
+  .card { background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); padding: 1rem; margin-bottom: 1rem; }
+  .muted { color: var(--bs-secondary-color); }
+  .ok { color: var(--bs-success-text-emphasis); }
+  .err { color: var(--bs-danger-text-emphasis); }
+  code { background: var(--bs-tertiary-bg); padding: .1rem .4rem; }
+  form input, form select, form textarea { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color); padding: .25rem .5rem; font: inherit; }
+</style>
+</head>
+<body>
+<nav class="navbar bg-body-tertiary border-bottom px-3 py-1">
+  <div class="container-fluid">
+    <span class="navbar-brand fw-bold mb-0 fs-6 me-2">ICS-TV</span>
+    <div class="d-flex flex-wrap align-items-center gap-1">
+      {% include "partials/console_nav.html" %}
+    </div>
+    <span class="ms-auto text-secondary small">{{ request.user.username|default:"-" }}</span>
+  </div>
+</nav>
+<main class="container-fluid py-3" style="max-width:940px">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

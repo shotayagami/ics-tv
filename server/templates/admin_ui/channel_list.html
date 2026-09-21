@@ -1,0 +1,62 @@
+{% extends "admin_ui/base.html" %}
+{% block title %}チャンネル編集 — ICS-TV admin{% endblock %}
+{% block content %}
+<h1>チャンネル編集</h1>
+<p class="muted">公開ページ・番組表・運用画面・API に表示される名称 (例:「総合」「教育」やスポンサー名) を変更できます。</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <p class="{% if m.tags == 'error' %}err{% else %}ok{% endif %}">{{ m }}</p>
+  {% endfor %}
+{% endif %}
+
+{% for ch in channels %}
+<section class="card">
+  <form method="post" action="{% url 'core:channel_update' ch.slug %}" class="ch-edit" style="margin:0">
+    {% csrf_token %}
+    <label style="display:block;color:#888;font-size:.85rem">表示名 (例: 総合 / 教育 / スポンサー名)</label>
+    <input name="name" value="{{ ch.name }}" maxlength="200" required
+           style="width:100%;max-width:30rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.3rem">
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.7rem">識別子 slug (URL・送出 agent・YouTube/CF 連携の内部ID)</label>
+    <input name="slug" value="{{ ch.slug }}" maxlength="100" required pattern="[-a-zA-Z0-9_]+"
+           class="slug-input"
+           style="width:100%;max-width:18rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.3rem">
+    <p class="muted" style="font-size:.78rem;color:#c84;margin:.3rem 0 0">
+      ⚠ slug を変更すると、送出ノードの agent 設定 (channel slug) を同じ値へ更新するまで該当chの gRPC 連携が停止します。
+      YouTube/Cloudflare の既存連携IDは保持されますが、新規作成時のメタ名に影響します。
+    </p>
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.7rem">略称 (公開フロントの局識別。例: 総合 / 教育。空なら表示名で代替)</label>
+    <input name="short" value="{{ ch.short }}" maxlength="20" placeholder="{{ ch.name }}"
+           style="width:100%;max-width:12rem;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:.3rem">
+
+    <label style="display:block;color:#888;font-size:.85rem;margin-top:.7rem">識別色 (#rrggbb。公開フロントのチップ/枠線/EPG差し色。空なら slug から自動割当)</label>
+    <span style="display:inline-flex;align-items:center;gap:.5rem">
+      <input type="color" name="tint" value="{{ ch.tint_color }}"
+             style="width:3rem;height:2rem;background:#1a1a1a;border:1px solid #444;padding:0">
+      <span class="muted" style="font-size:.78rem">現在: {{ ch.tint_color }}{% if not ch.tint %} (自動){% endif %}</span>
+    </span>
+
+    <button class="btn" type="submit" style="margin-top:.6rem">保存</button>
+  </form>
+</section>
+{% empty %}
+<p class="muted">チャンネルがありません。</p>
+{% endfor %}
+
+<script>
+document.querySelectorAll("form.ch-edit").forEach(function (f) {
+  f.addEventListener("submit", function (e) {
+    var s = f.querySelector(".slug-input");
+    if (s && s.value !== s.defaultValue) {
+      var ok = confirm(
+        "slug を " + s.defaultValue + " → " + s.value +
+        " に変更します。送出ノードの agent 設定も同じ slug へ更新が必要です。続行しますか？"
+      );
+      if (!ok) e.preventDefault();
+    }
+  });
+});
+</script>
+{% endblock %}

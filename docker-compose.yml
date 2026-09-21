@@ -1,0 +1,172 @@
+# ICS-TV dev 環境。専用 PostgreSQL + Redis + Django (web/beat/worker/normalize/verify) + agent gRPC。
+# dev はこの compose で完結する (overview.md 決定#14)。本番の k8s マニフェストはこのツリーには含まれない。
+#
+# 起動:
+#   cp server/.env.example server/.env
+#   docker compose up --build
+# 初回 migrate:
+#   docker compose run --rm web python manage.py migrate
+# admin user 作成:
+#   docker compose run --rm web python manage.py createsuperuser
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: icstv
+      POSTGRES_USER: icstv
+      POSTGRES_PASSWORD: icstv  # pragma: allowlist secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U icstv"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--reload"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+    volumes:
+      - ./server:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  beat:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["celery", "-A", "config", "beat", "-l", "INFO"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["celery", "-A", "config", "worker", "-Q", "default", "-l", "INFO"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  normalize:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["celery", "-A", "config", "worker", "-Q", "normalize", "-l", "INFO"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      # 字幕生成の消費先 (captions queue) を配布構成では用意しないため、投入自体を止める。
+      # 有効化するには captions worker を足したうえで "true" にする (計画 §16.1)。
+      CAPTIONS_ENABLED: "false"
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  # 正規化オフロードの振り分け・取り込み (dispatch_normalize / reconcile_normalize_offload)。
+  # 素材登録は post_save → dispatch_normalize で offload queue へ入るため、この消費先が無いと
+  # 登録が無音で滞留する (計画 §16.1)。本番側の担当はこのツリーには含まれない。
+  offload:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["celery", "-A", "config", "worker", "-Q", "offload", "-l", "INFO"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      # 経路2 の字幕投入 (reconcile_normalize_offload → offload_normalize_finalize) もここで走る。
+      CAPTIONS_ENABLED: "false"
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  # 職員 upload 検証 (multipart 完了後の全体 download + SHA256 + ffprobe)。normalize queue から
+  # 分離した専任 worker (所有者決定G。理由は本番側の分離と同じ)。
+  verify:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["celery", "-A", "config", "worker", "-Q", "verify", "-l", "INFO"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+
+  grpc:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["python", "manage.py", "grpcserve", "--bind", "0.0.0.0:50051"]
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "*"
+    volumes:
+      - ./server:/app
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # dev/test (profile=test で隠す。`docker compose --profile test run --rm test ...` で実行)
+  # Playwright chromium + pytest を含む別 image (Dockerfile.dev)。
+  test:
+    profiles: [test]
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    environment:
+      DATABASE_URL: postgres://icstv:icstv@postgres:5432/icstv  # pragma: allowlist secret
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: "*"
+      ICSTV_GRPC_TARGET: grpc:50051
+    volumes:
+      - ./server:/app
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  postgres_data:

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}線引きエディタ — ICS-TV{% endblock %}
+{% block content %}
+<h1>線引きエディタ <span class="muted">/ spot_order #{{ so.id }} ({{ so.contract.title }})</span></h1>
+<p class="muted">
+  channel {{ so.channel }} ・ 期間 {{ so.period_start }}–{{ so.period_end }} ・ {{ so.target_count }}本 ・ {{ so.unit_seconds }}s
+  <br>dow_mask は bit0=月..bit6=日、区間は [start,end) 半開。日跨ぎ帯は 2 行に分割。
+</p>
+
+<section class="card">
+  <h2>線引き (spot_order_band)</h2>
+  <div id="bands">
+    <table>
+      <tr><th>曜日</th><th>開始</th><th>終了</th><th>操作</th></tr>
+      {% for row in band_rows %}
+        <tr>
+          <td>{{ row.days }} <span class="muted">(mask {{ row.b.dow_mask }})</span></td>
+          <td>{{ row.b.start_time|time:"H:i" }}</td><td>{{ row.b.end_time|time:"H:i" }}</td>
+          <td>
+            <form method="post" action="{% url 'sales:delete_band' row.b.id %}" hx-post="{% url 'sales:delete_band' row.b.id %}" hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline">
+              {% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.15rem .4rem">削除</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted">線引き未設定 — 割付候補に乗りません</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <form method="post" action="{% url 'sales:add_band' so.id %}" hx-post="{% url 'sales:add_band' so.id %}" hx-swap="none"
+        hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}"
+        style="margin-top:.6rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+    {% csrf_token %}
+    {% for v, label in dows %}<label style="font-size:.85rem"><input type="checkbox" name="dow" value="{{ v }}">{{ label }}</label>{% endfor %}
+    <input type="time" name="start_time" required style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+    <input type="time" name="end_time" required style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+    <button class="btn" type="submit">線引き追加</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>指定番組 (spot_order_program) <span class="muted">— 優先2 (線引きより優先)</span></h2>
+  <table>
+    {% for p in programs %}
+      <tr>
+        <td>{{ p.series.title }} (series#{{ p.series_id }})</td>
+        <td>
+          <form method="post" action="{% url 'sales:delete_program' p.id %}" hx-post="{% url 'sales:delete_program' p.id %}" hx-swap="none"
+                hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="display:inline">
+            {% csrf_token %}<button class="btn warn" style="font-size:.78rem;padding:.15rem .4rem">削除</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}<tr><td class="muted">指定番組なし</td></tr>{% endfor %}
+  </table>
+  <form method="post" action="{% url 'sales:add_program' so.id %}" hx-post="{% url 'sales:add_program' so.id %}" hx-swap="none"
+        hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" style="margin-top:.5rem">
+    {% csrf_token %}
+    <select name="series_id" style="background:#1a1a1a;color:#ddd;border:1px solid #333;padding:.3rem">
+      {% for s in series_options %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">指定番組追加</button>
+  </form>
+</section>
+{% endblock %}

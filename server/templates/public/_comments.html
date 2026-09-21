@@ -1,0 +1,40 @@
+{% comment %}チャンネルコメント (ライブチャット風)。読む=全員 / 投稿=確認済み会員 / 削除=本人。
+body は自動エスケープ + linebreaksbr で XSS 安全に改行のみ反映。{% endcomment %}
+<section class="comments" id="comments">
+  <h2 class="comments-h">コメント <span class="muted">({{ comments|length }})</span></h2>
+
+  {% if messages %}<div class="comments-msg">{% for m in messages %}<div class="cmsg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
+
+  {% if member and member.is_verified %}
+  <form class="comment-form" method="post" action="/members/comments/{{ channel.slug }}/post/">
+    {% csrf_token %}
+    <textarea name="body" maxlength="500" rows="2" placeholder="コメントを入力（{{ member.nickname }}）" required></textarea>
+    <button type="submit">送信</button>
+  </form>
+  {% elif member %}
+  <div class="comment-gate">コメントするには本人確認が必要です。<a href="/members/verify-required/">本人確認へ ›</a></div>
+  {% else %}
+  <div class="comment-gate">コメントするには <a href="/members/login/?next=/ch/{{ channel.slug }}/">ログイン</a> または <a href="/members/register/">会員登録</a> が必要です。</div>
+  {% endif %}
+
+  <div class="comments-list">
+    {% for c in comments %}
+    <div class="comment" data-cid="{{ c.id }}">
+      <div class="c-head">
+        <span class="c-nick">{{ c.member.nickname }}</span>
+        {% if c.member_id in comment_badge_ids %}<span class="c-badge" title="コメント特典会員">★会員</span>{% endif %}
+        <span class="c-time tabnum">{{ c.created_at|date:"n/j H:i" }}</span>
+        {% if c.program_title %}<span class="c-prog">{{ c.program_title }}</span>{% endif %}
+        {% if member and c.member_id == member.pk %}
+        <form class="c-del" method="post" action="/members/comments/{{ c.id }}/delete/">
+          {% csrf_token %}<button type="submit" aria-label="削除">×</button>
+        </form>
+        {% endif %}
+      </div>
+      <div class="c-body">{{ c.body|linebreaksbr }}</div>
+    </div>
+    {% empty %}
+    <div class="comments-empty">まだコメントはありません。</div>
+    {% endfor %}
+  </div>
+</section>

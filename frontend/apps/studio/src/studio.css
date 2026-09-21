@@ -1,0 +1,11 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* studio 管理 SPA (#Phase2d)。スタイルの正本は @icstv/studio-ui:
+ *   tokens.css      … :root トークン + box-sizing + body / a / 見出し
+ *   components.css  … .st-header / .card / .st-kpi / .btn / .field / table … + 管理アトム
+ * (これらは元々この studio.css から DS へ逐語抽出したもの。重複を避けるため DS を読み込み、
+ *  ここには DS に無い app 固有レイアウトだけを残す。読み込みは main.tsx。) */
+main.st-main {
+  padding: 1rem;
+  padding-bottom: 3rem;
+}

@@ -1,0 +1,310 @@
+/* SPDX-FileCopyrightText: 2026 アイシーエス */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* 公開番組表島 (#Phase2)。guide.html の extra_css を移植。:root トークン・汎用 atom
+   (.pulse-dot 等) は public_base.html がグローバル供給する。 */
+.guide-page {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 32px) var(--pad) 64px;
+}
+.guide-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.guide-head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+}
+/* SegmentedNav (.segnav) は public_base.html(共有層)に集約済(guide/discover 共用)。 */
+.guide-head .dlabel {
+  color: var(--dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+/* 右寄せツール群 (縦ズーム + 現在時刻)。zoom が auto で右へ寄り nowclock が続く。 */
+.guide-head .guide-tools {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.guide-head .zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--side);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+}
+.guide-head .zoom .zbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: 999px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.guide-head .zoom .zbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+.guide-head .zoom .zbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.guide-head .zoom .zreset {
+  font-size: 13px;
+  color: var(--faint);
+}
+.guide-head .nowclock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.guide-head .nowclock i {
+  width: 18px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.grid {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0b1024;
+}
+.grid-cols {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  background: var(--side);
+  /* .grid が overflow:hidden = sticky のスクロール基準になるため top:60px だと 60px の隙間ができる。
+     チャンネル帯は grid 上端に置く (内部スクロールは grid-scroll 側)。 */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.grid-cols .axis-sp {
+  width: 58px;
+  flex: none;
+}
+.grid-cols .col {
+  flex: 1;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-left: 1px solid var(--line-thin);
+}
+.grid-cols .col .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.grid-cols .col .nm {
+  font-size: 14px;
+  font-weight: 800;
+}
+.grid-cols .col .lv {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--live);
+  color: #fff;
+  font-weight: 800;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.grid-cols .col .lv .pulse-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.grid-scroll {
+  max-height: 66vh;
+  overflow-y: auto;
+}
+.grid-inner {
+  display: flex;
+  position: relative;
+}
+.axis {
+  width: 58px;
+  flex: none;
+  position: relative;
+  border-right: 1px solid var(--line-thin);
+}
+.axis .h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--line-faint);
+  padding-top: 4px;
+}
+.gcol {
+  flex: 1;
+  position: relative;
+  border-left: 1px solid var(--line-thin);
+}
+.gcol .blk .bt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 3px;
+}
+.gcol .blk .bt .tm {
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.gcol .blk .bt .on {
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--live);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.gcol .blk .bt .rerun-tag {
+  font-size: 9px;
+  font-weight: 800;
+  color: #cdd3e0;
+  background: rgba(91, 100, 128, 0.28);
+  border: 1px solid #5b6480;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.gcol .blk .btl {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.gcol .blk .bg {
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+/* 短尺ブロックの本文を高さに応じて適応表示 (時刻+タイトル優先・ジャンルを畳む)。
+   高さはズームで変わるため tier(blk/compact/tiny) は client が算出して付与する。
+   full な title は title 属性で hover ツールチップに出す。 */
+.gcol .blk.compact {
+  padding: 6px 10px;
+}
+.gcol .blk.compact .bg {
+  display: none;
+}
+.gcol .blk.tiny {
+  padding: 4px 9px;
+}
+.gcol .blk.tiny .bt {
+  margin-bottom: 1px;
+}
+.gcol .blk.tiny .btl {
+  -webkit-line-clamp: 1;
+}
+.gcol .blk.tiny .bg {
+  display: none;
+}
+/* 短尺ブロックは hover で全文を展開 (次番組に覆われて読めない問題を即時解消)。
+   height/overflow は inline 指定のため !important で上書きする。touch/mobile はタップで
+   詳細遷移 or ズームで対応 (hover 非依存)。z-index はチャンネル帯 (6) より下に保つ。 */
+.gcol .blk:hover {
+  z-index: 4;
+}
+.gcol .blk.compact:hover,
+.gcol .blk.tiny:hover {
+  height: auto !important;
+  overflow: visible !important;
+  padding: 8px 11px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
+}
+.gcol .blk.compact:hover .bg,
+.gcol .blk.tiny:hover .bg {
+  display: block;
+}
+.gcol .blk.compact:hover .btl,
+.gcol .blk.tiny:hover .btl {
+  -webkit-line-clamp: 4;
+}
+.gcol .blk.tiny:hover .bt {
+  margin-bottom: 3px;
+}
+.nowline {
+  position: absolute;
+  left: 58px;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--accent);
+  z-index: 5;
+  animation: nowGlow 2.4s ease-in-out infinite;
+}
+.nowline .pill {
+  position: absolute;
+  left: 0;
+  top: -9px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== モバイル対応(トークン不変/レイアウトのみ) ds-mobile.md commit3/6 =====
+   EPG は列を潰さず横スクロール。.grid-cols(ヘッダ)と .grid-inner(本体)は別要素なので、
+   .grid 1つで両者を一緒に横スクロールさせ列ズレを防ぐ。grid-scroll の内部縦スクロール
+   (max-height:66vh)は mobile では無効化=ページスクロールにし、ヘッダ/本体が別々に横スク
+   ロールしてズレる二重スクローラを回避する(設計時の最重要リスク)。axis 幅 58→48 は
+   axis-sp / axis / nowline-left の3箇所同値。override は base の specificity に合わせる。 */
+@media (max-width: 768px) {
+  .grid { overflow-x: auto; }
+  .grid-scroll { max-height: none; overflow-y: visible; }
+  .grid-cols, .grid-inner { min-width: 680px; }
+  .grid-cols .axis-sp, .axis { width: 48px; }
+  .nowline { left: 48px; }
+  .axis .h { font-size: 11px; }
+  .guide-head { gap: 12px; margin-bottom: 16px; }
+  .guide-head h1 { font-size: 20px; flex: 1 1 100%; }
+  .guide-head .nowclock { margin-left: 0; }
+}
+@media (max-width: 480px) {
+  .grid-cols, .grid-inner { min-width: 560px; }
+  .grid-cols .col { padding: 11px 10px; }
+  .grid-cols .col .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .gcol .blk .btl { font-size: 12px; }
+  .grid-cols .col .lv { font-size: 9px; padding: 2px 6px; }
+  .guide-head h1 { font-size: 18px; }
+  .guide-head .dlabel { flex: 1 1 100%; }
+  .guide-head .segnav { flex: 1 1 auto; }
+}

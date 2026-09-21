@@ -1,0 +1,7 @@
+{% if member and not member.is_verified %}
+<div class="mbanner">
+  <strong>本人確認が未完了です。</strong>
+  一部機能の利用には本人確認（メール／認証アプリ）が必要になる予定です。
+  <a href="/members/verify/email/">メールを確認する</a>
+</div>
+{% endif %}

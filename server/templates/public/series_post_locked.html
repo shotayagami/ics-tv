@@ -1,0 +1,49 @@
+{% extends "public_base.html" %}
+{% block title %}{{ post.title }} — {{ series.title }} — ICS-TV{% endblock %}
+{% block meta_description %}{{ meta_description }}{% endblock %}
+{% block og_description %}{{ meta_description }}{% endblock %}
+{% block og_image %}{% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}{% endblock %}
+
+{% block extra_css %}
+  .sp { max-width: 760px; margin: 0 auto; padding: clamp(16px,3vw,28px) var(--pad) 64px; }
+  .sp .back { display: inline-flex; align-items: center; gap: 6px; color: var(--dim);
+    font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 18px; }
+  .sp .back:hover { color: var(--accent); }
+  .sp .post-kind { display: inline-block; font-size: 11px; font-weight: 700;
+    border-radius: 4px; padding: 2px 8px; background: rgba(56,189,248,.14); color: var(--accent);
+    margin-bottom: 10px; }
+  .sp h1 { font-size: clamp(20px,3vw,30px); font-weight: 800; line-height: 1.22; margin: 0 0 8px; }
+  .sp .post-date { font-size: 13px; color: var(--dim); font-weight: 600; margin-bottom: 20px; }
+  .sp .fc-lock { border: 1px solid rgba(56,189,248,.35); border-radius: 10px; padding: 24px;
+    margin: 24px 0; background: rgba(56,189,248,.06); text-align: center; }
+  .sp .fc-lock .badge { display: inline-block; font-weight: 800; font-size: 13px; padding: 6px 14px;
+    border-radius: 999px; background: rgba(56,189,248,.14); color: var(--accent); margin-bottom: 12px; }
+  .sp .fc-lock p { color: var(--dim); line-height: 1.8; margin: 0 0 16px; }
+  .sp .fc-lock .btn { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px;
+    border-radius: 999px; padding: 10px 22px; text-decoration: none; background: var(--accent); color: #06131f; }
+{% endblock %}
+
+{% block content %}
+<div class="sp">
+  <a class="back" href="{{ series.public_url }}">‹ {{ series.title }}</a>
+
+  <div>
+    <span class="post-kind">{{ post.get_kind_display }}</span>
+  </div>
+  <h1>{{ post.title }}</h1>
+  {% if post.published_at %}<div class="post-date tabnum">{{ post.published_at|date:"Y/n/j(D)" }}</div>{% endif %}
+
+  <div class="fc-lock">
+    <div class="badge">ファンクラブ限定</div>
+    {% if gate_reason == "login" %}
+    <p>この投稿の続きを読むにはログインが必要です。</p>
+    <a class="btn" href="/members/login/?next={{ request.get_full_path|urlencode }}">ログイン</a>
+    {% elif gate_reason == "fc_join" %}
+    <p>この投稿の続きを読むには {{ creator.name }} のファンクラブ(無料)への参加が必要です。</p>
+    <a class="btn" href="{{ series.public_url }}">番組ページで参加する ›</a>
+    {% else %}
+    <p>このコンテンツは準備中の有料プラン限定です。もうしばらくお待ちください。</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

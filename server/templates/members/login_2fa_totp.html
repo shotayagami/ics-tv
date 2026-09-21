@@ -1,0 +1,15 @@
+{% extends "members/base_members.html" %}
+{% block title %}2段階認証 — ICS-TV{% endblock %}
+{% block member_content %}
+<div class="mcard">
+  <h1>認証アプリのコード</h1>
+  <p class="mhint">認証アプリに表示されている6桁コードを入力してください。</p>
+  <form class="mform" method="post" action="/members/login/2fa/totp/" novalidate>
+    {% csrf_token %}
+    <label for="code">6桁コード</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" autofocus>
+    <button class="btn" type="submit">ログイン</button>
+  </form>
+  <div class="mlinks"><a href="/members/login/">ログインに戻る</a></div>
+</div>
+{% endblock %}

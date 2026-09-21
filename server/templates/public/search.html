@@ -1,0 +1,16 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{% if q %}「{{ q }}」の検索結果{% else %}検索{% endif %} — ICS-TV{% endblock %}
+
+{% block extra_head %}
+  {# 検索は React 島(#Phase2c)。ライブ検索/結果は /static/web/discover が /api/v1/search から描画。 #}
+  <link rel="stylesheet" href="{% static 'web/discover/discover.css' %}?v={{ app_version }}">
+{% endblock %}
+
+{% block content %}
+<div id="discover-island" data-mode="search" data-home-base="{{ public_base_url }}"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'web/discover/discover.js' %}?v={{ app_version }}"></script>
+{% endblock %}
