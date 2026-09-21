@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from django.test import Client, override_settings
 
-PUBLIC = "tv.yagamin.net"
+PUBLIC = "tv.example.com"
 ADMIN = "admin.example.com"
 
 # 公開ホストは ADMIN_HOSTS に含めない → urls_public。ADMIN は含める → フル。

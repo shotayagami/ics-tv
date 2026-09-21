@@ -39,7 +39,6 @@ import { YouTubePresetsPage } from "./pages/YouTubePresetsPage";
 import { YouTubeTemplatesPage } from "./pages/YouTubeTemplatesPage";
 import { ProgramBroadcastPage } from "./pages/ProgramBroadcastPage";
 import { ClockPresetsPage } from "./pages/ClockPresetsPage";
-import { VideoStudioPage } from "./pages/VideoStudioPage";
 
 /** ch 単位の画面 (/scheduling, /series) の index = 先頭チャンネルへリダイレクト。 */
 function ChannelRedirect({ base }: { base: string }) {
@@ -113,7 +112,6 @@ export function App() {
         <Route path="/rights" element={<RightsDashboard />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/sales" element={<SalesPage />} />
-        <Route path="/video-studio" element={<VideoStudioPage />} />
         <Route path="/access-stats" element={<AccessStatsPage />} />
         <Route path="/creators" element={<CreatorsPage />} />
         <Route path="/creators/:creatorId" element={<CreatorDetailPage />} />

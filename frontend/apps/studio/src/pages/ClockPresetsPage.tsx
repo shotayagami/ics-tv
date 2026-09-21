@@ -1,20 +1,14 @@
 // SPDX-FileCopyrightText: 2026 アイシーエス
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /** 時計スタイルプリセット管理ページ。
- * プリセットの CRUD + Remotion Player によるアニメーション付きプレビュー。 */
+ * プリセットの CRUD + 静止プレビュー (実時刻を 1 秒ごとに描き直す。ClockEditorPage と共用)。 */
 
-import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
-import { Player } from "@remotion/player";
 
 import { Breadcrumb, EmptyState, Field, Notice, StudioPage } from "../atoms";
 import { RouterLink } from "../links";
 import { readCookie } from "../hooks";
-import {
-  ClockPreviewComposition,
-  CLOCK_PREVIEW_DEFAULT_PROPS,
-  type ClockPreviewProps,
-} from "../remotion/compositions/ClockPreviewComposition";
+import { ClockPreview, CLOCK_PREVIEW_DEFAULTS, type ClockPreviewProps } from "../ClockPreview";
 import { CLOCK_FONT_GROUPS } from "../clockFonts";
 
 // ---- 定数 ----
@@ -63,7 +57,9 @@ const CORNER_BUTTONS = [
   { value: "bottom-right", label: "↘", row: 1, col: 1 },
 ] as const;
 
-const D = CLOCK_PREVIEW_DEFAULT_PROPS;
+const D = CLOCK_PREVIEW_DEFAULTS;
+// entrance_anim はプレビューに含めない (静止画のため) が、フォームの既定値としては要る。
+const DEFAULT_ENTRANCE_ANIM = "fade";
 
 // ---- 型 ----
 
@@ -139,13 +135,13 @@ export function ClockPresetsPage() {
   const [bgOpacity,     setBgOpacity]    = useState(D.bg_opacity);
   const [boxShadow,     setBoxShadow]    = useState(D.box_shadow);
   const [borderRadius,  setBorderRadius] = useState(D.border_radius);
-  const [entranceAnim,  setEntranceAnim] = useState(D.entrance_anim);
+  const [entranceAnim,  setEntranceAnim] = useState(DEFAULT_ENTRANCE_ANIM);
   const [position,      setPosition]     = useState(D.position);
   const [showSeconds,   setShowSeconds]  = useState(D.show_seconds);
   const [showDate,      setShowDate]     = useState(D.show_date);
 
-  // Remotion Player に渡す props
-  const playerProps: ClockPreviewProps = {
+  // プレビューに渡す props (entrance_anim は静止プレビューでは使わない)
+  const previewProps: ClockPreviewProps = {
     font_family: fontFamily,
     time_size: timeSize,
     font_weight: fontWeight,
@@ -158,12 +154,9 @@ export function ClockPresetsPage() {
     bg_opacity: bgOpacity,
     box_shadow: boxShadow,
     border_radius: borderRadius,
-    entrance_anim: entranceAnim,
     show_seconds: showSeconds,
     show_date: showDate,
     position,
-    sample_time: "12:34",
-    sample_date: "7月1日(火)",
   };
 
   function loadStyle(style: Record<string, unknown>) {
@@ -180,7 +173,7 @@ export function ClockPresetsPage() {
     setBgOpacity(Number(s.bg_opacity));
     setBoxShadow(String(s.box_shadow));
     setBorderRadius(String(s.border_radius));
-    setEntranceAnim(String(s.entrance_anim));
+    setEntranceAnim(String(style.entrance_anim ?? DEFAULT_ENTRANCE_ANIM));
     setPosition(String(s.position));
     setShowSeconds(Boolean(s.show_seconds));
     setShowDate(Boolean(s.show_date));
@@ -438,23 +431,12 @@ export function ClockPresetsPage() {
           </div>
         </div>
 
-        {/* 右: Remotion プレビュー + 保存 */}
+        {/* 右: プレビュー + 保存 */}
         <div style={{ position: "sticky", top: "1rem", display: "flex", flexDirection: "column", gap: "1rem", minWidth: 560 }}>
           <div className="card">
-            <div className="card-head"><strong>プレビュー (1920×1080)</strong></div>
+            <div className="card-head"><strong>プレビュー</strong></div>
             <div className="card-body" style={{ padding: 0, overflow: "hidden", borderRadius: "0 0 .5rem .5rem" }}>
-              <Player
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                component={ClockPreviewComposition as ComponentType<any>}
-                inputProps={playerProps}
-                durationInFrames={30 * 5}
-                fps={30}
-                compositionWidth={1920}
-                compositionHeight={1080}
-                style={{ width: 560, height: 315 }}
-                controls
-                loop
-              />
+              <ClockPreview {...previewProps} />
             </div>
           </div>
 

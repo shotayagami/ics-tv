@@ -339,7 +339,7 @@ class ChannelChime(models.Model):
 
 
 class LiveSource(models.Model):
-    """生入力ソース(送出ノード=自宅 Proxmox LXC の MediaMTX でローカル終端)。
+    """生入力ソース(送出ノード = Proxmox の LXC コンテナ上の MediaMTX でローカル終端)。
 
     外部(現場 OBS)→ Cloudflare One(cloudflared private network + WARP)→ 送出ノード
     MediaMTX へ SRT/RTMP push(overview.md 決定#21)。agent は MediaMTX が終端した

@@ -6,8 +6,8 @@
 
 ## 構成
 
-- **リゾルバ（自宅 / Django + Celery beat）**：編成を時間窓ごとに `playout_event` 列へ解決し agent へ push。
-- **agent 実行ループ（送出ノード / 自宅 Proxmox LXC）**：`playout_event` を `scheduled_at` にローカル AMCP で実行。冪等・store-and-forward。
+- **リゾルバ（制御プレーン / Django + Celery beat）**：編成を時間窓ごとに `playout_event` 列へ解決し agent へ push。
+- **agent 実行ループ（送出ノード / Proxmox LXC）**：`playout_event` を `scheduled_at` にローカル AMCP で実行。冪等・store-and-forward。
 - **割り込み**：生cut / CM IN・戻り / feed断→SLATE / 緊急SLATE。
 
 **冪等キーは決定的に算出**する（再解決で同一キー＝自然な差分反映、実行済イベントは不変）。
@@ -25,7 +25,7 @@ def PE(channel, at, action, seg, asset=None, live_source=None, cm_bundle=None, p
         params=params or {})
 ```
 
-## リゾルバ（自宅）
+## リゾルバ（制御プレーン）
 
 入力：`channel`, 解決窓 `[t0, t1)`（常に「今 + 48h」を維持）。
 出力：`playout_event` の冪等 upsert ＋ agent への push。
@@ -84,7 +84,7 @@ def resolve(channel, t0, t1):
   除外しないと、実際には放送されていない番組の `end_at` が位相アンカーになり、送出中フィラーが
   `_onair_filler_anchor` の探索窓 `[anchor, now]` から外れて鎖状継続が切れる。そのギャップには
   境界が 1 つも入らず既存の後続境界が cancel され、次の番組明けが「中断位置からの再開」ではなく
-  無関係なクリップへのハードカットになる（2026-07 の実障害）。
+  無関係なクリップへのハードカットになる（実障害として発生した）。
 - `_commit()` は `off_air=true` の resolver 管轄スレートのみキャンセル対象にする
   （運用の手動スレートは巻き込まない）。
 - **スレート層 (layer 90) は本線 (layer 10) と独立**のため、休止明け (放送中区間の先頭) には
@@ -103,8 +103,8 @@ def resolve(channel, t0, t1):
 - 休止明けまで **30 秒 (`_STANDBY_TAIL_GUARD`) を切ったら `off_air` スレートを発行しない**。
   休止中は beat ごとに「now」でスレートを再発行するため、窓オープン直前の 1 発は agent への
   gRPC 到達 + ディスパッチ遅延（実測 1〜6 秒）の間に休止明けの `CLEAR_SLATE` に追い越され、
-  復帰済みの本線の上へ再点灯して固着する（2026-07-21 06:00: 05:59:59 発行のスレートが
-  06:00:01 に実行され、運用者が手動解除する 08:21 まで 2h21m スレート固着）。スレートは
+  復帰済みの本線の上へ再点灯して固着する（運用者が手動解除するまで長時間固着した
+  実例がある）。スレートは
   `loop=true` で既に出続けているため、最後の 1 発を落としても画面は変わらない。agent 側も
   `params.until` を過ぎた `off_air` スレートは AMCP を撃たず SKIPPED で畳む（多重防御）。
 - `_needs_slate_clear()` の「解除済み」判定は `scheduled_at` の前後だけでなく **`actual_at` の
@@ -142,7 +142,7 @@ def resolve(channel, t0, t1):
   EPG 投影 (`project_filler_segments` / `_project_chain`) も同じ規約に揃えてあり、放送中区間ごとに
   サイクルを敷き直して区間の実時間だけ位相を進める（休止中は進めない）。
   回帰: この 2 系統がずれていた頃は、休止をまたいだクリップを実番組が中断すると再開位置が
-  「休止中に再生された分」だけ手前に戻っていた（実測 24 分 31.8 秒の巻き戻り、2026-07 の実障害）。
+  「休止中に再生された分」だけ手前に戻っていた（実障害として観測された）。
 
 ### 録画番組：本編とCM枠のインターリーブ
 
@@ -247,7 +247,7 @@ Celery beat が定期的に窓 `[now, now+48h)` を再解決。`idempotency_key`
 upsert は自然な diff になる。**実行済 / 実行中（過去〜直近）のイベントは不変**として扱い、
 未来分のみ差し替える。
 
-## agent 実行ループ（送出ノード / 自宅 Proxmox LXC）
+## agent 実行ループ（送出ノード / Proxmox LXC）
 
 `LOADBG`（背面ロード）→ `PLAY`（テイク）で**継ぎ目のない切替**を作る。
 
@@ -278,13 +278,13 @@ def agent_loop(channel):
             asrun_queue.put(ev)             # store-and-forward
         # 3) 割り込み
         handle_interrupts(channel)
-        flush_asrun_if_online()             # WAN復帰時に home へ返送
+        flush_asrun_if_online()             # WAN復帰時に制御プレーンへ返送
         sleep(TICK)
 ```
 
 - **冪等 / resume**：`idempotency_key` を実行済としてローカル永続化（SQLite等）。再起動・WAN復帰後は
   再 pull → 実行済をスキップ。
-- **store-and-forward**：as-run はローカルにキューし、オンライン時に home へ返送（`aired_count` 確定もここ）。
+- **store-and-forward**：as-run はローカルにキューし、オンライン時に制御プレーンへ返送（`aired_count` 確定もここ）。
 
 ## 割り込み（優先度：SLATE ＞ 生cut ＞ CM IN ＞ 通常）
 
@@ -292,7 +292,7 @@ def agent_loop(channel):
   実送出を `playout_event(action="play_cm_bundle", actual_at=now)` として as-run 記録。
 - **feed断（生）**：MediaMTX のフレーム監視で検知 → 即 SLATE → Zabbix通報。復帰は運用ポリシー（自動 or 手動）。
 - **緊急SLATE**：全状態から最優先で遷移（手動 or ウォッチドッグ）。
-- **YouTube枠遷移（yt_transition）**：AMCP ではなく Data API。YouTube枠ワーカー（自宅）が担当（#3）。
+- **YouTube枠遷移（yt_transition）**：AMCP ではなく Data API。YouTube枠ワーカー（制御プレーン）が担当（#3）。
   as-run には観測用に記録。
 
 ## 前提・時刻

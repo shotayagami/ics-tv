@@ -64,7 +64,7 @@ class Invoice(models.Model):
     pdf_r2_key = models.CharField(max_length=500, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     # 誰が発行し、誰が失効させたか (#sec L-4)。監査ログ (icstv.security) にも出しているが、
-    # ログは Loki の retention (7 日) で消える。会計帳簿の保存期間 (10 年) を満たすには
+    # ログはログ基盤の retention で消える。会計帳簿の保存期間 (10 年) を満たすには
     # DB 側に残す必要があるため両方持つ。SET_NULL なのは、退職等で User を消しても
     # 請求書そのものは残さなければならないため (証跡としては監査ログ側に username が残る)。
     issued_by = models.ForeignKey(

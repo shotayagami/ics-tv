@@ -46,7 +46,7 @@ VOD プレイヤー（`frontend/apps/detail/src/VodPlayer.tsx`）は native `<vi
 - エンジン = **faster-whisper**（CTranslate2・pip・int8 CPU・日本語対応）。`whisper.cpp`（要コンパイル）より
   image に馴染む。`WHISPER_MODEL`（既定 `small`）/`WHISPER_DEVICE=cpu`/`WHISPER_COMPUTE_TYPE=int8` を
   configmap で切替（MEZZ_* と同じ override パターン）。
-- **専用キュー `captions` + 専用 pod**（`deploy/k8s/base/45-captions.yaml`・`-Q captions -c 1`）。
+- **専用キュー `captions` + 専用 pod**（`-Q captions -c 1` の worker を導入者の配備基盤側で配備する）。
   正規化（`normalize` キュー）を絶対に飢餓させないための隔離が肝。concurrency-1 で 1 本ずつ。
 - トリガ: `server/medialib/tasks.py` の `normalize_asset` 成功後、READY かつ
   `kind=program` の素材にだけ `transcribe_asset.delay()` を鎖（CM/フィラー/スレート/バンパーは除外＝

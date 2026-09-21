@@ -5,7 +5,7 @@ compatibility_date = "2026-07-29"
 # 本線ライブの ABR ladder だけを対象にする。/hls (MediaMTX、poster/生入力終端) は
 # cookieCheck 302 + Cookie セッションで別系統なので触らない。
 routes = [
-  { pattern = "tv.yagamin.net/hls2/*", zone_name = "yagamin.net" },
+  { pattern = "tv.example.com/hls2/*", zone_name = "example.com" },
 ]
 
 [vars]

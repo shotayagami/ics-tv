@@ -9,19 +9,15 @@ Webシステムの設計・実装プロジェクト。ウェザーニューズ�
 **[docs/usage.md](docs/usage.md) に利用・運用ガイド** (アクセス先・画面別 URL・ログイン/権限・
 ローカル起動・定期タスク・送出ノード・トラブルシュート) をまとめている。要点:
 
-| 環境 | 内部 (自分の LAN) | 外部公開 |
+| 環境 | 内部 (導入者の LAN) | 外部公開 |
 |------|------|------|
-| 本番 (公開・視聴者向け) | `https://tv.<内部ドメイン>` | `https://tv.yagamin.net` (公開番組表) |
-| 本番 (管理・フル機能) | `https://studio.<内部ドメイン>` | `https://studio.yagamin.net` (**CF Access** で保護) |
-| dev | 公開 `https://dev-tv.<内部ドメイン>` / 管理 `https://dev-studio.<内部ドメイン>` | 公開 `https://dev-tv.yagamin.net` ほか (5 系統 dev-tv/dev-studio/dev-deliver/dev-ops/dev-creator の内外。正本は `deploy/k8s/overlays/dev/patch-ingress.yaml` と `patch-configmap.yaml`) |
+| 本番 (公開・視聴者向け) | `https://tv.<内部ドメイン>` | `https://tv.<公開ドメイン>` (公開番組表) |
+| 本番 (管理・フル機能) | `https://studio.<内部ドメイン>` | `https://studio.<公開ドメイン>` (**導入者のアクセス制御**で保護する) |
 | ローカル | `http://localhost:8000` | — |
 
-`<内部ドメイン>` は導入者が自分の環境の split-horizon DNS 等に用意するドメインのプレースホルダ
+`<内部ドメイン>` は導入者が内部 DNS (split-horizon DNS 等) に用意するドメイン、`<公開ドメイン>` は
+外部公開に使うドメインのプレースホルダ
 (詳細・注意事項は [docs/usage.md](docs/usage.md) §1)。
-
-> **dev は 2026-08-26 以降アプリ層 (web/worker/beat 等) が `replicas: 0` で停止中** (上記
-> dev URL はすべて 503)。検証は `docker compose` のローカル環境で行う。詳細は
-> [CONTRIBUTING.md](CONTRIBUTING.md) の「ブランチ運用」を参照。
 
 主要画面 (`<slug>` = channel スラッグ、**いずれも管理ホスト `studio.*` 限定・公開ホスト
 `tv.*` では 404**): 編成 `/scheduling/ch/<slug>/timeline/`、運行 `/ops/ch/<slug>/dashboard/`、
@@ -29,8 +25,8 @@ Webシステムの設計・実装プロジェクト。ウェザーニューズ�
 (`is_staff=True`) が必要。公開ホスト (`tv.*`) はチャンネル一覧 `/`・番組表 `/guide/`・
 視聴 `/ch/<slug>/`・番組詳細 `/program/<id>/`・検索 `/search/`・VOD `/vod/`・会員 `/members/`・
 SPA `/app/` など**視聴者向け画面のみ** (編成/運行/営業/請求/admin は 404)。
-納品は別リポ `icstv-delivery` (社内限定 `deliver-new.<内部ドメイン>`)
-へ移管済み — 本体の `/delivery/` は撤去済みの ghost ルートで到達不能。
+納品は別リポジトリ `icstv-delivery` へ移管済み — 本体の `/delivery/` は撤去済みの
+ghost ルートで到達不能。
 
 ```bash
 # ローカルで一通り触る
@@ -84,6 +80,10 @@ docker compose run --rm web python manage.py seed_demo   # demo / demo12345
 全文は [LICENSE](LICENSE) を参照。脆弱性の報告は公開の Issue ではなく [SECURITY.md](SECURITY.md)
 の手順に従うこと。
 
+**AGPL とは別の条件が付く第三者の素材は [NOTICE](NOTICE) にまとめてある** (地図 CG のジオメトリの
+出典、第三者のロゴやブランド標識の扱い、同梱していない依存の位置づけ)。再配布するときはこの
+NOTICE も一緒に配ること。
+
 Copyright (C) 2026 アイシーエス
 
 `tools/spdx_headers.py` が対象とするソースファイル (`.py` `.ts` `.tsx` `.js` `.mjs` `.sh` `.css` `.scss` `.proto`) は、
@@ -99,32 +99,31 @@ Copyright (C) 2026 アイシーエス
 
 - **送出**: CasparCG (Linux headless/GPU) ← クラウド
 - **配信**: 送出ノードの `icstv-encoder` が ffmpeg tee で YouTube RTMP ingest へ直接 push + ローカル MediaMTX（自前 HLS）。YouTube 枠は 4h rolling 自動生成（放送時間帯外は生成しない）。CF Live Input/Output は本線経路に無い（fanclub simulcast 専用。[docs/youtube.md](docs/youtube.md)）
-- **制御**: 自宅 Django+PostgreSQL → as-run push → クラウド playout agent（ローカルAMCP）
-- **素材**: OMV master → 正規化(mezzanine) → R2 → 送出ノード prefetch
+- **制御**: オンプレ (導入者のサーバ) の Django+PostgreSQL → as-run push → 送出ノードの playout agent（ローカルAMCP）
+- **素材**: 共有ストレージ (NAS) の master → 正規化(mezzanine) → オブジェクトストレージ (R2) → 送出ノード prefetch
 - **Phase 1**: 1ch・生番組まで・サブスク課金は対象外
 
 
-## イメージ署名 (デプロイの必須条件)
+## イメージ署名 (配備側でデプロイの必須条件にする場合)
 
-Harbor のイメージは **cosign 署名が無いと本番にデプロイできない**。Kyverno の
-`verify-harbor-image-signatures` が Enforce で `<harbor-registry>/*` (自分のコンテナレジストリ)
-を検証している。
-本リポは共通ワークフローへ委譲せず、`.gitea/workflows/ci.yaml` の `Sign image (cosign)`
-ステップ (cosign v2 系固定) でインラインに署名する。repo Secret `COSIGN_KEY` /
-`COSIGN_PASSWORD` が未設定だと、署名ステップは **exit 0 で黙ってスキップされ、CI は緑の
-まま無署名イメージが push される**ので注意する。
+> 注記: この節は**導入者の配備基盤側**のパイプライン (コンテナレジストリへの push・イメージ署名・
+> ポリシーエンジンによる検証) の記述で、このツリーには含まれない。このツリーの CI は
+> イメージの push も署名も行わない。
 
-**止まり方が分かりにくい**点にも注意する。Kyverno に拒否されても pod は旧イメージで動き続け、
-ArgoCD の health は `Healthy` のままなので通知が出ない。**サービスは正常なのに
-リリースだけが静かに止まる**。`OutOfSync` + operation `Failed` になっていないか、
-Harbor 側に `sha256-<digest>.sig` が付いているかを確認すること。
+署名の無いイメージをポリシーエンジンで拒否する構成を採る場合、CI の署名ステップが
+**無署名のまま素通りしていないか**を確認すること。署名鍵を渡す Secret が未設定だと、
+署名ステップは **exit 0 で黙ってスキップされ、CI は緑のまま無署名イメージが push される**
+形になりやすい。
 
-リリースが `no signatures found` で止まったときの一次情報は、自分の Kyverno / cosign 導入手順
-(`verify-harbor-image-signatures` ポリシーの設定元) を参照すること。本リポには含めていない
-自組織の運用ドキュメントに置くことを想定している。
+**止まり方が分かりにくい**点にも注意する。ポリシーエンジンに拒否されても Pod は旧イメージで
+動き続け、GitOps コントローラの health も正常のままなので通知が出ない。**サービスは正常なのに
+リリースだけが静かに止まる**。同期状態が失敗になっていないか、レジストリ側に署名が
+付いているかを確認すること。
 
-## Harbor retention (本番 pin は必ず `v*` タグにする)
+ポリシーの設定元と鍵の配り方の正本は導入者の配備基盤側にあり、このリポジトリには含めない。
 
-v* タグを持たない repository は Harbor の retention ルールで保護されず、本番 pin が
-無言で削除される事故が過去に2回起きている。理由・確認手順は
-[CONTRIBUTING.md](CONTRIBUTING.md) の「Harbor retention」節を参照。
+## レジストリの保持ポリシー (本番 pin は必ず `v*` タグにする)
+
+`v*` タグを持たない repository はレジストリの保持ルールで保護されず、本番 pin が
+無言で削除されることがある。理由・確認手順は
+[CONTRIBUTING.md](CONTRIBUTING.md) の「レジストリの保持ポリシー」節を参照。

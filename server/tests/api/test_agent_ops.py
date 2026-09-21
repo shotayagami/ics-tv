@@ -222,7 +222,7 @@ def test_op_overlay_graphic_builds_elements(staff_client, channel):
             "layer": "45",
             "kind": "graphic",
             "op": "show",
-            "image_url": "https://tv.yagamin.net/t/thumbnails/x.png",
+            "image_url": "https://tv.example.com/t/thumbnails/x.png",
             "text": "組テスト",
             "x": "5",
             "y": "80",

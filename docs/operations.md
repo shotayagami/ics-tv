@@ -40,11 +40,11 @@ agent の dispatch ループは既に APC の中核（運行データ受信・�
 **プロセスレベル**の最後の砦として現状のまま残す。agent 層は**放送内容レベル**
 （「生番組のはずなのにフィードが来ていない」）を担い、両者は重複しない。
 
-### 出力層：黒落ち・停止の外形監視（Zabbix、2026-08-21 追加）
+### 出力層：黒落ち・停止の外形監視（Zabbix）
 
-上の 3 層はいずれも**内部状態**を見ている。しかし 2026-08-21 の 35 分黒落ちでは、
-プロセスは全て active、AMCP は `200 INFO OK`、HLS セグメントも 2 秒ごとに正常に生成され
-続けたまま、中身だけが黒だった。内部状態を見る限りどの層も健全に見えるため、
+上の 3 層はいずれも**内部状態**を見ている。しかし実際には、プロセスは全て active、
+AMCP は `200 INFO OK`、HLS セグメントも 2 秒ごとに正常に生成され続けたまま、
+中身だけが黒ということが起きる。内部状態を見る限りどの層も健全に見えるため、
 **実際に出ている絵**を独立に見る 4 つ目の観測点を置く。
 
 | item key | 返す値 | 検知できる障害 |
@@ -62,18 +62,18 @@ agent の dispatch ループは既に APC の中核（運行データ受信・�
 **黒のトリガは `icstv.slate.active[<slug>]=0` を条件に加える。** 休止帯のスレート
 （`slate/please_wait`）は黒背景に小さな白文字で、144p では文字が全画素の 2% に満たない。
 `blackdetect` の `picture_black_ratio_th` は既定 0.98 なので、**正常なスレートが「黒」と
-判定される**。2026-08-22 00:03（放送終了と同時）に誤発報し 4 時間 PROBLEM のままだった。
+判定される**。放送終了と同時に誤発報し、長時間 PROBLEM のまま残ることになる。
 閾値を締める対処は 144p での文字の画素占有率に依存して脆いため、「スレートが出ているか」を
 独立したシグナルとして持ち、トリガ側で除外する。
 
 検知系統の全体像（Zabbix 以外の 3 系統・通知先の実配線・既知の盲点）は本書後半の
 「監視・通知経路の全体像」を参照。
 
-### 制御プレーン層の外形監視（Zabbix、2026-09-06 追加）
+### 制御プレーン層の外形監視（Zabbix）
 
 server 層の死活 beat は**監視対象クラスタの中**の Celery beat/worker で動いている。beat か
 worker か Redis が止まれば `agent_offline` は出ないし、`offline_notified` が latch されたまま
-誰も見なければそれきり黙る（ch2 が 2026-06-22 の退役から 74 日その状態だった）。つまり
+誰も見なければそれきり黙る（退役した channel が何か月もその状態のまま残りうる）。つまり
 「通知が無い」は「正常」と「検知系ごと死んでいる」を区別できない。
 
 そこで検知系の**外**に読み出し口を置く。`GET /api/v1/internal/monitor/heartbeat`
@@ -91,9 +91,9 @@ channel を発見して次のトリガを持つ。
 
 閾値と on_air は `playout.tasks.OFFLINE_THRESHOLD_SEC` / `Channel.is_on_air` をそのまま使い、
 beat と別の真実を作らない。channel を LLD にしているのは、退役（`enabled=False`）で JSON から
-消えた channel の item が lost-resources の期限で自動的に消えるためで、ch2 の「latch された
-まま誰も消さない」を監視側で再演しないための選択。適用スクリプトは homelab-infra
-`scripts/proxmox-zabbix-apply-icstv-heartbeat.sh`。
+消えた channel の item が lost-resources の期限で自動的に消えるためで、退役 channel の
+「latch されたまま誰も消さない」を監視側で再演しないための選択。監視側の適用手順は
+導入者の配備基盤側（このリポジトリの範囲外）。
 
 ### casparcg 再起動で失われるもの／復帰させるもの
 
@@ -281,17 +281,17 @@ SubscribeEvents は正常時に切れない長時間 stream のため有限 dead
 keepalive 間隔を明示的に許可する。設定値と展開順序は
 [agent/README.md](../agent/README.md#grpc-の障害検出)を正本とする。
 
-2026-09-04 06:57 JST の `agent_offline` は、Proxmox ホストの `apt-daily-upgrade` と同時に送出ノードの
-gRPC/RTMP 通信が停滞し、既存 gRPC 接続が half-open のまま約16分残った事象だった。Proxmox ホスト自体と
-送出ノードは再起動しておらず、送出はローカルで継続した。対策は上記の gRPC 障害検出短縮に加え、
-Proxmox の自動更新を休止時間帯へ移す。
+`agent_offline` は、Proxmox ホスト側の自動更新と同時に送出ノードの gRPC/RTMP 通信が停滞し、
+既存 gRPC 接続が half-open のまま十数分残る、という形でも発生する。ホストも送出ノードも再起動
+しておらず送出はローカルで継続するため、送出側からは無症状に見える。対策は上記の gRPC 障害検出
+短縮に加え、ホストの自動更新を休止時間帯へ寄せること。
 
 ### スレート固着 beat（`playout.tasks.check_stuck_slate`、1 分周期）
 
 スレート層（layer 90）は本線（layer 10）と独立なので、本線が正常に流れていても画面はスレートの
 まま＝視聴者には停波と同じになる。それでも送出イベントは成功し続けるため、死活 beat にも
-`playout_failed` にも掛からない盲点だった（2026-07-21 06:00 の休止明けで 2h21m 誰も気付かず、
-運用者が手動解除するまで復旧しなかった）。この beat がその盲点を埋める。
+`playout_failed` にも掛からない盲点になる（休止明けにスレートが残ると、運用者が手動で解除
+するまで誰も気付かないまま数時間続きうる）。この beat がその盲点を埋める。
 
 発火条件は「`agent_status.slate_active` かつ放送中（`broadcast_windows` 窓内）かつ直近実行の
 `PLAY_SLATE` が resolver 管轄（`params.off_air`）かつ猶予 7 分超」。以下は除外する。
@@ -304,40 +304,40 @@ Proxmox の自動更新を休止時間帯へ移す。
 
 死活 beat と同じく `agent_status.slate_stuck_notified` による**状態遷移の検出**で発火する。
 
-## 監視・通知経路の全体像（2026-09-02 実査）
+## 監視・通知経路の全体像
 
-「icstv が止まったら誰に届くか」を設定実体で突合した記録。検知系統は 4 本あり、
-いずれも通知先まで実配線されていることを確認済み。ただし §盲点の 2 件
+「icstv が止まったら誰に届くか」の整理。検知系統は 4 本あり、どれも通知先まで
+配線して初めて意味を持つ。残る穴のうち §盲点の 2 件
 （YouTube 枝・notifier webhook）が最重大。
 
 ### 検知 4 系統と通知先
 
 | 系統 | 見ているもの | ルール正本 | 通知先 |
 |---|---|---|---|
-| ① Prometheus / Alertmanager | k8s 面（pod 異常・Job 失敗）。icstv 固有ルールは 0 件だが、汎用 kubernetes-apps ルール（KubePodCrashLooping / KubePodNotReady / KubeJobFailed 等 17 本）が `namespace=~".*"` で icstv ns を全数カバー | ns `monitoring` の PrometheusRule（homelab-infra 管理） | 全アラート → Discord + Email（group_wait 30s / repeat 12h）。severity=critical は並行して ntfy topic `alertmanager-critical`（repeat 1h） |
-| ② Loki ruler | icstv アプリの `logger=icstv.security` ログ（webhook 署名/ハンドラ失敗=critical、認証スパイク/ロックアウト/M2M token=warning の 5 本）。セレクタ `{namespace="icstv", app="icstv"}` は実ログと一致・評価稼働中 | ConfigMap `monitoring/icstv-security-loki-rules`（`homelab-infra/cluster-addons`、`loki_rule=1` ラベルで sidecar 搬入。**ConfigMap だけでは飛ばず** loki values の rulerConfig とセット） | Alertmanager へ合流（→①と同じ配送。実配送は 2026-08-12 に実発火で検証済み） |
-| ③ Zabbix (192.0.2.55) | 送出ノード（`<送出ノードのホスト名>`=192.0.2.20 登録済）。ICS-TV 固有 3 トリガ: **黒 3 分継続**（prio4、`icstv.slate.active=0` 条件付き＝上記「出力層」節）・**HLS age**（prio4）・**取得不能**（prio2 のメタ監視）。ほかホスト死活（prio3）・Wazuh 切断検知 | item 実装は `deploy/playout-node/scripts/hls-health.sh` + `deploy/playout-node/zabbix/icstv-playout.conf`。トリガは Zabbix 側設定 | Discord + Email = 全重大度 / ntfy topic `zabbix-alerts` = High(4) 以上のみ / OTOBO チケット自動起票 = Average(3) 以上。→ 黒画面・HLS 凍結は 4 経路すべてに届く |
-| ④ ntfy 直叩き CronJob | `image-pin-check`（日 4 回: Harbor 上の pin 実在 + cosign .sig 検査。2026-08-30 の Kyverno 拒否→ranking 4 CronJob 無症状停止の再発防止。経緯はスクリプト自身の長文コメントに自己文書化）・`update-check`（毎朝）・`security-scan-notify`（6h 毎: Trivy/Kyverno/ArgoCD の増分） | 各 ns の CronJob 内スクリプト（homelab-infra 管理） | ntfy のみ |
+| ① メトリクス監視 / アラートルータ | k8s 面（pod 異常・Job 失敗）。icstv 固有ルールは 0 件だが、汎用 kubernetes-apps ルール（KubePodCrashLooping / KubePodNotReady / KubeJobFailed 等 17 本）が `namespace=~".*"` で icstv ns を全数カバー | 導入者の配備基盤側（監視 ns のアラートルール） | 全アラート → チャット webhook + メール（group_wait 30s / repeat 12h）。severity=critical は並行してプッシュ通知（repeat 1h） |
+| ② ログ集約のルーラ | icstv アプリの `logger=icstv.security` ログ（webhook 署名/ハンドラ失敗=critical、認証スパイク/ロックアウト/M2M token=warning の 5 本）。セレクタ `{namespace="icstv", app="icstv"}` は実ログと一致・評価稼働中 | 導入者の配備基盤側（ruler 用 ConfigMap をラベルで sidecar 搬入。**ConfigMap を置くだけでは評価されず**、ログ基盤側のルーラ設定とセットで初めて有効になる） | アラートルータへ合流（→①と同じ配送） |
+| ③ Zabbix | 送出ノード（監視サーバにホスト登録）。ICS-TV 固有 3 トリガ: **黒 3 分継続**（prio4、`icstv.slate.active=0` 条件付き＝上記「出力層」節）・**HLS age**（prio4）・**取得不能**（prio2 のメタ監視）。ほかホスト死活（prio3）・セキュリティエージェントの切断検知 | item 実装は `deploy/playout-node/scripts/hls-health.sh` + `deploy/playout-node/zabbix/icstv-playout.conf`。トリガは監視基盤側の設定 | チャット webhook + メール = 全重大度 / プッシュ通知 = High(4) 以上のみ / チケット基盤へ自動起票 = Average(3) 以上。→ 黒画面・HLS 凍結は 4 経路すべてに届く |
+| ④ プッシュ通知直叩き CronJob | `image-pin-check`（日 4 回: レジストリ上の pin 実在 + イメージ署名 (`.sig`) の検査。**配備側のポリシーで拒否されると定期実行が無症状で止まりうる**ため、その予防。経緯はスクリプト自身の長文コメントに自己文書化）・`update-check`（毎朝）・`security-scan-notify`（6h 毎: 脆弱性スキャン・ポリシー・GitOps の増分） | 導入者の配備基盤側（各 ns の CronJob 内スクリプト） | プッシュ通知のみ |
 
-送出ノードのログ可視性: ノード上の promtail（systemd unit）が journal を
-`host=<送出ノードのホスト名>` で Loki へ送っており、agent/encoder/watchdog/casparcg/mediamtx の
-unit ログを Grafana から追える（放送の実検知は③が独立経路なので、これは調査用）。
+送出ノードのログ可視性: ノード上のログ転送エージェント（systemd unit）が journal を
+`host=<送出ノードのホスト名>` でログ基盤へ送っており、agent/encoder/watchdog/casparcg/mediamtx の
+unit ログをログ閲覧 UI から追える（放送の実検知は③が独立経路なので、これは調査用）。
 
 ### 障害シナリオ → 検知の対応
 
 | シナリオ | 検知 | 備考 |
 |---|---|---|
-| icstv pod の CrashLoop / NotReady / Deployment 縮退 | ① 汎用ルール | warning → Discord+Email |
+| icstv pod の CrashLoop / NotReady / Deployment 縮退 | ① 汎用ルール | warning → チャット webhook + メール |
 | icstv ns の CronJob（weather 7 + ranking 4）の**失敗** | ① KubeJobFailed（warning, 15m） | |
 | 同 CronJob の**沈黙**（Job が作られない） | △ pin 消失起因のみ ④ image-pin-check | それ以外の原因（suspend 混入等）は**無検知**（§盲点） |
 | セキュリティ（webhook 署名失敗・認証スパイク） | ② icstv.security 5 本 | |
-| 送出ノードのホスト死活 | ③ Zabbix agent（prio3） | ntfy には行かない（High 未満） |
-| 本線黒画面 / HLS 凍結 | ③ 固有トリガ（prio4） | slate 除外条件付き（2026-08-22 誤発報の教訓） |
+| 送出ノードのホスト死活 | ③ Zabbix agent（prio3） | プッシュ通知には行かない（High 未満） |
+| 本線黒画面 / HLS 凍結 | ③ 固有トリガ（prio4） | slate 除外条件付き（正常なスレートを黒と誤判定させないため） |
 | **YouTube 枝の単独死 / ingestion starved** | **無し** | §盲点 1 |
 | feed 断（agent → ReportInterrupt） | △ DB の notification 行のみ | webhook 未設定で外部通知ゼロ（§盲点 2） |
-| Wazuh agent 切断 | ③ Zabbix トリガ（2026-08-11 の無検知事件の再発防止。2026-08-31 に実発火実績） | |
+| セキュリティエージェントの切断 | ③ Zabbix トリガ | |
 
-### 既知の盲点（重大度順・2026-09-02 時点）
+### 既知の盲点（重大度順）
 
 1. **YouTube 出力の単独死・ingestion starved が全監視の空白**（high）。
    encoder の ffmpeg tee は YouTube 枝に `onfail=ignore` + fifo drop を指定しており
@@ -346,37 +346,37 @@ unit ログを Grafana から追える（放送の実検知は③が独立経路
    liveStream health（noData/ingestionStarved）のポーリングは存在しない
    （`youtube/api.py` にコメント言及のみ）。本番運用スコープが「YouTube 配信のみ」で
    ある以上、主力配信面の停止に気づく自動経路が視聴者の指摘以外に無い。
-   **2026-09-01〜02 に実発生**（[youtube.md](youtube.md) §本番 SaaS 実体の現況）。
+   **実際に発生した事例がある**（[youtube.md](youtube.md) §本番運用で踏んだ SaaS 側の実況）。
    候補: server 側で放送中のみ liveStreams.list の healthStatus を beat ポーリング
    （quota 消費あり）、または送出ノード側で tee 枝統計を Zabbix item 化（方式はユーザ判断）。
-2. **`ICSTV_NOTIFY_WEBHOOK_URL は 2026-09-02 に投入済み (Alertmanager と同一 Discord チャンネル流用)。
-   上記「server: agent_status と通知基盤」の実装は配備済みだが、本番の
-   icstv-config / icstv-secret のどちらにもこのキーが無く、feed_lost 等の CRIT は
-   DB の notification 行に残るだけで誰にも届かない。設計・実装・配備まで済んで
-   **最後の 1 行（URL の sealed secret 追加）だけが欠けている**。
+2. **`ICSTV_NOTIFY_WEBHOOK_URL` が未設定だと CRIT が外へ出ない**（high）。
+   「server: agent_status と通知基盤」の実装が配備済みでも、配備側の設定
+   （config / secret）にこのキーが無ければ、feed_lost 等の CRIT は DB の
+   notification 行に残るだけで誰にも届かない。設計・実装・配備まで済んでいても
+   **最後の 1 行（webhook URL の投入）が欠けるだけで検知は無音になる**。
 3. icstv ns CronJob の沈黙検知が image-pin-check（pin 起因）限定（med）。
    `kube_cronjob_status_last_successful_time` 型の「最後に成功してから X 時間」ルールは
-   ns `backups|gitea|longhorn-system` 限定で icstv には無い。同型ルールの新設が候補。
-4. 公開面（tv.\*/studio.\*/ops.\*）の外形監視ゼロ（med）。Zabbix web scenario は
-   circle-ics の 2 本のみ。lan-reachability の probe 対象にも icstv 系は無い。
+   一部の ns に限って置かれており icstv には無い。同型ルールの新設が候補。
+4. 公開面（tv.\*/studio.\*/ops.\*）の外形監視ゼロ（med）。監視基盤の web シナリオにも
+   疎通 probe の対象にも icstv 系は入っていない。
 5. 本体 DB の論理バックアップとその成否監視が既存の傘の外（med）。
 6. フィラー滞留・EPG 乖離・正規化/QC 滞留など**業務レベル異常**は無検知（low）。
    resolver バグの再発は現状ログを人が見ない限り気づけない。
 7. celery beat / worker の内部停止（pod Running のままスケジュール発行停止）は
    KubePodNotReady 頼み（low）。transition worker 停止は朝枠無配信の再発形。
    icstv ns に ServiceMonitor/PodMonitor は 0 件。
-8. 送出ノードの promtail のメタ監視なし（low。k8s 内 PromtailDown ルールは DaemonSet のみが
-   対象）。死ぬと watchdog/agent ログの Loki 可視性が黙って失われる（放送検知は③が
+8. 送出ノードのログ転送エージェントのメタ監視なし（low。k8s 内のログ転送の死活ルールは
+   DaemonSet のみが対象）。死ぬと watchdog/agent ログの可視性が黙って失われる（放送検知は③が
    独立経路なので実害は限定的）。
 
 ### 運用注記
 
-- Zabbix 上の送出ノードの Linux 汎用トリガ **High CPU / High swap / Load average の
-  3 本は無効化されている**（送出機は高負荷常態のための意図的無効化とみられるが、
-  当時の記録は見当たらない — 恒久とするか再有効化するかは未決）。
-- Zabbix problem の ACK 運用は回っていない（2026-08-31 発生の Wazuh 切断 problem が
-  2 日超未 ACK のまま、の実例）。
-- メタ監視: LokiDown/LokiNotIngesting=critical、PromtailDown（k8s 内のみ）、
+- Linux 汎用トリガ **High CPU / High swap / Load average** は送出ノードでは
+  誤発報しやすい（送出機は高負荷が常態）。無効化するか送出向けに校正するかを決め、
+  **その理由を必ず記録に残す**こと。残さないと、後から恒久措置か暫定かを判別できない。
+- 監視基盤の problem は ACK 運用を決めておかないと回らない（重大度の低い切断 problem が
+  数日未 ACK のまま滞留する、という形で現れる）。
+- メタ監視: ログ基盤の停止・取り込み停止=critical、ログ転送の死活（k8s 内のみ）、
   Zabbix「出力監視の値を取得できない」prio2、image-pin-check は検査不能時に
   自 Job を fail させて①経由で表面化する。
 
@@ -499,31 +499,29 @@ def extend_program(program_id, delta_ms):
 - **Phase O-C（延長/巻き）**：extend/shorten サービス＋運用画面・編成タイムラインのボタン、
   scheduler.md 論点の解消反映。
 
-## 分離サブシステム seam トークンの投入（運用・2026-09-02 追記）
+## 分離サブシステム seam トークンの投入（運用）
 
 別リポの各サブシステムと ICS-TV 本体は `X-Internal-Token` 共有秘密の内部 API（seam）で連携する。
 トークンは settings 既定 `""` の **fail-closed**（未設定なら該当 `/internal/*` は常に 401）。
-本番投入状況（2026-09-02 実測）:
+投入が要るトークン（当該サブシステムを使うなら必須）:
 
-| env | 用途 | 本番投入 |
+| env | 用途 | 投入 |
 |---|---|---|
-| `WEATHER_IMPORT_TOKEN` | icstv-weather → `/internal/weather-import` | 済 |
-| `EARTHQUAKE_FIRE_TOKEN` | icstv-earthquake → `/internal/breaking-telop` | 済 |
-| `DELIVERY_REGISTER_TOKEN` | icstv-delivery ⇄ ICS-TV（`/internal/delivery-asset`・`/delivery-refs`・読み seam 双方向） | **済**（2026-09-02 投入・seam 稼働） |
-| `BACKOFFICE_READ_TOKEN` | icstv-backoffice → `/internal/backoffice/*`（read 集計） | **済**（2026-09-02 投入） |
+| `WEATHER_IMPORT_TOKEN` | icstv-weather → `/internal/weather-import` | 要 |
+| `EARTHQUAKE_FIRE_TOKEN` | icstv-earthquake → `/internal/breaking-telop` | 要 |
+| `DELIVERY_REGISTER_TOKEN` | icstv-delivery ⇄ ICS-TV（`/internal/delivery-asset`・`/delivery-refs`・読み seam 双方向） | 要 |
+| `BACKOFFICE_READ_TOKEN` | icstv-backoffice → `/internal/backoffice/*`（read 集計） | 要 |
 
-投入/ローテーション手順（両トークンとも 2026-09-02 に下記手順で投入済み）:
+投入/ローテーション手順:
 
 1. **生成**: `openssl rand -hex 32`。高エントロピー必須（内部エンドポイントにはレート制限が無い）。
-2. **封緘**: 既存 22+ キーの値に触れず新キーだけ追加するなら `kubeseal --raw` が最安全:
-   `printf '%s' "$TOKEN" | kubeseal --raw --cert <(kubeseal --fetch-cert --controller-name sealed-secrets --controller-namespace kube-system) --namespace icstv --name icstv-secret`
-   の出力を `deploy/k8s/overlays/production/secrets/icstv-secret.sealed.yaml` の
-   `spec.encryptedData` へ追記 → 通常フロー（PR → dev → main）で ArgoCD が Secret を更新する
-   （2026-09-02 の投入はこの方式）。`scripts/seal-secrets.sh` での全量再封緘でもよい
-   （両キーとも required 化済み。`~/.env` に値が無いと止まる — 値は稼働 Secret から取り出せる。
-   スクリプト冒頭の取り出しコマンド参照）。
-3. **サブシステム側**: 複製投入は**不要**。icstv-delivery / icstv-backoffice の Deployment は
-   同じ `icstv-secret` の同キーを `secretKeyRef` で参照している（env 名だけ
+2. **投入**: 導入者の配備基盤側（このリポジトリの範囲外）の Secret へ、既存キーの値に触れず
+   新しいキーだけを追加する。反映は通常フロー（PR → dev → main）に乗せ、配備基盤の同期に
+   任せる。全キーを作り直す方式を採る場合は、生成されるキー集合が稼働中の Secret の全キーを
+   カバーしているかを `server/.env.example` と突き合わせること（欠けたキーの seam は
+   fail-closed で 401 のまま黙って落ちる）。
+3. **サブシステム側**: 複製投入は**不要**。icstv-delivery / icstv-backoffice の Deployment には
+   同じ Secret の同キーを `secretKeyRef` で参照させればよい（env 名だけ
    `ICSTV_DELIVERY_TOKEN` / `ICSTV_BACKOFFICE_TOKEN` に変わる）。Secret 更新後に
    icstv-web / icstv-delivery / icstv-backoffice を rollout restart するだけでよい。
 4. **疎通確認**: `icstv.security` ログの `internal.token` fail が止まること・backoffice の集計
@@ -531,8 +529,7 @@ def extend_program(program_id, delta_ms):
    出ること。
    （注記: 上記のうち **rights と番組予算 (budget) は追加提供側**で、このツリーの `openapi.json` に
    `/api/v1/internal/backoffice/rights` は無く、`budget` は `rows` が常に空、`picker` が返すのは
-   `series` だけで `deliveries` は常に空である。**この 2 つの確認項目はこのツリーでは通らない。**
-   当時の投入記録としてそのまま残す。）
+   `series` だけで `deliveries` は常に空である。**この 2 つの確認項目はこのツリーでは通らない。**）
 
 ## 未確定・論点
 
@@ -552,72 +549,73 @@ def extend_program(program_id, delta_ms):
 - 終了直前ガード（60 秒）を超えてレースが発生した場合の回復経路
   （interrupt 付き cut_live の即時 INSERT による再テイク）。
 
-## リリース昇格 runbook (Harbor / CI)
+## リリース昇格 runbook (コンテナレジストリ / CI・開発側の記述)
 
-本節は上記 #7 (運行・監視) の設計とは別の話題で、**dev → main 昇格〜本番 pin bump** の
-実務手順と落とし穴を記録する。ブランチ運用そのものの正本は
-`CONTRIBUTING.md`（「ブランチ運用」「Harbor retention」節）。
-ここでは CI/Harbor 側の判定基準を扱う。
+> 注記: 本節は**導入者が自分の配備基盤とコンテナレジストリを運用する場合**の
+> 実務記録で、このツリーの CI には含まれない (このツリーはイメージを push しない)。
 
-### Harbor の合格判定は「タグの存在」だけでは不十分
+本節は上記 #7 (運行・監視) の設計とは別の話題で、**開発側の dev → main 昇格〜本番 pin bump** の
+実務手順と落とし穴を記録する (このツリーの `CONTRIBUTING.md` のブランチ運用は main 単一)。
+レジストリの保持ポリシーの一般論は `CONTRIBUTING.md`「レジストリの保持ポリシー」節を参照。
+ここでは開発側の CI とコンテナレジストリ側の判定基準を扱う。
 
-過去に、中断された別の昇格が先に同じ `vX.Y.Z` タグと Harbor イメージを作っていたため、
-「Harbor にタグが在るか」だけを確認して合格と判定し、**修正を含まない古いイメージが
+### レジストリ側の合格判定は「タグの存在」だけでは不十分
+
+過去に、中断された別の昇格が先に同じ `vX.Y.Z` タグとイメージを作っていたため、
+「レジストリにタグが在るか」だけを確認して合格と判定し、**修正を含まない古いイメージが
 本番に出た**事故がある。
 
 正しい判定は、**`vX.Y.Z` タグと、昇格させたい commit の `sha7` タグの両方**が同一 digest で
-Harbor に存在することを確認すること (`crane digest <harbor-registry>/icstv/server:vX.Y.Z`
-と `:<sha7>` が同じ digest を返すか、または Harbor API
-`GET /api/v2.0/projects/icstv/repositories/server/artifacts` で確認する)。
+レジストリに存在することを確認すること (`crane digest <registry>/<project>/server:vX.Y.Z`
+と `:<sha7>` が同じ digest を返すか、レジストリの API で当該 repository の artifact 一覧を
+引いて確認する)。
 
 ### 同一タグを打ち直しても再ビルドは走る (ただし遅れることがある)
 
-タグの re-push (`git tag -f` → force push) は **再ビルドを止めない**。
-`.gitea/workflows/ci.yaml` の `build-push` の concurrency group は ref 単位
-(`build-push-${{ github.ref }}`) なので、タグ push と `dev` push の run が互いを横取りする
-事故は構造的に解消済み。残るのは runner capacity=1 によるキュー待ちのみで、**タグ push から
-1 時間近く遅れて成功することがある**(「Gitea の run 一覧に `build-push` の行が無い」だけでは
-横取りと断定できない)。焦って同じタグを二重に打つと、かえって上記の「同 digest 判定」を
-壊す。
+タグの re-push (`git tag -f` → force push) は **再ビルドを止めない**。開発側の CI の
+`build-push` の concurrency group は ref 単位 (`build-push-${{ github.ref }}`) なので、
+タグ push と `dev` push の run が互いを横取りする事故は構造的に解消済み。残るのは
+runner capacity=1 によるキュー待ちのみで、**タグ push から 1 時間近く遅れて成功することが
+ある**(「開発側の CI の run 一覧に `build-push` の行が無い」だけでは横取りと断定できない)。
+焦って同じタグを二重に打つと、かえって上記の「同 digest 判定」を壊す。
 
-**判定は Harbor の最終状態 (v タグ + sha7 タグの同居) で行い、慌てず CI の完走を待つこと。**
+**判定はレジストリの最終状態 (v タグ + sha7 タグの同居) で行い、慌てず CI の完走を待つこと。**
 
 ### imagePullPolicy の既定は IfNotPresent
 
-`deploy/k8s/base/*.yaml` は `imagePullPolicy` を明示していない (既定 `IfNotPresent`。
-`overlays/dev` のみ全 Deployment を `Always` へパッチしている)。したがって:
+配備基盤側のマニフェスト (このリポジトリの範囲外) が `imagePullPolicy` を明示しなければ
+既定は `IfNotPresent` になる (検証環境だけ `Always` へ寄せる構成が多い)。したがって:
 
-- 本番ノードが一度 pull した digest は、**同じタグ名で Harbor 側が指す digest が変わっても
+- 本番ノードが一度 pull した digest は、**同じタグ名でレジストリ側が指す digest が変わっても
   再取得しない**。上記の「旧イメージで合格判定してしまった」事故が実害化したのはこのため。
 - 誤った pin で一度 rollout してしまった場合、同じタグを直しても本番ノードは更新されない
   ことがある。**新しい pin タグを切る (または digest pin にする)** ことで確実に更新する。
 
-### Harbor retention との関係
+### レジストリの保持ポリシーとの関係
 
-pin に使うタグは必ず `v*` 形式にすること。`v*` タグを持たない repository は retention
+pin に使うタグは必ず `v*` 形式にすること。`v*` タグを持たない repository は保持
 ルールで保護されない (実際に事故が起きている)。理由と確認手順は
-`CONTRIBUTING.md` の「Harbor retention」節を参照。
+`CONTRIBUTING.md` の「レジストリの保持ポリシー」節を参照。
 
-### CI 共通ワークフロー（`gitea/ci-workflows@v1`・moving tag。2026-09-02 実査）
+### CI 共通ワークフロー（`@v1` moving tag への委譲）
 
 サブシステム 6 リポ（backoffice / delivery / earthquake / ranking / slidecast / weather）の
-CI は共通ワークフロー `gitea/ci-workflows` の `node-ci.yaml` / `docker-build-push.yaml` へ
-**`@v1`（moving tag）** で委譲している（ほかに circle-ics-site と dealmatch も参照＝
-計 8 リポ 15 ジョブ。`@main` 参照はゼロ）。タグ運用の共通規約:
+CI は、開発側の共通ワークフローリポジトリの `node-ci.yaml` /
+`docker-build-push.yaml` へ **`@v1`（moving tag）** で委譲している。タグ運用の共通規約:
 dev push → `:sha7` + `:dev`、main push → `:sha7` のみ、tag `v*` → `:sha7` + `:vX`
 （本番は pin tag 駆動）。
 
-- **icstv 本体は委譲していない**。`.gitea/workflows/ci.yaml` 内に同一の build + cosign 署名
-  ロジックを inline 実装しており（backstage / crossing / ics-corp-lms も同様の inline 複製）、
-  **cosign バージョンや CA fingerprint を変えるときは ci-workflows と icstv ci.yaml の両方を
-  変える**こと。
+- **icstv 本体は委譲していない**。開発側の CI に同一の build + イメージ署名のロジックを
+  inline 実装しているため、**署名ツールのバージョンや CA fingerprint を変えるときは
+  共通ワークフローと本体側の CI 定義の両方を変える**こと。
 - **v1 は moving tag**。進め忘れると「main に修正がマージ済みなのに利用側 CI に効かない」
-  — 2026-08-23 に実発生（cosign v2 固定が main 入り済みなのに v1 が古いコミットを指した
-  ままで、earthquake v0.1.16 が Kyverno の `no signatures found` で停止。翌日 v1 を main へ
-  進めて解消）。**「マージ済みか」でなく「v1 がどこを指すか」を確認する**。
-  逆に v1 を進めれば全 8 リポの CI に無審査・即時に波及する
-  （2026-09-02 時点でタグ保護・ブランチ保護は無し）。
-- 進め方・保護・参照リポ一覧の**正本は ci-workflows リポの README**（本書は要約のみ）。
-  cosign は v2.6.5 固定（Kyverno 1.18.1 が v3 の referrer/bundle 形式を読めないため。
-  legacy `sha256-<digest>.sig` タグを書く）。署名検証の一次情報はルート `README.md` の
-  「イメージ署名」節と infrastructure-docs の image-signing ページ。
+  — 実際に、署名ツールのバージョン固定が main 入り済みなのに v1 が古いコミットを指したままで、
+  サブシステムのリリースが署名検証の `no signatures found` で止まったことがある。
+  **「マージ済みか」でなく「v1 がどこを指すか」を確認する**。
+  逆に v1 を進めれば参照している全リポの CI に無審査・即時に波及するので、
+  共通ワークフロー側にタグ保護・ブランチ保護を置くかどうかは先に決めておく。
+- 進め方・保護・参照リポ一覧の**正本は開発側の共通ワークフローリポジトリの
+  README**（本書は要約のみ）。**イメージ署名ツールのバージョンは、検証側のポリシーエンジンが
+  読める出力形式に合わせて固定する**（新しい系列が書く referrer/bundle 形式を検証側が読めず、
+  legacy の `sha256-<digest>.sig` タグ形式でなければ通らないことがある）。署名検証の一次情報は
+  ルート `README.md` の「イメージ署名」節。

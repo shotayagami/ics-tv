@@ -47,6 +47,8 @@ ROOT_FILES = frozenset(
         "mkdocs.yml",
         "LICENSE",
         "SECURITY.md",
+        "NOTICE",
+        ".gitleaksignore",
     }
 )
 EXCLUDED_DOCS = (

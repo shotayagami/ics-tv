@@ -3,10 +3,10 @@
 """DB at-rest 暗号化フィールド (#3 / datamodel.md「シークレット保管」の決定)。
 
 決定: ランタイム生成の機密 (channel.agent_token は ch ごと生成、YouTube creds は OAuth フロー生成)
-は deploy 時の SealedSecret では管理できないため、アプリ層 Fernet 対称暗号で DB at-rest 暗号化する。
-暗号鍵は settings.ICSTV_FIELD_ENCRYPTION_KEY (env → sealed icstv-secret 由来) に置き、DB とは別の
-信頼境界に保つ (DB ダンプ単体では機密が漏れない)。外部シークレットストア (Vault 等) は homelab 規模
-では過剰なため採らない。
+は deploy 時に配る Secret では管理できないため、アプリ層 Fernet 対称暗号で DB at-rest 暗号化する。
+暗号鍵は settings.ICSTV_FIELD_ENCRYPTION_KEY (env 経由で配備基盤の Secret から渡す) に置き、DB とは
+別の信頼境界に保つ (DB ダンプ単体では機密が漏れない)。外部シークレットストア (Vault 等) は
+小〜中規模の自前運用では過剰なため採らない。
 
 挙動:
 - 保存時: 鍵があれば Fernet 暗号化し marker を前置 (enc:v1:)。鍵が無い (dev) なら平文のまま。

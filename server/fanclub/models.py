@@ -145,9 +145,10 @@ class CreatorTier(models.Model):
     price_minor = models.PositiveIntegerField(null=True, blank=True)  # null=無料 (level0はNULL必須)
     # 通貨 (ISO 4217 小文字、Stripe の表記に合わせる)。**金額カラムは minor unit**
     # (JPY は zero-decimal なので 1000 = ¥1,000、USD は 2-decimal なので 1000 = $10.00)。
-    # 通貨をカラム名に埋めていた `*_jpy` から移した理由は docs/security-review.md を参照。
-    # 現状は jpy 固定 (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
-    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ。
+    # 金額カラムをかつて `*_jpy` の名前にしていたのをこの形へ移した。現状は jpy 固定
+    # (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
+    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ
+    # (`*_jpy` の名前のままでは、この前提が変わったときにデータ移行が要る)。
     # 会員の居住国から通貨は逆算できない (Stripe の通貨は課金した Price が決めるため)。
     currency = models.CharField(max_length=3, default="jpy")
     is_active = models.BooleanField(default=True)
@@ -312,9 +313,10 @@ class SlotContract(models.Model):
     monthly_fee_minor = models.PositiveIntegerField()
     # 通貨 (ISO 4217 小文字、Stripe の表記に合わせる)。**金額カラムは minor unit**
     # (JPY は zero-decimal なので 1000 = ¥1,000、USD は 2-decimal なので 1000 = $10.00)。
-    # 通貨をカラム名に埋めていた `*_jpy` から移した理由は docs/security-review.md を参照。
-    # 現状は jpy 固定 (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
-    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ。
+    # 金額カラムをかつて `*_jpy` の名前にしていたのをこの形へ移した。現状は jpy 固定
+    # (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
+    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ
+    # (`*_jpy` の名前のままでは、この前提が変わったときにデータ移行が要る)。
     # 会員の居住国から通貨は逆算できない (Stripe の通貨は課金した Price が決めるため)。
     currency = models.CharField(max_length=3, default="jpy")
     starts_on = models.DateField()
@@ -489,9 +491,10 @@ class FcSettlement(models.Model):
     net_amount_minor = models.PositiveIntegerField()
     # 通貨 (ISO 4217 小文字、Stripe の表記に合わせる)。**金額カラムは minor unit**
     # (JPY は zero-decimal なので 1000 = ¥1,000、USD は 2-decimal なので 1000 = $10.00)。
-    # 通貨をカラム名に埋めていた `*_jpy` から移した理由は docs/security-review.md を参照。
-    # 現状は jpy 固定 (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
-    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ。
+    # 金額カラムをかつて `*_jpy` の名前にしていたのをこの形へ移した。現状は jpy 固定
+    # (会員登録が国内前提、webhook も jpy 以外を fail-closed で拒否) だが、
+    # **台帳は「実際に何で決済されたか」を持たなければならない**ため列として持つ
+    # (`*_jpy` の名前のままでは、この前提が変わったときにデータ移行が要る)。
     # 会員の居住国から通貨は逆算できない (Stripe の通貨は課金した Price が決めるため)。
     currency = models.CharField(max_length=3, default="jpy")
     period_start = models.DateTimeField(null=True, blank=True)

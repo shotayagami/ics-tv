@@ -13,7 +13,7 @@ studio（編成・制作コンソール）に、放送運用とは毛色の違�
 - 参照は重い集計（ロールアップ・期間集計）だが更新頻度は低い、
 - 一人運用では「数字を見る」用途が中心で、編成 UI と混ざると探しにくい。
 
-そこで **経営ダッシュボード = 別コンソール（別ホスト `backoffice.*`・別リポ）**に切り出す。weather/earthquake/delivery と同じ「別リポ Node/TS・独自 admin・k8s/ArgoCD・harbor image・内部 seam」方針。ただし請求や予算は**ICS-TV の編成/契約データから集計**するため、最初は **ICS-TV を真実とする読み取り集約**にとどめ、書き所有権の移管は段階的に行う。
+そこで **経営ダッシュボード = 別コンソール（別ホスト `backoffice.*`・別リポ）**に切り出す。weather/earthquake/delivery と同じ「別リポ Node/TS・独自 admin・k8s・コンテナレジストリのイメージ・内部 seam」方針。ただし請求や予算は**ICS-TV の編成/契約データから集計**するため、最初は **ICS-TV を真実とする読み取り集約**にとどめ、書き所有権の移管は段階的に行う。
 
 ### 1.1 delivery 分離との違い
 | | ICS-DELIVERY (Phase 2) | ICS-BACKOFFICE (Phase 3) |
@@ -43,11 +43,11 @@ studio（編成・制作コンソール）に、放送運用とは毛色の違�
 ## 3. 目標アーキテクチャ
 
 ```
-┌─ icstv-backoffice (別リポ・Node/TS・専用 Postgres・harbor icstv/backoffice) ─────┐
+┌─ icstv-backoffice (別リポ・Node/TS・専用 Postgres・コンテナレジストリ) ──────────┐
 │  backoffice.* ホスト: staff(Google OAuth) 経営ダッシュボード                      │
 │   経理請求 / 番組予算 / 権利(JASRAC報告) / 会員分析 の集約ビュー + レポート(CSV)    │
 │  read-first: ICS-TV read seam を叩いて集計・表示（自前 DB は write 移管時に増やす）│
-│  k8s: Deployment(web)+Ingress(backoffice.*)+(後で worker)+ArgoCD+harbor          │
+│  k8s: Deployment(web)+Ingress(backoffice.*)+(後で worker)                        │
 └──────────────────────────┬───────────────────────────────────────────────────────┘
                            │ 内部 read API（X-Internal-Token・BACKOFFICE_READ_TOKEN）
                            ▼
@@ -91,18 +91,18 @@ weather/earthquake/delivery と同型。`X-Internal-Token`（`BACKOFFICE_READ_TO
 - 返却は集計済み JSON（行スコープ無し＝staff のみが叩く前提・トークンで保護）。
 - write 移管フェーズで、該当ドメインの書き API を backoffice 側へ新設し、ICS-TV read seam は撤去 or 縮小する。
 
-> **運用状態（2026-09-02 更新）**: `BACKOFFICE_READ_TOKEN` は **2026-09-02 に本番投入済み**
-> （SealedSecret 24 キー化）。`/internal/backoffice/*` の常時 401 と、backoffice コンソール集計
-> 4 ページ（billing / budget / rights / member-stats）の取得失敗表示は解消。ローテーション手順は
+> **運用状態**: `BACKOFFICE_READ_TOKEN` を導入者の配備基盤側の Secret として配らないと、
+> `/internal/backoffice/*` は常時 401 になり、backoffice コンソール集計 4 ページ
+> （billing / budget / rights / member-stats）は取得失敗表示になる。ローテーション手順は
 > [operations.md](operations.md)「分離サブシステム seam トークン」参照。
-> なお、上記のうち rights ページ向けの `/internal/backoffice/rights` は**追加提供側**の機能で、このツリーの `openapi.json` にこの path は無い（当時の運用記録としてそのまま残す）。
+> なお、上記のうち rights ページ向けの `/internal/backoffice/rights` は**追加提供側**の機能で、このツリーの `openapi.json` にこの path は無い。
 
 ## 6. 技術スタック（icstv-delivery に倣う）
 
 - **Node20 / TypeScript / tsx**。Web = Hono。
 - **Postgres + Drizzle**（write 移管フェーズで使用。read-first 期はほぼ未使用・キャッシュのみ）。
 - **Google OAuth**（staff サインイン。delivery の auth コア＝oauth/session/bind/validate を流用。招待ではなく社内 staff allowlist で十分）。
-- **k8s**: Deployment(web) + Ingress(`backoffice.*`) + ArgoCD app `icstv-backoffice` + harbor `icstv/backoffice`。worker は集計バッチが要るフェーズで追加。
+- **k8s**: Deployment(web) + Ingress(`backoffice.*`)。イメージはコンテナレジストリから配備する。worker は集計バッチが要るフェーズで追加。
 
 ## 7. サブフェーズ分解（独立 PR / 各々検証）
 
@@ -112,7 +112,7 @@ weather/earthquake/delivery と同型。`X-Internal-Token`（`BACKOFFICE_READ_TO
 |---|---|---|---|
 | **3.0** | 本設計ドキュメント（青写真・seam 契約・read-first 戦略） | ICS-TV docs | ← 今ここ |
 | **3.1** | ICS-TV read seam（billing/budget/rights/member-stats の GET 集約・token） | ICS-TV | 中 |
-| **3.2** | `icstv-backoffice` リポ scaffold（Node/TS・Hono・k8s/ArgoCD・harbor・最小 web + seam client） | 新リポ | 中 |
+| **3.2** | `icstv-backoffice` リポ scaffold（Node/TS・Hono・k8s・コンテナレジストリ・最小 web + seam client） | 新リポ | 中 |
 | **3.3** | Google OAuth（staff）+ 共通シェル（ダッシュボード骨格） | 新リポ | 中 |
 | **3.4** | 経理請求ダッシュボード（read・期間別請求/入金） | 新リポ | 中 |
 | **3.5** | 番組予算ダッシュボード（read・予算 vs 実費ロールアップ） | 新リポ | 中 |
@@ -143,7 +143,7 @@ weather/earthquake/delivery と同型。`X-Internal-Token`（`BACKOFFICE_READ_TO
 
 - **3.8a ✅ procurement→delivery FK 切離し（ICS-TV）**: `procurement.DeliveryCost` の `delivery`(FK PROTECT)/`vendor`(FK) を **id 参照 + 名称スナップショット**（`delivery_id`/`delivery_title`/`vendor_id`/`vendor_name`）へ。migration 0002 は名称列追加→FK 生存中バックフィル→`AlterField(db_constraint=False)` で FK 制約のみ DROP→`SeparateDatabaseAndState` で state だけ FK→IntegerField（データ無損失）。`series` は本体残留の scheduling ゆえ FK 据置。これで delivery 本体撤去（§7 の 3.9 / delivery-service-split §11 の 2.10 ブロッカー）の **DB レベル結合が解消**。
 - **3.8b ✅ backoffice 側の procurement 所有**: 専用 Postgres + Drizzle で `program_budget`/`delivery_cost`/`procurement_payment` を所有（別DBゆえ Series/Delivery/ProductionCompany/User は id 参照 + 名称スナップショット）。ロールアップは純関数（vitest）+ 薄い drizzle DB アクセス。write コンソール `/procurement` + ETL（ICS-TV→backoffice・id 保存・冪等）。**選択肢（Series/納品）の供給** は当面 **2 リポ構成**: ICS-TV に `GET /internal/backoffice/picker`（Series 一覧 + 直近納品を series/支払先 解決済で返す）を新設し backoffice が叩く。
-- **picker の供給元（read 境界の現実解）**: §8 は「delivery 参照は DELIVERY 読み seam」を想定したが、cutover 前は納品の真実が ICS-TV にある。よって picker の deliveries は当面 ICS-TV 由来とし、cutover（3.9）後に ICS-DELIVERY 読み seam へ差し替える（3 リポ化を cutover まで遅延）。→ **差し替え済み（cutover 完了）**: 現行は `server/integrations/delivery_read.py` が ICS-DELIVERY の `GET /api/internal/deliveries`・`/vendors` を読む（`ICS_DELIVERY_READ_URL` は本番 configmap で設定済み・旧 delivery.models フォールバックは Stage G/H で撤去）。`DELIVERY_REGISTER_TOKEN` は 2026-09-02 投入済みで read seam は稼働（§5 の運用状態注記参照）。
+- **picker の供給元（read 境界の現実解）**: §8 は「delivery 参照は DELIVERY 読み seam」を想定したが、cutover 前は納品の真実が ICS-TV にある。よって picker の deliveries は当面 ICS-TV 由来とし、cutover（3.9）後に ICS-DELIVERY 読み seam へ差し替える（3 リポ化を cutover まで遅延）。→ **差し替え済み（cutover 完了）**: 現行は `server/integrations/delivery_read.py` が ICS-DELIVERY の `GET /api/internal/deliveries`・`/vendors` を読む（`ICS_DELIVERY_READ_URL` は本番 configmap で設定済み・旧 delivery.models フォールバックは Stage G/H で撤去）。`DELIVERY_REGISTER_TOKEN` の配布は導入者側で、配って初めて read seam が稼働する（§5 の運用状態注記参照）。
 
 > 注記: §9 は 2026-06-26 時点の実装ログ。その後**番組予算（procurement）は追加提供側へ移った**ため、このツリーに `ProgramBudget` / `DeliveryCost` / `procurement_payment` のモデルも書き API も無い（migration 0004 で DROP 済・`server/procurement` はモデルを持たない殻）。backoffice 側の `/procurement` コンソール・ETL・picker の納品供給元（`server/integrations/delivery_read.py`）も同様にこのツリーには含まれず、`GET /api/v1/internal/backoffice/picker` は残るが、返すのは本体の `scheduling.Series` だけで `deliveries` は常に空である。記録は当時の実装ログとしてそのまま残す。
 

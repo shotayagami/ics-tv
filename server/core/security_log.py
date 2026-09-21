@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """セキュリティイベントの構造化ログ (#sec §3)。
 
-認証・認可・課金・内部連携の重要イベントを icstv.security ロガーへ JSON 1 行で出す。Loki は
-{logger="icstv.security"} | json で msg 内フィールド (event/outcome/ip/...) を抽出し、総当たり・
+認証・認可・課金・内部連携の重要イベントを icstv.security ロガーへ JSON 1 行で出す。ログ基盤側では
+{logger="icstv.security"} | json のように msg 内フィールド (event/outcome/ip/...) を抽出し、総当たり・
 偽 webhook・内部トークン失敗をアラートできる (現状これらは無ログで、攻撃に気付けなかった)。
 
 PII は載せない: メールは HMAC(SECRET_KEY) でハッシュ (core.request_meta.hash_email)、パスワード/
@@ -54,14 +54,14 @@ def emit_audit(event: str, *, actor=None, **fields) -> None:
     security ログと同じ経路に出す。点検の結論 3 点目が「認証・**課金**・内部トークンの
     security ログ」をひとまとめにしているため、別ロガーを立てずに名前空間で分ける
     (`billing.*`)。番組予算 (procurement) は追加提供側へ移したので、このツリーが出すのは
-    `billing.*` だけである。Loki からは
+    `billing.*` だけである。ログ基盤からは
     `{logger="icstv.security"} | json | msg_event=~\\`billing\\..*\\`` で抽出できる。
 
     actor は操作した User。**None を許すのは意図的**で、Celery / 管理コマンド等の
     人手を介さない経路が実在する。その場合は actor="system" として記録し、
     「記録し忘れ」と「そもそも人がいない」を後から区別できるようにする。
 
-    なお**この監査ログは長期保存の手段ではない** (Loki の retention は 7 日)。
+    なお**この監査ログは長期保存の手段ではない** (ログ基盤の retention に依存する)。
     会計帳簿として要る 10 年の証跡は各モデルの `*_by` / `*_at` 列が持つ。
     こちらは「前後値を含む操作の流れ」を短期間追うためのもので、両者は役割が違う。
     """

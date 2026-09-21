@@ -1,4 +1,4 @@
-# ICS-TV 送出ノード (自宅 Proxmox LXC) MediaMTX 設定 (生番組 SRT/RTMP ローカル終端)。
+# ICS-TV 送出ノード (Proxmox の LXC コンテナ) MediaMTX 設定 (生番組 SRT/RTMP ローカル終端)。
 # docs/overview.md §3.5 / 決定#21: 現場 OBS → Cloudflare One(cloudflared private network + WARP)
 # → 送出ノードの :8890(SRT) / :1935(RTMP) でローカル終端 → CasparCG が FFmpeg producer で
 # 127.0.0.1:1935 を参照。app/key は control plane の LiveSource (server/core/models.py:
@@ -31,7 +31,7 @@ rtmpAddress: :1935
 api: yes
 apiAddress: 127.0.0.1:9997
 
-# --- HLS 出力 (本線オンエアの公開プレイヤー用; tv.yagamin.net/hls 経由で配信) ---
+# --- HLS 出力 (本線オンエアの公開プレイヤー用; tv.example.com/hls 経由で配信) ---
 # encoder が tee で air/ch1 を publish → ここで HLS 化 → k8s ingress 逆プロキシ → Cloudflare キャッシュ。
 # 汎用 CDN キャッシュとの相性のため LL-HLS ではなく古典 mpegts(.ts) variant を採用 (m3u8 は CF で no-cache)。
 hls: yes

@@ -1,0 +1,8 @@
+# 実在の資格情報ではない合成テスト定数・オブジェクトストレージのキー名。理由は
+# docs/security-review.md 相当の記述の代わりに、ここへ直接書く (配布物に含まれる唯一の説明)。
+# - deploy/cloudflare-worker-hls/test.mjs: 署名検証の単体テストが使う固定長 16 進数の
+#   ダミー鍵 (detect-secrets 側は行末の pragma で抑止済みだが、gitleaks には pragma が効かない)。
+# - server/core/chimes.py: R2 オブジェクトキー (UUID ベースのファイル名相当) への代入を
+#   generic-api-key ルールが変数名の "key" だけで誤検出したもの。認証情報ではない。
+deploy/cloudflare-worker-hls/test.mjs:generic-api-key:118
+server/core/chimes.py:generic-api-key:78

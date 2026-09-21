@@ -1,20 +1,22 @@
 # 開発・テスト用依存 (本番 image には含めない)
 -r requirements.txt
 # テスト
-pytest>=8.0
-pytest-django>=4.8
-pytest-playwright>=0.5
-playwright>=1.45
-httpx>=0.27
+# 上限を必ず付ける (requirements.txt と同じ規約)。下限のみだと、PR と無関係な上流の
+# メジャーバージョン更新で CI が落ちる (実際の現行版は各行のコメントに残す)。
+pytest>=8.0,<10  # 実測 9.1.1
+pytest-django>=4.8,<5  # 実測 4.14.0
+pytest-playwright>=0.5,<1  # 実測 0.9.0
+playwright>=1.45,<2  # 実測 1.63.0
+httpx>=0.27,<1
 # Channels の WebSocket テスト (channels.testing が daphne を import するため)。テスト専用 (本番は uvicorn)。
-daphne>=4.1
+daphne>=4.1,<5  # 実測 4.2.3
 # 品質ゲート (pre-commit から呼ばれる)
-pre-commit>=4.0
+pre-commit>=4.0,<5  # 実測 4.6.2
 # ruff は pre-commit (.pre-commit-config.yaml rev) と CI で同一バージョンに固定する。
 # 下限のみだと CI が最新へ流れ、pre-commit のピンと format 折返しが食い違って CI が落ちる。
 ruff==0.15.16
-mypy>=1.13
-django-stubs[compatible-mypy]>=5.1
-detect-secrets>=1.5
+mypy>=1.13,<3  # 実測 2.3.1
+django-stubs[compatible-mypy]>=5.1,<7  # 実測 6.1.1
+detect-secrets>=1.5,<2  # 実測 1.5.0
 # 依存の既知脆弱性チェック (#sec I-3)。CI の pip-audit ステップが使う。
-pip-audit>=2.7
+pip-audit>=2.7,<3  # 実測 2.10.1

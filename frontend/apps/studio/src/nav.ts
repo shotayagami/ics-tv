@@ -45,8 +45,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { label: "素材", href: "/medialib", match: ["/cuesheet"] },
       // CM 割付 (契約/請求は経営・権利。§6 決定①-b 分割)
       { label: "CM割付", href: "/sales" },
-      // Remotion 埋め込みプレイヤー + 開発用 npm run studio
-      { label: "動画スタジオ", href: "/video-studio" },
     ],
   },
   {

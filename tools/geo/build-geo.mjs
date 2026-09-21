@@ -109,6 +109,6 @@ const proj = {
 
 const payload = { proj, base, tsunami, eew };
 process.stdout.write(
-  "/* 生成物: tools/geo/build-geo.mjs。出典: 気象庁 予報区等GIS + 国土(政府標準利用規約=CC BY 相当)。手編集不可。 */\n" +
+  "/* 生成物: tools/geo/build-geo.mjs。出典: 気象庁 予報区等GIS (政府標準利用規約=CC BY 相当。帰属は NOTICE)。手編集不可。 */\n" +
     "window.ICSTV_GEO=" + JSON.stringify(payload) + ";\n",
 );

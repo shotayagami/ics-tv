@@ -21,8 +21,8 @@ from playout.models import AgentStatus, PlayoutAction, PlayoutEvent, PlayoutStat
 
 pytestmark = pytest.mark.django_db
 
-PUBLIC = "tv.yagamin.net"
-ADMIN = "studio.yagamin.net"
+PUBLIC = "tv.example.com"
+ADMIN = "studio.example.com"
 _HOSTS = {
     "ALLOWED_HOSTS": ["testserver", PUBLIC, ADMIN],
     "ICSTV_ADMIN_HOSTS": [ADMIN, "testserver"],

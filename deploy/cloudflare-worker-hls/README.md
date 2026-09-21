@@ -1,12 +1,12 @@
 # 本線ライブ HLS のエッジ認証 Worker
 
-`tv.yagamin.net/hls2/*` へのリクエストを Cloudflare 上で検証する Worker。
+`tv.<内部ドメイン>/hls2/*` へのリクエストを Cloudflare 上で検証する Worker。
 背景と選択肢の比較は [docs/site-only-broadcast.md](../../docs/site-only-broadcast.md) §5 リスク#3。
 
 ## なぜ Worker か
 
 本線ライブの実配信経路は Cloudflare Stream ではなく、送出ノードの nginx (ABR ladder) を
-k8s ingress-nginx 経由で出したもの。したがって CF Stream の `requireSignedURLs` は使えない。
+導入者の ingress 経由で出したもの。したがって CF Stream の `requireSignedURLs` は使えない。
 残る選択肢のうち Worker を選んだのは、**HLS 配信の可用性を icstv-web の可用性から切り離せる**ため
 (ingress-nginx の `auth-url` 方式だと、Django が落ちるとライブ視聴も落ちる)。
 
@@ -45,9 +45,9 @@ wrangler secret put HLS_SIGNING_KEY
 wrangler deploy
 ```
 
-Django 側は SealedSecret へ `ICSTV_HLS_SIGNING_KEY` を追加する
-(`scripts/seal-secrets.sh` は `--from-literal` の分しか書かないため、稼働中 Secret から
-差分追加する方式を採ること。手順は [docs/fanclub.md](../../docs/fanclub.md) の SealedSecret 節と同じ)。
+Django 側にも同じ値を `ICSTV_HLS_SIGNING_KEY` として渡す (配備基盤の Secret にキーを 1 つ
+足す形になる。Secret を丸ごと作り直す方式だと既存のキーを取りこぼしやすいので、稼働中の
+Secret へ差分追加する形を採ること)。
 
 ## 段階導入の順序 (24/7 送出を止めないため)
 
@@ -56,12 +56,12 @@ Django 側は SealedSecret へ `ICSTV_HLS_SIGNING_KEY` を追加する
 2. Worker を **`HLS_AUTH_ENFORCE = "false"` のまま** deploy する。素通しのまま
    `x-icstv-hls-auth: ok|invalid` ヘッダだけが付くので、正当な視聴者が invalid にならないことを確認する
    ```bash
-   curl -sI "https://tv.yagamin.net/hls2/ch1/master.m3u8?token=<発行されたtoken>" | grep -i x-icstv
+   curl -sI "https://tv.<内部ドメイン>/hls2/ch1/master.m3u8?token=<発行されたtoken>" | grep -i x-icstv
    ```
 3. 問題が無ければ `HLS_AUTH_ENFORCE = "true"` にして `wrangler deploy`。以降 token 無しは 403
 4. 実際に落ちることを確認する
    ```bash
-   curl -s -o /dev/null -w '%{http_code}\n' https://tv.yagamin.net/hls2/ch1/master.m3u8   # → 403
+   curl -s -o /dev/null -w '%{http_code}\n' https://tv.<内部ドメイン>/hls2/ch1/master.m3u8   # → 403
    ```
 5. 落ち着いたら `ICSTV_HLS_TOKEN_TTL_SEC` を段階的に短くする (既定 3600 秒)
 
@@ -77,7 +77,7 @@ Django 側は SealedSecret へ `ICSTV_HLS_SIGNING_KEY` を追加する
 `curl` だけになる (アプリ/ブラウザは API 由来の token を必ず持つため)。
 
 Cloudflare GraphQL Analytics で集計する。`.env` の `CF_WORKERS_API_TOKEN` に
-**Zone → Analytics → Read** が必要 (2026-07-30 付与済み)。
+**Zone → Analytics → Read** が必要。
 
 ```bash
 source ~/.env
@@ -85,7 +85,7 @@ SINCE=$(date -u -d '6 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
 UNTIL=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 cat > /tmp/q.json <<JSON
-{"query":"query { viewer { zones(filter: {zoneTag: \"$CF_ZONE_ID\"}) { httpRequestsAdaptiveGroups(limit: 100, filter: {datetime_geq: \"$SINCE\", datetime_leq: \"$UNTIL\", clientRequestHTTPHost: \"tv.yagamin.net\", edgeResponseStatus: 403}, orderBy: [datetimeHour_ASC]) { count dimensions { datetimeHour clientRequestPath userAgentBrowser } } } } }"}
+{"query":"query { viewer { zones(filter: {zoneTag: \"$CF_ZONE_ID\"}) { httpRequestsAdaptiveGroups(limit: 100, filter: {datetime_geq: \"$SINCE\", datetime_leq: \"$UNTIL\", clientRequestHTTPHost: \"tv.<内部ドメイン>\", edgeResponseStatus: 403}, orderBy: [datetimeHour_ASC]) { count dimensions { datetimeHour clientRequestPath userAgentBrowser } } } } }"}
 JSON
 
 curl -s -X POST -H "Authorization: Bearer $CF_WORKERS_API_TOKEN" \
@@ -98,9 +98,9 @@ curl -s -X POST -H "Authorization: Bearer $CF_WORKERS_API_TOKEN" \
 
 **注意: リクエスト数が少ない期間の「403 ゼロ」は根拠にならない**。ライブ HLS は視聴者1人あたり
 約2秒ごとにセグメントを取得するため、`/hls2` 全体が数百件しかない期間は「ほぼ誰も見ていない」
-ことを意味する。2026-07-30 の enforce 切替直後13時間は `/hls2` が 172 件 (200 が 95.3%、403 は
-6 件すべて検証用 curl、ブラウザ由来の 403 は 0) で、**強制が動いていることの確認にはなるが、
-実視聴者が弾かれないことの積極的な裏付けにはならなかった**。実視聴が乗る時間帯で再確認すること。
+ことを意味する。enforce 切替直後の閑散な時間帯の観測は、**強制が動いていることの確認には
+なるが、実視聴者が弾かれないことの積極的な裏付けにはならない**。実視聴が乗る時間帯で
+再確認すること。
 
 ## 既知の限界
 

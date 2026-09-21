@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # 公開 CI が使う GitHub Actions はコミット SHA で固定している (サプライチェーン対策)。
+  # Dependabot は SHA 固定のまま新しいバージョンへ差し替える PR を出す (SHA + バージョンの
+  # コメント両方を更新する)。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -3,7 +3,7 @@
 /** 時計フォントの一元定義。
  *
  * ClockPresetsPage / ClockEditorPage / ClockStyleOverride の選択肢、
- * Remotion / React プレビューの font-family、Google Fonts 動的ロードを共用する。
+ * プレビューの font-family、Google Fonts 動的ロードを共用する。
  *
  * 送出側 CasparCG テンプレート
  *   deploy/playout-node/casparcg/template/clock/corner.html の GOOGLE_FONT_MAP

@@ -3,7 +3,7 @@
 """H-1: ログイン throttle が Cookie 非依存 (email+IP・DB) であることの回帰テスト。
 
 旧実装は失敗回数を `request.session` に持っていたため、Cookie を毎回捨てれば無制限に
-総当たり/クレデンシャルスタッフィングできた (docs/security-review.md H-1)。新実装は
+総当たり/クレデンシャルスタッフィングできた (H-1)。新実装は
 AuthThrottle (DB) に email(HMAC)/IP 別で数えるため、新しい Client (=新セッション) でも
 ロックが効く。ここではその核心を「毎回まっさらな Client」で検証する。
 """

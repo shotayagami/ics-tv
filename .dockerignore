@@ -3,7 +3,6 @@
 *
 !server
 !frontend
-!deploy/remotion-studio
 
 # server/ 内の不要物 (旧 server/.dockerignore 相当 + フロント同梱物)
 server/.venv/

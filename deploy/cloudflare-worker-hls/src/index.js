@@ -3,7 +3,7 @@
 /**
  * 本線ライブ HLS のエッジ認証 (#27 / docs/site-only-broadcast.md §5 リスク#3)。
  *
- * tv.yagamin.net/hls2/<slug>/... へのリクエストを Cloudflare 上で受け、URL クエリの ?token=
+ * tv.example.com/hls2/<slug>/... へのリクエストを Cloudflare 上で受け、URL クエリの ?token=
  * (server/core/hls_auth.py が発行する HMAC-SHA256 署名) を検証してからオリジン
  * (k8s ingress-nginx → 送出ノードの nginx ABR ladder) へ流す。
  *

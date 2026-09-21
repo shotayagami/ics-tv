@@ -27,7 +27,7 @@ class _BaseInternalToken(APIKeyHeader):
 
     認証失敗は icstv.security へ token_kind 付きで記録する (#sec §3)。トークン漏洩後の
     オンライン推測やテロップ連打の兆候を、通常 0 件のはずの internal.token fail の急増として
-    Loki/Zabbix で検知できるようにする。トークン値そのものはログに載せない。
+    ログ基盤や監視で検知できるようにする。トークン値そのものはログに載せない。
     """
 
     param_name = "X-Internal-Token"

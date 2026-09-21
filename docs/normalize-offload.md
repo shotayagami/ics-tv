@@ -224,7 +224,7 @@ CLAIM_SEC(300) < PROGRESS_STALE_SEC(900) < MAX_WAIT_SEC(14400=4h) < NORMALIZE_ST
 
 | env | 既定 | 意味 |
 |---|---|---|
-| `NORMALIZE_OFFLOAD_ENABLED` | コード既定 `false` / **k8s base では `true`** | opt-in。false なら dispatch は即従来経路 (完全无害)。**二段構造に注意**: コード (os.environ 直読み) の既定は false のままだが、`deploy/k8s/base/10-configmap.yaml` が v0.8.92 (2026-07-13) から `"true"` を配る = **prod は有効**。dev overlay (`overlays/dev/patch-configmap.yaml`) は `"false"` 維持 (§7/§8) |
+| `NORMALIZE_OFFLOAD_ENABLED` | コード既定 `false` / **本番の配備値は `true`** | opt-in。false なら dispatch は即従来経路 (完全无害)。**二段構造に注意**: コード (os.environ 直読み) の既定は false のままで、有効化は導入者の配備基盤側 (このリポジトリの範囲外) の ConfigMap 相当が v0.8.92 以降 `"true"` を配ることで行う = **本番は有効**。dev 環境は `"false"` 維持 (§7/§8) |
 | `NORMALIZE_OFFLOAD_MIN_SOURCE_SEC` | `300` | これ未満の尺はローカル (weather 180s は自然除外。短尺は往復コストが勝つ) |
 | `NORMALIZE_OFFLOAD_HEARTBEAT_FRESH_SEC` | `180` | heartbeat がこれより古ければ Windows 不在とみなす |
 | `NORMALIZE_OFFLOAD_CLAIM_SEC` | `300` | dispatch 後この時間 claim されなければ fallback |
@@ -245,11 +245,11 @@ R2_BUCKET / NORMALIZE_WATCH_INTERVAL_SEC(20)` のみ。MEZZ_* は持たない (�
   Django 非依存の常駐スクリプト。slidecast watch.ts と同じ構造
   (ポーリング → claim → 実行 → 成果物 PUT、進捗スロットル付き status 更新、
   例外はログして次周へ)。
-- **配布**: `deploy/offload/Dockerfile` (python:3.12-slim + ffmpeg + boto3。
-  `server/medialib/mezz.py` と watcher のみ COPY — Django アプリ全体は積まない) +
-  `deploy/offload/docker-compose.yml` (Windows 側、ソースから docker build =
-  slidecast/weather と同じ自己完結方針) + `deploy/offload/HANDOFF.md`
-  (Windows 側エージェント向け構築手順。R2 資格情報の帯域外受け渡し手順込み)。
+- **配布**: watcher を動かすコンテナイメージ (python:3.12-slim + ffmpeg + boto3。
+  `server/medialib/mezz.py` と watcher のみ COPY — Django アプリ全体は積まない)、その
+  compose 定義 (Windows 側、ソースから docker build = 自己完結方針)、および Windows 側の
+  構築手順 (R2 資格情報の帯域外受け渡し手順込み) は、導入者の配備基盤側 (このリポジトリの
+  範囲外) で用意する。
 - **R2 資格情報**: slidecast 用に発行済みの icstv-mezzanine スコープトークンを流用可
   (同一バケット・同等の信頼境界。normalize/ prefix の read/write は既に可能な権限)。
   新規発行するなら同スコープで。
@@ -308,14 +308,14 @@ R2_BUCKET / NORMALIZE_WATCH_INTERVAL_SEC(20)` のみ。MEZZ_* は持たない (�
 
 ## 7. ロールアウト (完了記録)
 
-手順 1〜3 は**実施済み** (prod 有効化 = v0.8.92・2026-07-13):
+手順 1〜3 は**実施済み** (prod 有効化 = v0.8.92):
 
-1. ✅ コード + configmap キー追加 (コード既定 false のまま無害マージ)。
+1. ✅ コード + ConfigMap キー追加 (コード既定 false のまま無害マージ)。
 2. ✅ dev E2E (dispatch → claim → encode → finalize → captions 連鎖 → 掃除) 検証後、
-   **dev overlay は false へ戻して維持** — dev バケット (icstv-mezzanine-dev) には watcher が
+   **dev 環境は false へ戻して維持** — dev バケット (icstv-mezzanine-dev) には watcher が
    いないため、有効化すると全 asset が CLAIM_SEC(5分) 待ってからローカルに落ちる。
    E2E 再検証時のみ一時的に有効化する。
-3. ✅ prod: base configmap で有効化 (`NORMALIZE_OFFLOAD_ENABLED: "true"`) + Windows 側 compose
+3. ✅ prod: 配備側の ConfigMap で有効化 (`NORMALIZE_OFFLOAD_ENABLED: "true"`) + Windows 側 compose
    起動。**Windows watcher の起動有無は運用者管理** — 停止しても heartbeat 途絶で全量ローカルへ
    自動フォールバックする (§6)。
 
@@ -327,12 +327,12 @@ R2_BUCKET / NORMALIZE_WATCH_INTERVAL_SEC(20)` のみ。MEZZ_* は持たない (�
 
 ## 8. 実装/運用状況 (2026-09-02 時点)
 
-- **本番有効**: `deploy/k8s/base/10-configmap.yaml` で `NORMALIZE_OFFLOAD_ENABLED: "true"`
-  (**v0.8.92・2026-07-13** から。Windows レンダ機の常時稼働入りを受けて有効化)。
-  dev overlay (`deploy/k8s/overlays/dev/patch-configmap.yaml`) は `"false"`。
-  **§4 の既定表はコード側既定 (false) と k8s base (true) の二段書き分け**を参照。
-- **専任 worker が稼働中**: `deploy/k8s/base/56-offload.yaml` (Deployment `icstv-offload`・
-  offload キュー専任 celery worker・現行 `icstv/server:v0.8.115`)。dispatch/reconcile を
-  default キューの締切系ビートから隔離する (レビュー #4/#10)。
+- **本番有効**: 導入者の配備基盤側 (このリポジトリの範囲外) の ConfigMap 相当で
+  `NORMALIZE_OFFLOAD_ENABLED: "true"` を配る (**v0.8.92** から。Windows レンダ機の常時稼働入りを
+  受けて有効化)。dev 環境は `"false"`。
+  **§4 の既定表はコード側既定 (false) と配備値 (true) の二段書き分け**を参照。
+- **専任 worker を分ける**: offload キュー専任の celery worker Deployment (`icstv-offload`) を
+  配備基盤側に置く。dispatch/reconcile を default キューの締切系ビートから隔離する
+  (レビュー #4/#10)。
 - **Windows watcher の起動有無は運用者管理**: 不在なら heartbeat 途絶で全量ローカル (§6 のとおり
   「今日と完全に同じ」に戻るだけ)。

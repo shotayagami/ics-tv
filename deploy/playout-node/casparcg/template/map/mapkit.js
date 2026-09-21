@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 アイシーエス
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /* 地図CGテンプレ共有: 射影 + 下地SVG + JMA色スケール。window.ICSTV_GEO (geo.js) 前提。
- * 生成ジオメトリ出典: 気象庁 予報区等GIS + 国土(政府標準利用規約=CC BY相当)。 */
+ * 生成ジオメトリ出典: 気象庁 予報区等GIS (政府標準利用規約=CC BY 相当。帰属は NOTICE)。 */
 (function () {
   "use strict";
   var SVGNS = "http://www.w3.org/2000/svg";

@@ -5,10 +5,10 @@
 #
 # なぜコピー方式か: agent は editable install (pip install -e /opt/icstv/agent) なので、
 # パッケージファイルを直接置き換えて systemctl restart すれば反映される。
-# 2026-08-18 以降、ノードの /opt/icstv は git チェックアウトになった (sync-node.sh) ため、
+# ノードの /opt/icstv は git チェックアウト (sync-node.sh) なので、
 # コミット済みの変更を反映するなら sync-node.sh + restart で足りる。本スクリプトの用途は
 # 「まだコミットしていない手元の作業ツリーをノードで試す」場合に絞られる。
-# server 側は ArgoCD (k8s) で git 駆動だが、送出ノードは k8s 外のペットのためこの経路で反映する。
+# server 側は GitOps コントローラ (k8s) で git 駆動だが、送出ノードは k8s 外のペットのためこの経路で反映する。
 #
 # 冪等性: sha256 差分のあるファイルだけ転送し、1 つでも変わったら restart。差分ゼロなら
 # 転送も restart もせず exit 0。
@@ -20,15 +20,15 @@
 #
 # スコープ: 同期するのは icstv_agent (パッケージ本体) + icstv_proto/icstv/v1 (proto生成物)。
 # 依存追加 (要 pip install -e) はこのスクリプトの対象外で、別途フルデプロイが要る。
-# **icstv_proto は必ず icstv_agent と一緒に同期すること**: 2026-07-04、新規 PlayoutAction
-# (PLAY_VT) 追加時に旧版では icstv_agent だけを反映したところ、その enum を参照する
+# **icstv_proto は必ず icstv_agent と一緒に同期すること**: 新規 PlayoutAction
+# (PLAY_VT) 追加時に icstv_agent だけを反映したところ、その enum を参照する
 # icstv_agent コードと enum 未定義のままの旧 icstv_proto が組み合わさり
 # `AttributeError: module 'icstv.v1.playout_pb2' has no attribute 'PLAYOUT_ACTION_PLAY_VT'`
-# でクラッシュループする事故が実際に発生した (約73秒間 gRPC 制御プレーン断・手動復旧)。
+# でクラッシュループする事故が実際に起きている (gRPC 制御プレーン断・手動復旧)。
 # 以後、proto (icstv_proto) もこのスクリプトの正式な同期対象に含める。
 #
-# 手動 (運用端末から) でも CI (Gitea Actions, deploy-agent.yaml) からでも同一スクリプトで動く。
-# ただし deploy-agent.yaml の自動発火条件は agent/icstv_agent/** の変更のみ (paths フィルタ)
+# 手動 (運用端末から) でも開発側の CI からでも同一スクリプトで動く。
+# ただし開発側 CI の自動デプロイの発火条件は agent/icstv_agent/** の変更のみ (paths フィルタ)
 # なので、icstv_proto だけを更新した場合は手動実行が要る。
 #
 # 環境変数:
@@ -51,7 +51,7 @@ read -r -a SSH_OPT_ARR <<< "${SSH_OPTS:-}"
 # 個別に消費されるため、1 ファイル 1 セッションの呼び出しを積み重ねると
 # ファイル数が MaxSessions を超えた時点でセッションが拒否され、フォールバック
 # (|| true) がそれを「差分あり」に誤判定した挙句コネクション自体が切断される
-# (2026-07-04 本番で実際に発生・agent/icstv_agent が14ファイルに増えて顕在化)。
+# (実際に発生している・agent/icstv_agent が14ファイルに増えて顕在化した)。
 # 対策: 差分チェック/転送/反映を少数セッションに集約し、ファイル数に依存させない。
 #
 # 注意: ssh は末尾の複数引数をスペース結合してリモートシェルに渡すため、

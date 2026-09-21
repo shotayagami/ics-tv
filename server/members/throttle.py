@@ -4,7 +4,7 @@
 
 従来のログイン throttle は失敗回数を `request.session` に持っていたため、Cookie を送らない
 だけで毎回まっさらな session になり無制限に総当たり/クレデンシャルスタッフィングできた
-(docs/security-review.md H-1)。ここでは失敗回数を DB (AuthThrottle) に scope+key ごとに
+(H-1)。ここでは失敗回数を DB (AuthThrottle) に scope+key ごとに
 集計し、Cookie/セッションに一切依存しない。key はメール (HMAC ハッシュ・平文非保存) と
 送信元 IP の両系統で、どちらかがロックされたら弾く。
 
