@@ -63,7 +63,7 @@ studio.\* の全画面は StudioPage 共通シェル（左サイドバー＋メ�
 │    週間編成 /week (match /series) ・ 配信枠 /slots ・ 番組専用枠 /youtube/dedicated
 │    配信プリセット /youtube/presets ・ YT テンプレート /youtube/templates ・ 生入力 /live-sources
 │ ── コンテンツ ──
-│    素材 /medialib (match /cuesheet) ・ CM割付 /sales ・ 動画スタジオ /video-studio
+│    素材 /medialib (match /cuesheet) ・ CM割付 /sales
 │ ── 経営・権利 ──
 │    請求 /billing ・ 権利 /rights ・ 会員統計 /members/stats
 │ ── ファンクラブ ──

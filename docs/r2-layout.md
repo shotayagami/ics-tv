@@ -18,10 +18,9 @@ Cloudflare R2 のバケット/プレフィックスの全数棚卸し。「ど�
 
 | バケット | 用途 | 参照元 |
 |---|---|---|
-| `icstv-mezzanine` | **prod 本体**（`R2_BUCKET`）。§2 が全数表 | `server/core/r2.py`、`deploy/k8s/base/10-configmap.yaml` |
-| `icstv-mezzanine-dev` | dev overlay 用（offload は無効固定）。captions/ mezzanine/ slidecast/ の残骸あり（実害なし・気になったら手動全消しで良い） | `deploy/k8s/overlays/dev/patch-configmap.yaml` |
-| `icstv-public` | slidecast slideshow の恒久公開（public.yagamin.net）。トップレベルは `slidecast/` のみ = 設計どおり | `icstv-slidecast/k8s/base/intake.yaml`（`R2_PUBLIC_BUCKET`） |
-| `homelab-velero` | Velero バックアップ専用。保持は Velero TTL 管理。BSL 正本は homelab-infra `cluster-addons/k8s/base/velero-r2-bsl.yaml`（chart values 側は `backupsEnabled:false` で BSL 二重定義を回避、in-cluster MinIO は 2026-08-11 撤去済み） | homelab-infra `cluster-addons/k8s/base/velero-r2-bsl.yaml` |
+| `icstv-mezzanine` | **prod 本体**（`R2_BUCKET`）。§2 が全数表 | `server/core/r2.py`、導入者の配備基盤側の ConfigMap 相当 |
+| `icstv-mezzanine-dev` | dev 環境用（offload は無効固定）。captions/ mezzanine/ slidecast/ の残骸あり（実害なし・気になったら手動全消しで良い） | 導入者の配備基盤側の dev 設定 |
+| `icstv-public` | slidecast slideshow の恒久公開（custom domain の割当は導入者が設定）。トップレベルは `slidecast/` のみ = 設計どおり | icstv-slidecast 側の配備設定（`R2_PUBLIC_BUCKET`） |
 
 **資格情報の注意**: アプリの R2 トークンはアカウント広域で、上記の他バケットにも届く
 （web pod の資格情報で icstv-public / -dev のリストが可能なことを実測確認）。Windows watcher
@@ -36,7 +35,7 @@ Cloudflare R2 のバケット/プレフィックスの全数棚卸し。「ど�
 |---|---|---|---|---|
 | `mezzanine/{program,cm,filler}/<id>.mp4` | ①server 正規化（**Asset.id**、`medialib/normalize.py`）②offload finalize の server-side copy（`medialib/offload.py`）③**icstv-delivery 正規化 worker（delivery_file.id**、`src/r2.ts`） | agent media_cache・VOD（`scheduling/vod.py`）・captions transcribe | **無（放送原本・仕様）**。Asset 削除フックなし。⚠️ ①と③が同一 prefix を別 id 空間で共有 = 衝突リスク（§4） | 590 obj / 44.5GB（program 576/30.7GB, filler 14/13.8GB）。Asset r2_key 保有 589 件とほぼ 1:1 = 孤児は僅少 |
 | `delivery/inbox/<deliveryId>/<fileId>/<name>`（quarantine 原本） | icstv-delivery portal の presigned multipart | delivery QC/正規化 worker、server 正規化（`source_path=r2://`） | **無・仕様（意図的に永久保持と決定 2026-09-02）**。業者のファイル削除操作（`portal.ts`）のみが削除経路 = [delivery.md](delivery.md) 参照 | 24 obj / **14.6GB**（バケットの約 1/4） |
-| `ingest/weather/` | icstv-weather | server beat scan（`scheduling/weather.py`） | **有**: weather-cleanup CronJob（03:30、直近 3 日残し。`icstv-weather/k8s/README.md`）。実測 21 obj で機能中 | 21 obj |
+| `ingest/weather/` | icstv-weather | server beat scan（`scheduling/weather.py`） | **有**: weather-cleanup CronJob（03:30、直近 3 日残し。icstv-weather 側で運用）。実測 21 obj で機能中 | 21 obj |
 | `ingest/ranking/` | icstv-ranking（produce CLI） | server beat scan（`scheduling/ranking.py`） | **無・要対応**（取り込み済みでも残置）。掃除 CLI を実装予定（icstv-ranking 側） | 47 obj / 495MB |
 | `ingest/ranking-archive/` | icstv-ranking（過去日投入・取り込み対象外） | （なし） | **無・要対応**（シーズンアーカイブとして残すなら要合意）。掃除 CLI を実装予定（icstv-ranking 側） | 6 obj |
 | `ingest/heatpoints/`・`ingest/heatpoints-regional/`・`ingest/regional/` | icstv-ranking | **server 側読み手なし**（SeriesSlot 未編成・admin console proxy のみ） | **無・要対応**（書き逃げ状態）。掃除 CLI を実装予定（icstv-ranking 側） | 7/217MB・14/159MB・2 obj |
@@ -94,13 +93,13 @@ Cloudflare R2 のバケット/プレフィックスの全数棚卸し。「ど�
 以下はコード + API 実測では確認できず、**未確認**のまま:
 
 - R2 lifecycle rule の有無（コード上は一切未設定の前提で本書を書いている）
-- バケットの全数（本表はコードから既知の 4 バケットのみ。dashboard に他があっても検知できない）
-- custom domain 設定の実体（public.yagamin.net → icstv-public）
+- バケットの全数（本表はコードから既知の 3 バケットのみ。dashboard に他があっても検知できない）
+- custom domain 設定の実体（公開用バケットへの割当は dashboard 側）
 - API トークンの実スコープ（広域であることは実測したが、権限の全容は dashboard のみ）
 
 ## 6. サブシステム別ポインタ（詳細の正本）
 
-- icstv-weather: `k8s/README.md`（cleanup CronJob）
+- icstv-weather: 配備設定の README（cleanup CronJob）
 - icstv-ranking: `README.md`（キー規約）
 - icstv-slidecast: `src/offload.ts` 冒頭コメント（in/review/out 3-prefix 疎結合）
 - icstv-delivery: `README.md` §R2（quarantine・CORS・mezzanine 衝突警告）

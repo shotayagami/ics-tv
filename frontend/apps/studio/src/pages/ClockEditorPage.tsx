@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 アイシーエス
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api } from "@icstv/api";
@@ -9,7 +9,8 @@ import { Breadcrumb, EmptyState, Field, Notice, StudioPage, SubNav } from "../at
 import type { components } from "@icstv/api";
 import { postForm } from "../hooks";
 import { RouterLink } from "../links";
-import { CLOCK_FONT_GROUPS, clockFontFamily, loadClockGoogleFont } from "../clockFonts";
+import { CLOCK_FONT_GROUPS } from "../clockFonts";
+import { ClockPreview } from "../ClockPreview";
 
 type ClockStyleOut = components["schemas"]["ClockStyleOut"];
 
@@ -21,13 +22,6 @@ const TEXT_EFFECT_OPTIONS = [
   { value: "hard-outline",  label: "ハードアウトライン" },
   { value: "glow",          label: "グロー" },
 ] as const;
-
-const TEXT_SHADOW_CSS: Record<string, string> = {
-  "none":         "none",
-  "soft-shadow":  "0 1px 3px rgba(0,0,0,.6)",
-  "hard-outline": "-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000",
-  "glow":         "0 0 8px rgba(255,255,255,.9),0 0 16px rgba(100,180,255,.7)",
-};
 
 const BG_OPTIONS = [
   { value: "dark-gradient", label: "ダークグラデーション（既定）" },
@@ -44,14 +38,6 @@ const SHADOW_OPTIONS = [
   { value: "lg",   label: "大" },
 ] as const;
 
-// Bootstrap shadow クラスと等価な CSS 値（プレビュー用）
-const BS_SHADOW_CSS: Record<string, string> = {
-  "none": "none",
-  "sm":   "0 .125rem .25rem rgba(0,0,0,.25)",
-  "md":   "0 .5rem 1rem rgba(0,0,0,.4)",
-  "lg":   "0 1rem 3rem rgba(0,0,0,.55)",
-};
-
 const RADIUS_OPTIONS = [
   { value: "none", label: "なし" },
   { value: "sm",   label: "小" },
@@ -59,14 +45,6 @@ const RADIUS_OPTIONS = [
   { value: "lg",   label: "大" },
   { value: "pill", label: "ピル（全丸）" },
 ] as const;
-
-const BS_RADIUS_CSS: Record<string, string> = {
-  "none": "0",
-  "sm":   ".25rem",
-  "md":   ".5rem",
-  "lg":   "1rem",
-  "pill": "50rem",
-};
 
 const ANIM_OPTIONS = [
   { value: "fade",       label: "フェード（既定）" },
@@ -81,107 +59,6 @@ const CORNER_BUTTONS = [
   { value: "bottom-left",  label: "↙", row: 1, col: 0 },
   { value: "bottom-right", label: "↘", row: 1, col: 1 },
 ] as const;
-
-// ---- プレビューコンポーネント ----
-
-interface PreviewProps {
-  fontFamily: string;
-  timeSize: number;
-  fontWeight: number;
-  timeColor: string;
-  dateColor: string;
-  textEffect: string;
-  strokeWidth: string;
-  strokeColor: string;
-  bgPreset: string;
-  bgOpacity: number;
-  boxShadow: string;
-  borderRadius: string;
-  showSeconds: boolean;
-  showDate: boolean;
-  position: string;
-}
-
-function getBgPreviewStyle(preset: string, opacity: number): string {
-  const op = Math.min(1, Math.max(0, opacity));
-  switch (preset) {
-    case "dark-solid":  return `rgba(12,18,32,${op})`;
-    case "dark-pill":   return `rgba(12,18,32,${op})`;
-    case "frosted":     return `rgba(12,18,32,${op * 0.45})`;
-    case "none":        return "transparent";
-    default:
-      return `linear-gradient(180deg,rgba(12,18,32,${op}),rgba(12,18,32,${op * 0.76}))`;
-  }
-}
-
-function ClockPreview(p: PreviewProps) {
-  const SCALE = 560 / 1920;
-  const ts = Math.round(p.timeSize * SCALE);
-  const ds = Math.round(p.timeSize * 0.407 * SCALE);
-  const pad = `${Math.round(10 * SCALE)}px ${Math.round(22 * SCALE)}px`;
-  const strokeCss = p.strokeWidth !== "none" ? `${p.strokeWidth}px ${p.strokeColor}` : undefined;
-
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("ja-JP", {
-    timeZone: "Asia/Tokyo", hour12: false,
-    hour: "numeric", minute: "2-digit",
-    ...(p.showSeconds ? { second: "2-digit" } : {}),
-  });
-  const dateStr = now.toLocaleDateString("ja-JP", {
-    timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", weekday: "short",
-  });
-
-  const posStyle: React.CSSProperties = {
-    "top-left":     { left: "1.25%", top: "1.25%" },
-    "top-right":    { right: "1.25%", top: "1.25%" },
-    "bottom-left":  { left: "1.25%", bottom: "1.25%" },
-    "bottom-right": { right: "1.25%", bottom: "1.25%" },
-  }[p.position] ?? { left: "1.25%", top: "1.25%" };
-
-  const ff = clockFontFamily(p.fontFamily);
-  useEffect(() => { loadClockGoogleFont(p.fontFamily); }, [p.fontFamily]);
-
-  return (
-    <div style={{
-      position: "relative", width: 560, height: 315,
-      background: "#111827", borderRadius: 4, flexShrink: 0, overflow: "hidden",
-    }}>
-      {/* ARIB action-safe ガイド */}
-      <div style={{
-        position: "absolute", inset: "5.6%",
-        border: "1px dashed rgba(255,255,255,.15)", pointerEvents: "none",
-      }} />
-      {/* 時計 */}
-      <div style={{
-        position: "absolute", ...posStyle,
-        background: getBgPreviewStyle(p.bgPreset, p.bgOpacity),
-        backdropFilter: p.bgPreset === "frosted" ? "blur(6px) saturate(1.4)" : undefined,
-        borderRadius: BS_RADIUS_CSS[p.borderRadius] ?? BS_RADIUS_CSS["md"],
-        boxShadow: BS_SHADOW_CSS[p.boxShadow] ?? BS_SHADOW_CSS["md"],
-        padding: pad, boxSizing: "border-box", textAlign: "center",
-        fontFamily: ff,
-      }}>
-        <div style={{
-          fontVariantNumeric: "tabular-nums",
-          fontWeight: p.fontWeight,
-          fontSize: ts,
-          lineHeight: 1.05,
-          letterSpacing: ".03em",
-          color: p.timeColor,
-          textShadow: TEXT_SHADOW_CSS[p.textEffect] ?? TEXT_SHADOW_CSS["soft-shadow"],
-          WebkitTextStroke: strokeCss,
-        }}>
-          {timeStr}
-        </div>
-        {p.showDate && (
-          <div style={{ fontSize: ds, letterSpacing: ".06em", color: p.dateColor, marginTop: 1, WebkitTextStroke: strokeCss }}>
-            {dateStr}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ---- 色ピッカー ----
 
@@ -245,15 +122,6 @@ export function ClockEditorPage() {
   const [showDate,       setShowDate]        = useState(false);
   const [clockEnabled,   setClockEnabled]    = useState(false);
   const [windowsText,    setWindowsText]     = useState("");
-
-  // プレビュー自動更新用タイマー
-  const [tick, setTick] = useState(0);
-  const tickRef = useRef<ReturnType<typeof setInterval>>();
-  useEffect(() => {
-    tickRef.current = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(tickRef.current);
-  }, []);
-  void tick;  // プレビュー再描画トリガー
 
   const load = useCallback(() => {
     if (!slug) return;
@@ -516,20 +384,20 @@ export function ClockEditorPage() {
               <div className="card-head"><strong>プレビュー</strong></div>
               <div className="card-body" style={{ padding: "0" }}>
                 <ClockPreview
-                  fontFamily={fontFamily}
-                  timeSize={timeSize}
-                  fontWeight={fontWeight}
-                  timeColor={timeColor}
-                  dateColor={dateColor}
-                  textEffect={textEffect}
-                  strokeWidth={strokeWidth}
-                  strokeColor={strokeColor}
-                  bgPreset={bgPreset}
-                  bgOpacity={bgOpacity}
-                  boxShadow={boxShadow}
-                  borderRadius={borderRadius}
-                  showSeconds={showSeconds}
-                  showDate={showDate}
+                  font_family={fontFamily}
+                  time_size={timeSize}
+                  font_weight={fontWeight}
+                  time_color={timeColor}
+                  date_color={dateColor}
+                  text_effect={textEffect}
+                  stroke_width={strokeWidth}
+                  stroke_color={strokeColor}
+                  bg_preset={bgPreset}
+                  bg_opacity={bgOpacity}
+                  box_shadow={boxShadow}
+                  border_radius={borderRadius}
+                  show_seconds={showSeconds}
+                  show_date={showDate}
                   position={position}
                 />
               </div>

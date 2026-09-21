@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """公開ホスト専用 urlconf (#7 公開/管理分離)。
 
-tv.yagamin.net 等の公開ホストはこの urlconf で動く
+tv.example.com 等の公開ホストはこの urlconf で動く
 (core.middleware.HostUrlconfMiddleware が割当)。視聴者向けページのみを公開し、
 編成/運用/営業/請求/納品/admin のルートは存在しない (=404、構造的に露出しない)。
 公開テンプレートはリテラルパス (/、/guide/、/ch/<slug>/) を使うので reverse 名前空間に依存しない。

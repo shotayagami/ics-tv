@@ -47,6 +47,7 @@ ROOT_FILES = frozenset(
         "mkdocs.yml",
         "LICENSE",
         "SECURITY.md",
+        "NOTICE",
     }
 )
 EXCLUDED_DOCS = (

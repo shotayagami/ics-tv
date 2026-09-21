@@ -164,7 +164,7 @@ YouTube 送出用に CasparCG ミラーを **2 本**増設する（公開用 M�
    - 旧記述は「真の対処 = Cloudflare Stream `requireSignedURLs` 有効化」としていたが、**これは
      現行アーキテクチャには適用できない**。§4.7 当時の想定 (CF Stream が視聴者向け HLS も配信する)
      から ABR ladder 移行で実配信経路が変わっており、本番 DB の
-     `Channel.cf_playback_hls_url` は ch1/ch2 とも `https://tv.yagamin.net/hls2/<slug>/master.m3u8`
+     `Channel.cf_playback_hls_url` は ch1/ch2 とも `https://tv.<内部ドメイン>/hls2/<slug>/master.m3u8`
      = 送出ノードの nginx (:8889) 静的配信を k8s ingress-nginx で逆プロキシしたもの。
      CF Stream (Live Input/Output) はブラウザ再生経路にいない（さらに現行は本線 YouTube 送出も
      encoder の直 push で CF を経由せず、CF オブジェクトは studio 手動操作と fanclub simulcast

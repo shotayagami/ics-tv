@@ -15,7 +15,7 @@ PN="$REPO_ROOT/deploy/playout-node"
 export DEBIAN_FRONTEND=noninteractive
 
 # このノードに同居させるチャンネル (slug, 空白区切り)。既定 ch1。
-# 増やす場合は casparcg.config に対応する <channel> を足すこと (2026-08-18 に 1ch へ揃えた)。
+# 増やす場合は casparcg.config に対応する <channel> を足すこと。
 # 宣言の無い channel を slug だけ足しても AMCP が解決できず動かない。
 # 各 slug につき icstv-agent@<slug> / icstv-encoder@<slug> を enable し、env 雛形を生成する。
 CHANNELS="${ICSTV_CHANNELS:-ch1}"
@@ -141,9 +141,9 @@ for old in icstv-agent icstv-encoder; do
   fi
 done
 systemctl daemon-reload
-# set-property 由来の MemoryHigh ドリフトを撤去する (2026-08-04 に入っていた)。
-# unit の MemoryMax より低い MemoryHigh が効くと throttle 域でプロセスが wedge する
-# (2026-08-18 のオンエア断の原因)。set-property は drop-in を消さず infinity に
+# set-property 由来の MemoryHigh ドリフトを撤去する。
+# unit の MemoryMax より低い MemoryHigh が効くと throttle 域でプロセスが wedge し、
+# オンエアが止まる。set-property は drop-in を消さず infinity に
 # 書き換えるだけなので、判定はファイルの有無ではなく実効値で行う。
 if [[ "$(systemctl show casparcg-server.service -p MemoryHigh --value 2>/dev/null)" != "infinity" ]]; then
   echo "   NOTE: MemoryHigh を無効化 (unit 側の MemoryMax に一本化)"

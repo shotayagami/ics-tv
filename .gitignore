@@ -22,19 +22,6 @@ dist/
 *.pem
 *.key
 secrets/
-# SealedSecret はクラスタ公開鍵で暗号化済み = コミット安全 (ArgoCD GitOps の source)。
-# 平文は引き続き ignore しつつ、deploy/k8s 配下の *.sealed.yaml だけ追跡を許可。
-# (base/overlays 再構成で secrets/ が overlays/{production,dev}/secrets/ へ移動した)
-!deploy/k8s/secrets/
-deploy/k8s/secrets/*
-!deploy/k8s/secrets/*.sealed.yaml
-!deploy/k8s/secrets/.gitkeep
-!deploy/k8s/overlays/production/secrets/
-deploy/k8s/overlays/production/secrets/*
-!deploy/k8s/overlays/production/secrets/*.sealed.yaml
-!deploy/k8s/overlays/dev/secrets/
-deploy/k8s/overlays/dev/secrets/*
-!deploy/k8s/overlays/dev/secrets/*.sealed.yaml
 .netrc
 
 # Media assets (大容量・R2管理)

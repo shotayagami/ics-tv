@@ -5,7 +5,7 @@ Description=ICS-TV VAAPI sidecar encoder (%i): CasparCG UDP -> h264_vaapi -> tee
 # の UDP 5004+(N-1)), ICSTV_CHANNEL_SLUG (= %i。HLS path に使う), CF_INGEST_URL, VBITRATE 等。
 # CasparCG の UDP 出力を iGPU で H.264 エンコードし、tee で 2 系統へ連続送出する:
 #   1) ${CF_INGEST_URL} = YouTube ingest (当面メインの公開配信)
-#   2) rtmp://127.0.0.1:1935/hls/${ICSTV_CHANNEL_SLUG} = ローカル MediaMTX (HLS 化 → tv.yagamin.net/hls/<slug> の自前プレイヤー)
+#   2) rtmp://127.0.0.1:1935/hls/${ICSTV_CHANNEL_SLUG} = ローカル MediaMTX (HLS 化 → tv.example.com/hls/<slug> の自前プレイヤー)
 # 各出力は use_fifo=1 で独立スレッド分離 + fifo_options で自動再接続 (attempt_recovery/recover_any_error):
 #   片側 (YT/MediaMTX) が詰まる・落ちても他方を阻害せず、落ちた側は無限リトライで自己復帰する。
 #   (旧: onfail=ignore のみだと MediaMTX leg が一度落ちると再接続せず HLS が永久停止していた)。

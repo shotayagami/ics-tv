@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from django.test import Client, override_settings
 
-PUBLIC = "tv.yagamin.net"
+PUBLIC = "tv.example.com"
 ADMIN = "admin.example.com"
 CREATOR = "creator.example.com"
 

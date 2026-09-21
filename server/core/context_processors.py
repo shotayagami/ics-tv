@@ -13,7 +13,7 @@ def version(request) -> dict:
 
 
 def public_base_url(request) -> dict:
-    """公開サイトの絶対ベース URL (例 https://tv.yagamin.net)。
+    """公開サイトの絶対ベース URL (例 https://tv.example.com)。
 
     管理ホストから公開ページへリンクする際や、公開テンプレのナビを必ず公開ホストへ向けるために使う。
     未設定 (ローカル等) は空文字 → テンプレ側で相対パスにフォールバック。

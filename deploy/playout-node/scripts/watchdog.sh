@@ -4,27 +4,27 @@
 # 送出ヘルス監視 (icstv-watchdog.timer が 30s 周期で起動)。docs/overview.md §6。
 # 各層を確認し、異常時は段階的に再起動へエスカレーションする。
 #
-# 2026-08-18 の 1h35m オンエア断 (CasparCG が memory.high スロットルで wedge) を受けて追加:
+# CasparCG が memory.high スロットルで wedge しオンエアが止まる形を受けて追加:
 #   - 天井に当たる前の計画的リサイクル (CASPAR_MEM_RECYCLE_BYTES)
 #   - wedge 時は SIGTERM が効かないため SIGKILL へエスカレーション
 #   - AMCP の単発タイムアウトで 24h 配信を落とさないための連続失敗回数判定
 #   - HLS セグメント鮮度 = 「実際にオンエアされているか」の最も直接的なシグナル
 #
-# 2026-08-21 の 35 分黒落ちを受けて修正:
+# 本線が黒のまま続く (黒落ち) 形を受けて修正:
 #   - 本線停止の判定が壊れていた (後述の layer_state を参照)。導入以来一度も真にならず、
 #     本線が消えても検知できていなかった
 #   - 緊急スレートへの退避を廃止し、casparcg 再起動で agent に再 take させる方式へ変更
 #   - agent 自身の生存確認を追加 (encoder と MediaMTX は見ていたが agent は見ていなかった)
 #
-# 2026-09-02 の YouTube 無配信 (tee の YouTube 枝だけ凍結) を受けて追加:
+# YouTube 無配信 (tee の YouTube 枝だけ凍結) を受けて追加:
 #   - encoder の YouTube 宛 RTMP ソケットの bytes_sent 進行監視 (check_yt_bytes)。
 #     ffmpeg は active、ローカル (MediaMTX) 枝は正常、encoder unit も HLS 鮮度も健全なまま
 #     YouTube 枝だけが送出を止めており、既存のどの検査にも掛からなかった。
 #     ss で見ると YouTube 宛ソケットは ESTAB のまま bytes_sent が停滞 = カーネルの
 #     TCP 統計で「実際にバイトが流れているか」を直接見るのが唯一確実な検出だった。
-# 検知結果は logger 経由で journal に出る = promtail が Loki へ送るのでそのままアラート化できる。
-# CRIT 相当 (視聴者影響が出ている確定異常) は crit() = journal priority crit で出す。
-# promtail の relabel (__journal_priority_keyword → level) により Loki 側で level="crit" になる。
+# 検知結果は logger 経由で journal に出る。journal をログ基盤へ転送していればそのまま
+# アラート化できる。CRIT 相当 (視聴者影響が出ている確定異常) は crit() = journal priority crit
+# で出すので、転送側で priority をラベル化しておけば重大度で絞り込める。
 set -uo pipefail
 
 CASPAR_HOST=127.0.0.1; CASPAR_PORT=5250
@@ -48,7 +48,7 @@ MAIN_BLACK_COOLDOWN_SEC=600
 # 本線の状態判定は agent 実装に委ねる。venv が無い/壊れている場合は unknown となり介入しない。
 AGENT_PY="${ICSTV_AGENT_PY:-/opt/icstv/agent/.venv/bin/python}"
 
-# YouTube 枝 bytes_sent がこの秒数進まなければ凍結とみなす (2026-09-02 障害の検出用)。
+# YouTube 枝 bytes_sent がこの秒数進まなければ凍結とみなす (上記の凍結の検出用)。
 # 通常の送出では 30s tick ごとに必ず数 MiB 進む。5 分は YouTube 側の一時的な
 # 受信スロットル (snd_wnd 縮小で数十秒詰まることはある) を誤検知しない余裕。
 YT_BYTES_STALL_SEC=${YT_BYTES_STALL_SEC:-300}
@@ -64,7 +64,7 @@ YT_RESTART_MAX_ATTEMPTS=${YT_RESTART_MAX_ATTEMPTS:-3}
 # dport 1935 の非 loopback = YouTube ingest (CF_INGEST_URL)。127.0.0.1:1935 はローカル
 # MediaMTX 枝、および icstv-hls-ladder が MediaMTX から読む側のソケットなので除外する。
 #
-# 出力形式は 2026-09-02 の実測 (iproute2-6.1.0) に合わせる。ソケットごとに
+# 出力形式は実測 (iproute2-6.1.0) に合わせる。ソケットごとに
 # 「行頭が非空白のソケット行」+「行頭が空白の TCP 情報行」の 2 行組:
 #   ESTAB 0 2399 192.0.2.20:59946 142.251.118.134:1935 users:(("ffmpeg",pid=478219,fd=6))
 #        cubic wscale:8,10 ... bytes_sent:8288138821 bytes_retrans:191662 bytes_acked:...
@@ -95,7 +95,7 @@ parse_yt_bytes(){ # $1=pid / stdin=ss 出力
 # self-test: パーサを実測フィクスチャで検証する (root 不要・システム無変更)。
 # 実行: bash watchdog.sh --self-test
 if [[ "${1:-}" == "--self-test" ]]; then
-  # 2026-09-02 に実ノードで採取した ss -H -tinp 'dport = :1935' の出力。
+  # 実ノードで採取した ss -H -tinp 'dport = :1935' の出力。
   # pid=478219 = icstv-encoder@ch1 の ffmpeg (fd5=ローカル MediaMTX 枝, fd6=YouTube 枝)、
   # pid=478329 = icstv-hls-ladder の ffmpeg (MediaMTX から読む側で bytes_sent はほぼ 0)。
   fixture='ESTAB 0      0          127.0.0.1:33308       127.0.0.1:1935 users:(("ffmpeg",pid=478219,fd=5))
@@ -128,8 +128,8 @@ fi
 mkdir -p "$STATE_DIR"
 
 log(){ logger -t icstv-watchdog "$*"; }
-# 視聴者影響が出ている確定異常。journal priority=crit で出し、promtail の
-# __journal_priority_keyword → level relabel により Loki で level="crit" として拾える。
+# 視聴者影響が出ている確定異常。journal priority=crit で出すので、ログ基盤へ転送していれば
+# 重大度で絞り込める。
 crit(){ logger -p user.crit -t icstv-watchdog "$*"; }
 amcp(){ printf '%s\r\n' "$1" | timeout 3 nc "$CASPAR_HOST" "$CASPAR_PORT" 2>/dev/null; }
 
@@ -143,7 +143,7 @@ amcp(){ printf '%s\r\n' "$1" | timeout 3 nc "$CASPAR_HOST" "$CASPAR_PORT" 2>/dev
 #   - 占有されていない層は <layer_NN> ブロックごと出ないため、そもそも「foreground が empty」
 #     という形にならない。casparcg 再起動直後がまさにこの形
 # 旧実装の `grep -qiE 'foreground.*empty|stopped'` は上記のため導入以来一度も真にならず、
-# 本線停止検知は機能していなかった (2026-08-21 に判明)。
+# 本線停止検知は機能していなかった。
 layer_state(){ # $1=channel $2=layer
   local xml
   xml="$(amcp "INFO ${1}-${2}")"
@@ -157,7 +157,7 @@ print("unknown" if fg is None else ("empty" if fg["producer"] == "empty" else "p
 }
 
 # wedge した casparcg は SIGTERM に応答せず、systemctl restart が TimeoutStopSec まで固まる。
-# SIGKILL で落とせば Restart=on-failure が拾って起こす (2026-08-18 に実地で確認)。
+# SIGKILL で落とせば Restart=on-failure が拾って起こす (実地で確認)。
 caspar_restart(){
   log "casparcg-server 再起動: $1"
   if ! timeout 25 systemctl restart casparcg-server.service; then
@@ -169,9 +169,9 @@ caspar_restart(){
   rm -f "$STATE_DIR/amcp_fail"
 }
 
-# encoder の YouTube 枝が実際にバイトを流しているかの監視 (2026-09-02 障害の再発防止)。
-# tee の fifo 自動復帰は「エラーになれば」再接続するが、2026-09-02 はソケットが ESTAB の
-# まま送出だけが止まった (エラーにならない凍結) ため、ffmpeg 内のどの復帰機構も発火しない。
+# encoder の YouTube 枝が実際にバイトを流しているかの監視 (凍結の再発防止)。
+# tee の fifo 自動復帰は「エラーになれば」再接続するが、ソケットが ESTAB のまま送出だけが
+# 止まる形 (エラーにならない凍結) では、ffmpeg 内のどの復帰機構も発火しない。
 # unit の外から TCP 統計 (bytes_sent) を見て、進まなければ encoder ごと restart する。
 check_yt_bytes(){ # $1=slug
   local slug="$1" pid cur prev prev_ts now stalled attempts last
@@ -184,7 +184,7 @@ check_yt_bytes(){ # $1=slug
   # YouTube 宛ソケット不在は正常扱い。放送休止帯で YouTube 出力が意図的に無い形や、
   # YTミラーへのカットオーバー drop-in (encoder@.service 冒頭コメント参照) で encoder が
   # MediaMTX 枝のみの形がこれに当たる。「ソケットが存在するのに進まない」だけを異常とする。
-  # (凍結中はソケットが ESTAB で残り続けるのが 2026-09-02 の実測。枝が本当に落ちれば
+  # (凍結中はソケットが ESTAB で残り続けるのが実測。枝が本当に落ちれば
   #  ソケットは消え、fifo の attempt_recovery が再接続を試みる = ffmpeg 側の守備範囲。)
   if [[ -z "$cur" ]]; then rm -f "$STATE_DIR/yt_bytes_$slug"; return; fi
   { read -r prev prev_ts < "$STATE_DIR/yt_bytes_$slug"; } 2>/dev/null || { prev=""; prev_ts="$now"; }
@@ -250,12 +250,12 @@ for envf in /etc/icstv/agent-*.env; do
   slug="$(basename "$envf" .env)"; slug="${slug#agent-}"
   # 意図的に停止しているチャンネルは対象外。env ファイルは disable 後も残置されるため、
   # このガードが無いと disabled な encoder@<slug> を 30 秒ごとに起こし続ける
-  # (実機の ch2 が該当: enabled=disabled/active=inactive で env だけ残っている)。
+  # (disable した後も env ファイルだけ残っているチャンネルが該当)。
   systemctl is-enabled --quiet "icstv-encoder@$slug" 2>/dev/null || continue
   cc="$(sed -n 's/^ICSTV_CASPAR_CHANNEL=\([0-9][0-9]*\).*/\1/p' "$envf" | head -1)"
   [[ -n "$cc" ]] || cc=1
   # agent 自身の生存。落ちていると TAKE も再 take も走らず、次の予定まで画面が固まる。
-  # encoder と MediaMTX は見ていたが agent は見ていなかった (2026-08-21 に追加)。
+  # encoder と MediaMTX は見ていたが agent は見ていなかった。
   if ! systemctl is-active --quiet "icstv-agent@$slug"; then
     log "icstv-agent@$slug 停止 -> restart"
     systemctl restart "icstv-agent@$slug"
@@ -293,13 +293,13 @@ for envf in /etc/icstv/agent-*.env; do
     systemctl restart "icstv-encoder@$slug"
     continue  # restart 直後の bytes_sent 監視は無意味 (次 tick から見る)
   fi
-  # encoder が active でも YouTube 枝だけ凍結していないか (2026-09-02 障害の形)
+  # encoder が active でも YouTube 枝だけ凍結していないか (上記の凍結の形)
   check_yt_bytes "$slug"
 done
 
 # 4) MediaMTX: API 死活に加えて publish 中の path があるかを見る。
-#    2026-08-18 は API が正常応答したまま itemCount:0 (publisher 不在) だったため、
-#    死活のみでは断を検知できなかった。
+#    API が正常応答したまま itemCount:0 (publisher 不在) になる形があり、
+#    死活のみでは断を検知できない。
 paths_json="$(curl -fsS --max-time 5 http://127.0.0.1:9997/v3/paths/list 2>/dev/null)"
 if [[ -z "$paths_json" ]]; then
   log "MediaMTX API 無応答 -> restart"

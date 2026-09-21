@@ -1,10 +1,10 @@
 # #4 CasparCG AMCP コマンド設計
 
-本書は ICS-TV の送出ノード（自宅 Proxmox LXC）で稼働する CasparCG Server（2.x 系, Linux headless）を、playout agent が AMCP（TCP 5250）で制御するためのコマンド設計を規定する。[scheduler.md](scheduler.md) のスケジューラが解決する `playout_event`（as-run）の各 `action` を、agent の 3 プリミティブ `amcp_loadbg(ev)`（背面ロード）/ `amcp_take(ev)`（本線へテイク）/ `goto_slate(channel)`（緊急退避）へ落とし込み、`LOADBG`（PREROLL=5s 先読み）→ `PLAY`（`scheduled_at` でテイク）という継ぎ目のない切替モデルに統一する。データモデルは [datamodel.md](datamodel.md)、送出イベントの解決・割り込み優先度・agent 実行ループは [scheduler.md](scheduler.md)、YouTube 枠連携（Data API 経由の `yt_transition`、本書対象外）は [youtube.md](youtube.md)、送出全体のアーキテクチャは [overview.md](overview.md) を参照する。本書に記載する AMCP コマンドはすべて CasparCG 2.x 系で実在するものに限定し、確証の持てない書式・パラメータは末尾「未確定・論点」に退避する。
+本書は ICS-TV の送出ノード（Proxmox LXC）で稼働する CasparCG Server（2.x 系, Linux headless）を、playout agent が AMCP（TCP 5250）で制御するためのコマンド設計を規定する。[scheduler.md](scheduler.md) のスケジューラが解決する `playout_event`（as-run）の各 `action` を、agent の 3 プリミティブ `amcp_loadbg(ev)`（背面ロード）/ `amcp_take(ev)`（本線へテイク）/ `goto_slate(channel)`（緊急退避）へ落とし込み、`LOADBG`（PREROLL=5s 先読み）→ `PLAY`（`scheduled_at` でテイク）という継ぎ目のない切替モデルに統一する。データモデルは [datamodel.md](datamodel.md)、送出イベントの解決・割り込み優先度・agent 実行ループは [scheduler.md](scheduler.md)、YouTube 枠連携（Data API 経由の `yt_transition`、本書対象外）は [youtube.md](youtube.md)、送出全体のアーキテクチャは [overview.md](overview.md) を参照する。本書に記載する AMCP コマンドはすべて CasparCG 2.x 系で実在するものに限定し、確証の持てない書式・パラメータは末尾「未確定・論点」に退避する。
 
 ## 1. レイヤ / チャンネル アーキテクチャ
 
-原則として **1 出力 channel = 1 配信 ch**（[datamodel.md](datamodel.md) の `channel` テーブル 1 行に対応）。送出は CasparCG channel の出力 consumer（localhost UDP、mpegts intra）から、サイドカー `icstv-encoder@<slug>`（h264_vaapi）が **YouTube ingest**（`rtmp://a.rtmp.youtube.com/live2/<key>`）とローカル MediaMTX（自前 HLS 配信元）へ `tee` で二重送出する 1 系統（実体は §6.4、`deploy/playout-node/systemd/icstv-encoder@.service` が正本）。**Cloudflare Live Input は本線経路には無い**。CF Live Input/Output オブジェクト自体は studio の手動操作（`core/admin_views.py`）と fanclub simulcast（`fanclub/tasks.py`）向けに残るのみで、通常運用の送出とは無関係。Phase 1 は 1ch で全機能を検証し（[overview.md](overview.md) 意思決定ログ #11）、その後に最大 4ch へ複製する構想だったが、**現行の本番構成は ch1 単独**（2026-08-18、送出ノードの GPU/CPU 負荷削減のため casparcg.config から ch2 以降の `<channel>` 宣言を削除。§6.6）。本節以降は ch=1 を例に `<channel>-<layer>` 表記で記述し、マルチ ch 復活時は channel 番号を読み替える。
+原則として **1 出力 channel = 1 配信 ch**（[datamodel.md](datamodel.md) の `channel` テーブル 1 行に対応）。送出は CasparCG channel の出力 consumer（localhost UDP、mpegts intra）から、サイドカー `icstv-encoder@<slug>`（h264_vaapi）が **YouTube ingest**（`rtmp://a.rtmp.youtube.com/live2/<key>`）とローカル MediaMTX（自前 HLS 配信元）へ `tee` で二重送出する 1 系統（実体は §6.4、`deploy/playout-node/systemd/icstv-encoder@.service` が正本）。**Cloudflare Live Input は本線経路には無い**。CF Live Input/Output オブジェクト自体は studio の手動操作（`core/admin_views.py`）と fanclub simulcast（`fanclub/tasks.py`）向けに残るのみで、通常運用の送出とは無関係。Phase 1 は 1ch で全機能を検証し（[overview.md](overview.md) 意思決定ログ #11）、その後に最大 4ch へ複製する構想だったが、**現行の本番構成は ch1 単独**（送出ノードの GPU/CPU 負荷削減のため casparcg.config から ch2 以降の `<channel>` 宣言を削除。§6.6）。本節以降は ch=1 を例に `<channel>-<layer>` 表記で記述し、マルチ ch 復活時は channel 番号を読み替える。
 
 ### 1.1 層割当（layer map）
 
@@ -351,11 +351,11 @@ PLAY 1-20 [HTML] "http://127.0.0.1:8080/bumper/cm-in.html"   # データ注入�
 
 ## 4. 生入力切替（live cut / CM IN・復帰 / feed 断退避）
 
-送出ノード（自宅 Proxmox LXC）の MediaMTX でローカル終端した RTMP/SRT を CasparCG の FFmpeg producer で参照し、`cut_live` で本線へテイクする。外部（現場 OBS）からの到達経路は [overview.md](overview.md) 決定#21（Cloudflare One/WARP）を参照。データモデルは [datamodel.md](datamodel.md)（`live_source` / `cm_bundle` / `playout_event`）、割り込み優先度は [scheduler.md](scheduler.md) を参照。
+送出ノード（Proxmox LXC）の MediaMTX でローカル終端した RTMP/SRT を CasparCG の FFmpeg producer で参照し、`cut_live` で本線へテイクする。外部（現場 OBS）からの到達経路は [overview.md](overview.md) 決定#21（Cloudflare One/WARP）を参照。データモデルは [datamodel.md](datamodel.md)（`live_source` / `cm_bundle` / `playout_event`）、割り込み優先度は [scheduler.md](scheduler.md) を参照。
 
 ### 4.1 生入力ソースの参照書式（MediaMTX ローカル RTMP）
 
-FFmpeg producer は libavformat が解釈できる URL（`rtmp://`, `srt://`, `udp://` 等）を clip 引数として直接受ける。MediaMTX が同一ホスト（送出ノード = 自宅 Proxmox LXC 上）で終端しているため参照先は `localhost`。
+FFmpeg producer は libavformat が解釈できる URL（`rtmp://`, `srt://`, `udp://` 等）を clip 引数として直接受ける。MediaMTX が同一ホスト（送出ノード = Proxmox LXC 上）で終端しているため参照先は `localhost`。
 
 ```
 LOADBG 1-10 "rtmp://127.0.0.1:1935/<rtmp_app>/<rtmp_key>"
@@ -589,7 +589,7 @@ function goto_slate(channel):
 
 ## 6. Linux headless 固有・運用
 
-送出ノード（CasparCG Server を headless で常駐させる Linux ホスト = 自宅 Proxmox LXC）に固有の要件と、24/7 リニア配信を維持する運用上の留意点を扱う。記載する AMCP はすべて 2.x 系で実在するものに限定する。
+送出ノード（CasparCG Server を headless で常駐させる Linux ホスト = Proxmox LXC）に固有の要件と、24/7 リニア配信を維持する運用上の留意点を扱う。記載する AMCP はすべて 2.x 系で実在するものに限定する。
 
 > 本節（§6.1〜§6.5）は送出ノード（本番稼働中の Proxmox LXC）の実機構成を正として記述する。宣言ファイルの正本は
 > `deploy/playout-node/casparcg/casparcg.config` と `deploy/playout-node/systemd/casparcg-server.service`（配備手順は
@@ -669,7 +669,7 @@ GL GC
 - 音声は `-filter:a pan=stereo|c0=c0|c1=c1` で 16ch（CasparCG の既定 audio mixer）→ stereo へダウンミックス（mp2 は 2ch までのため必須。無いと consumer 初期化が失敗する）。
 - `<lock-clear-phrase>` … `LOCK`/`UNLOCK` AMCP コマンドの解除フレーズ（誤ロック時の保険）。
 - `<controllers><tcp><port>5250</port>` … AMCP listener。**全 channel で共有**（§6.6）。
-- **1ch 構成である旨**: 実機 config のコメント（44-54 行付近）に「2026-08-18 に実機を正として 1ch 構成へ揃えた。以前は channel 2（ICS-TV ch2）と exposure_policy(#27) 用の channel 3/4 が宣言されていたが、送出ノードの CPU/GPU 負荷削減のため削除済み。宣言するだけで channel ごとに mixer/consumer のコストが乗るため」と明記されている。4ch 構想（§6.6）を復活させる場合はここへ追記する。
+- **1ch 構成である旨**: 実機 config のコメント（44-54 行付近）に「実機を正として 1ch 構成へ揃えた。以前は channel 2（ICS-TV ch2）と exposure_policy(#27) 用の channel 3/4 が宣言されていたが、送出ノードの CPU/GPU 負荷削減のため削除済み。宣言するだけで channel ごとに mixer/consumer のコストが乗るため」と明記されている。4ch 構想（§6.6）を復活させる場合はここへ追記する。
 - screen consumer（`<screen>`）はプレビュー用途であり、headless 構成では利用しない。
 
 ### 6.4 出力 consumer（UDP → サイドカー `icstv-encoder` → tee: YouTube + ローカル MediaMTX）
@@ -688,7 +688,7 @@ ffmpeg -i udp://127.0.0.1:${UDP_PORT}?fifo_size=1000000&overrun_nonfatal=1&timeo
 ```
 
 - **1 本目 (`${CF_INGEST_URL}`) = YouTube ingest**（`rtmp://a.rtmp.youtube.com/live2/<key>`。変数名 `CF_INGEST_URL` は historical で Cloudflare 由来だが、値は YouTube ingest URL。実際にリネームはしていない＝`env/encoder.env.example` 参照）。当面のメインの公開配信経路。
-- **2 本目 = ローカル MediaMTX**（`rtmp://127.0.0.1:1935/hls/<slug>`）。MediaMTX が HLS 化し、自前プレイヤー（`tv.yagamin.net/hls`）と HLS ABR ladder（構築手順は運用 runbook にあるが、このツリーには含まれない）の入力になる。
+- **2 本目 = ローカル MediaMTX**（`rtmp://127.0.0.1:1935/hls/<slug>`）。MediaMTX が HLS 化し、自前プレイヤー（`tv.<内部ドメイン>/hls`）と HLS ABR ladder（構築手順は運用 runbook にあるが、このツリーには含まれない）の入力になる。
 - **Cloudflare Live Input はこの経路のどこにも登場しない**。studio の手動操作（CF Live Input/Output 管理カード）と fanclub simulcast 用に別途 CF オブジェクトは存在するが、本線 tee のどちらの leg でもない。
 - `-bf 0` 必須: VAAPI 既定の B-frame が出るとフレーム並び替えにより MediaMTX の HLS muxer がクラッシュし、`icstv-hls-ladder` を巻き込んで `/hls2` が flap する（実証済、`icstv-encoder@.service` のコメント参照）。
 - `-flags +global_header` 必須: tee は offline format 扱いで global_header が伝播せず、無いと MediaMTX が "unable to parse H264 config" で publish を拒否する。
@@ -721,7 +721,7 @@ Environment=EGL_PLATFORM=surfaceless
 Environment=LIBVA_DRIVER_NAME=iHD
 Environment=LC_ALL=C.UTF-8
 Environment=LANG=C.UTF-8
-# --- §6.8 の wedge 対策（2026-08-18 見直し） ---
+# --- §6.8 の wedge 対策 ---
 MemoryMax=3G
 TimeoutStopSec=20
 
@@ -743,7 +743,7 @@ sudo systemctl enable --now casparcg-server
 
 ### 6.6 実機は 1ch・単一プロセス（複数 ch 構成は将来案）
 
-**現行の実機構成は 1ch・単一 CasparCG プロセス・AMCP 5250 を（唯一の ch で）専有**（§6.3 の config コメントどおり、2026-08-18 に ch2〜4 を削除して 1ch へ揃えた）。当初案の「最大 4ch・ch 毎にプロセス分離」は実装されておらず、既定方針としても取り下げる。CasparCG は 1 プロセス内に複数 channel を宣言でき、実機はこの **1 プロセス N channel** 方式（当面 N=1）を採る。
+**現行の実機構成は 1ch・単一 CasparCG プロセス・AMCP 5250 を（唯一の ch で）専有**（§6.3 の config コメントどおり、ch2〜4 を削除して 1ch へ揃えた）。当初案の「最大 4ch・ch 毎にプロセス分離」は実装されておらず、既定方針としても取り下げる。CasparCG は 1 プロセス内に複数 channel を宣言でき、実機はこの **1 プロセス N channel** 方式（当面 N=1）を採る。
 
 | 観点 | 1 プロセス N channel（**現状**） | プロセス分離（将来案） |
 |------|---------------------|--------------|
@@ -783,7 +783,7 @@ playout agent 自身が本線（`N-10`）の foreground を `ICSTV_WATCHDOG_POLL
 
 **介入アクション**: 本線黒への介入は **緊急スレートへの退避ではなく `casparcg-server.service` の再起動**（`systemctl restart` → 25s で終わらなければ `SIGKILL` へエスカレーション → `Restart=on-failure` で自動復帰）。casparcg を落とすと agent が「切断→再接続」を観測し、現行イベントを本線へ貼り直す（agent 自体の restart では現行を貼り直さない設計のため、casparcg 側を落とす）。再介入は `MAIN_BLACK_COOLDOWN_SEC`（既定 600s）を空ける。
 
-> ⚠️ **緊急スレート（`PLAY N-90 ... LOOP`）へ監視系から退避してはいけない**（2026-08-21 の 35 分黒落ちを受けて廃止）。層 90 は層 10 を覆うため、上げると次の予定 `TAKE` が来ても画面はスレートのまま止まり、解除は編成の `CLEAR_SLATE` イベントだけ。監視系が放送中に誤って上げると次の休止帯まで数時間画面が固まる、黒より悪い結果になる。緊急スレートは feed 断検知（§4.5）等、能動的な `goto_slate(channel)` プリミティブからの意図的な発火にのみ用いる。
+> ⚠️ **緊急スレート（`PLAY N-90 ... LOOP`）へ監視系から退避してはいけない**（監視系からスレートへ退避する運用が長時間の画面固着を招くと判明したため廃止）。層 90 は層 10 を覆うため、上げると次の予定 `TAKE` が来ても画面はスレートのまま止まり、解除は編成の `CLEAR_SLATE` イベントだけ。監視系が放送中に誤って上げると次の休止帯まで数時間画面が固まる、黒より悪い結果になる。緊急スレートは feed 断検知（§4.5）等、能動的な `goto_slate(channel)` プリミティブからの意図的な発火にのみ用いる。
 
 ```
 VERSION
@@ -814,9 +814,9 @@ LOG LEVEL info
 LOG CATEGORY communication 1
 ```
 
-#### 2026-08-18 の実障害（1h35m 無配信）と恒久対策
+#### メモリ上限設定による wedge（長時間の無配信）と恒久対策
 
-CasparCG 本体の anon メモリアリーナが単調増加する現象（実測: 仮想 3.0GiB/実 2.01GiB。CEF 子プロセスは合計 100MiB 未満で犯人ではない）に対し、systemd の `MemoryHigh` で上限を設定していたところ、`MemoryHigh` 超過時のメモリリクレイムでプロセスが throttle され、**AMCP が無応答のまま OOM kill もされずに wedge**する事故が起きた（1h35m のオンエア断）。throttle 中は SIGTERM にも応答しないため、通常の `systemctl restart` は `TimeoutStopSec` まで固まる。
+CasparCG 本体の anon メモリアリーナが単調増加する現象（実測: 仮想 3.0GiB/実 2.01GiB。CEF 子プロセスは合計 100MiB 未満で犯人ではない）に対し、systemd の `MemoryHigh` で上限を設定していたところ、`MemoryHigh` 超過時のメモリリクレイムでプロセスが throttle され、**AMCP が無応答のまま OOM kill もされずに wedge**する事故が起きた（長時間のオンエア断）。throttle 中は SIGTERM にも応答しないため、通常の `systemctl restart` は `TimeoutStopSec` まで固まる。
 
 恒久対策（3点、いずれも `deploy/playout-node/` の実ファイルへ反映済み）:
 
@@ -824,7 +824,7 @@ CasparCG 本体の anon メモリアリーナが単調増加する現象（実�
 2. **`casparcg-server.service` は `MemoryHigh` を設定せず `MemoryMax=3G` を最後の砦にする**（§6.5）。`MemoryMax` に当たれば確実に OOM kill され `Restart=on-failure` で復帰する（wedge するよりましという判断）。`TimeoutStopSec=20` で wedge 時の SIGKILL エスカレーションを早める。
 3. **`icstv-watchdog.timer`（`scripts/watchdog.sh`）の計画的リサイクル**（§6.7 層1〜3の手順0）: メモリが 2.2GiB（`MemoryMax` の手前）を超えたら、AMCP がまだ応答するうちに自主的に再起動する。天井に当たってからでは stop/start とも詰まるため、天井の手前で計画的に回すのが肝。
 
-2026-08-21 には別件で「本線が黒になっても watchdog が検知できていない」バグ（`layer_state` の判定ロジック不備。§6.7 参照）による 35 分黒落ちも発生し、同時に「緊急スレートへの退避」という当時の対応方針そのものが問題（層 90 が層 10 を覆い、放送中に上げると編成の `CLEAR_SLATE` まで戻らない）と判明したため、casparcg 再起動方式へ切り替えた（§6.7 の警告ボックス参照）。
+別件で「本線が黒になっても watchdog が検知できていない」バグ（`layer_state` の判定ロジック不備。§6.7 参照）による長時間の黒落ちも発生し、同時に「緊急スレートへの退避」という当時の対応方針そのものが問題（層 90 が層 10 を覆い、放送中に上げると編成の `CLEAR_SLATE` まで戻らない）と判明したため、casparcg 再起動方式へ切り替えた（§6.7 の警告ボックス参照）。
 
 ## 未確定・論点
 

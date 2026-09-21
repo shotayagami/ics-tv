@@ -8,43 +8,41 @@
 `core.middleware.HostUrlconfMiddleware` が `DJANGO_ADMIN_HOSTS` 以外のホストを公開専用 urlconf
 (`config.urls_public`) に切替える。公開ホストには管理ルートが**存在しない (404)** = 構造的に非露出 (#7)。
 
-| 用途 | 内部 (Technitium DNS) | 外部 (Cloudflare Tunnel) |
+| 用途 | 内部 (split-horizon DNS) | 外部 (Cloudflare Tunnel) |
 |------|------|------|
-| **公開 (視聴者向け)** | `https://tv.<内部ドメイン>` | `https://tv.yagamin.net` |
-| **管理 (フル機能)** | `https://studio.<内部ドメイン>` | `https://studio.yagamin.net` (**CF Access** で保護) |
-| **放送コンソール** (🔴 ops SPA・リファクタ Phase 1) | `https://ops.<内部ドメイン>` | `https://ops.yagamin.net` (**CF Access**) |
-| **クリエイターポータル** (#27・ファンクラブ) | `https://creator.<内部ドメイン>` | `https://creator.yagamin.net` (Google 招待サインイン) |
-| Remotion Studio (レンダプレビュー。Django 外の別 Deployment) | `https://remotion.<内部ドメイン>` | `https://remotion.yagamin.net` (**CF Access**) |
-| **dev** | 公開 `dev-tv.<内部ドメイン>` / 管理 `dev-studio.<内部ドメイン>` (= ADMIN_HOSTS) | 公開 `dev-tv.yagamin.net` / 管理 `dev-studio.yagamin.net` ほか (5 系統 dev-tv/dev-studio/dev-deliver/dev-ops/dev-creator の内外。**正本は `deploy/k8s/overlays/dev/patch-ingress.yaml` と `patch-configmap.yaml`**) |
+| **公開 (視聴者向け)** | `https://tv.<内部ドメイン>` | `https://tv.<公開ドメイン>` |
+| **管理 (フル機能)** | `https://studio.<内部ドメイン>` | `https://studio.<公開ドメイン>` (**CF Access** で保護) |
+| **放送コンソール** (🔴 ops SPA・リファクタ Phase 1) | `https://ops.<内部ドメイン>` | `https://ops.<公開ドメイン>` (**CF Access**) |
+| **クリエイターポータル** (#27・ファンクラブ) | `https://creator.<内部ドメイン>` | `https://creator.<公開ドメイン>` (Google 招待サインイン) |
+| **dev** | 公開 `dev-tv.<内部ドメイン>` / 管理 `dev-studio.<内部ドメイン>` (= ADMIN_HOSTS) | 公開 `dev-tv.<公開ドメイン>` / 管理 `dev-studio.<公開ドメイン>` ほか (5 系統 dev-tv/dev-studio/dev-deliver/dev-ops/dev-creator の内外。**ホスト一覧の正本は導入者の配備基盤側 (このリポジトリの範囲外)**) |
 | **ローカル** | `http://localhost:8000` (compose、全機能) | — |
 
-`<内部ドメイン>` は導入者が自分の内部 DNS (Technitium DNS に限らず split-horizon DNS 全般) に
-用意するドメインのプレースホルダ。上表の各サブドメイン (`tv.` `studio.` 等) は役割を表す接頭辞
-なのでそのまま流用してよい。
+`<内部ドメイン>` は導入者が内部 DNS (split-horizon DNS) に用意するドメイン、`<公開ドメイン>` は
+外部公開に使うドメインのプレースホルダ。上表の各サブドメイン (`tv.` `studio.` 等) は役割を表す
+接頭辞なのでそのまま流用してよい。
 
-外部公開 (`*.yagamin.net`) の**実体はこのリポには無い** — 運用者のインフラ管理リポジトリ (`homelab-infra`) の
-`cloudflared/tunnel-config.yaml` + `scripts/cloudflared-ensure-dns.sh` / `-access.sh` が
-Tunnel ルート・DNS・CF Access を管理する (ICSTV 系は slidecast/backoffice 等も含め 13 ホスト。
-remotion の dev 版が無いのは意図的)。**ホストを追加するときは icstv 側 Ingress と
-homelab-infra の両方を直す**こと。
+外部公開 (`*.<公開ドメイン>`) の**実体はこのリポには無い** — Tunnel ルート・DNS・CF Access は
+導入者の配備基盤側 (このリポジトリの範囲外) で管理する。**ホストを追加するときは
+配備基盤側の Ingress と Tunnel/DNS/CF Access の両方を直す**こと (片方だけでは外から到達できない)。
 
-> **dev は 2026-08-26 以降アプリ層 (web/worker/beat/captions/normalize/offload/grpc/
-> remotion-studio) が `replicas: 0` で停止中**(上記 dev URL はすべて 503)。ArgoCD の
-> sync/health は Synced/Healthy のままなので、この表以外では気づけない。再開手順は
-> `deploy/k8s/overlays/dev/kustomization.yaml` 末尾のコメントを参照。
+> **検証環境を止める運用を採る場合** (dev のアプリ層 — web/worker/beat/captions/normalize/
+> offload/grpc — を `replicas: 0` にする)、**その間 dev の URL はすべて 503
+> になる**。GitOps コントローラの表示 (sync/health) は正常のままなので、
+> 同期状態を見ても止めていることには気づけない。停止・再開の手順は配備基盤側 (このリポジトリの範囲外) に
+> 書き残しておくこと。
 
 > - **公開ホスト** (`tv.*`): 視聴者向けのみ (`/` チャンネル一覧・`/guide/`・`/ch/<slug>/`・`/t/...`)。管理は 404。
-> - **管理ホスト** (`DJANGO_ADMIN_HOSTS` = `studio.<内部ドメイン>,studio.yagamin.net,...`): 編成/運用/営業/
->   請求/admin (納品は別ホスト・別リポ `icstv-delivery`)。`studio.yagamin.net` は外部 Tunnel +
+> - **管理ホスト** (`DJANGO_ADMIN_HOSTS` = `studio.<内部ドメイン>,studio.<公開ドメイン>,...`): 編成/運用/営業/
+>   請求/admin (納品は別ホスト・別リポ `icstv-delivery`)。`studio.<公開ドメイン>` は外部 Tunnel +
 >   **CF Access (Zero Trust)** + Django staff の二重防御。
-> - **CF Access** (`studio.yagamin.net`): 許可 = メールドメイン nekomin.jp / yagamin.net / circle-ics.com /
->   eqwel.co.jp / whatsapp.co.jp (Access app `ICS-TV Studio`)。通過後さらに `/admin/login/` で staff 認証。
-> - cert は letsencrypt-prod の **DNS01 (Cloudflare, zone yagamin.net)** で全 host を発行 (内部限定ホストも可)。
+> - **CF Access** (`studio.<公開ドメイン>`): 通過を許す認証済みメールドメインは導入者が決める
+>   (Access app `ICS-TV Studio`)。通過後さらに `/admin/login/` で staff 認証。
+> - cert は letsencrypt-prod の **DNS01 (Cloudflare、zone は導入者の公開ドメイン)** で全 host を発行 (内部限定ホストも可)。
 > - fail-safe: 未知ホストは公開 (制限) 側に倒れる。
 
 ## 2. 画面と URL (ロール別)
 
-**公開ホスト (誰でも・認証不要)** — 外部 `tv.yagamin.net` 等:
+**公開ホスト (誰でも・認証不要)** — 外部 `tv.<公開ドメイン>` 等:
 
 | 画面 | URL |
 |------|-----|
@@ -53,7 +51,7 @@ homelab-infra の両方を直す**こと。
 | チャンネル視聴 (プレイヤー + 番組表) | `/ch/<slug>/` (旧 `/public/ch/<slug>/` も可。`?view=week` / `?view=day&date=`) |
 | サムネ配信 | `/t/thumbnails/<key>` |
 
-**管理ホスト (`DJANGO_ADMIN_HOSTS` のみ)** — `studio.<内部ドメイン>` (内部) / `studio.yagamin.net` (外部・CF Access):
+**管理ホスト (`DJANGO_ADMIN_HOSTS` のみ)** — `studio.<内部ドメイン>` (内部) / `studio.<公開ドメイン>` (外部・CF Access):
 
 | 画面 | URL | 認証 |
 |------|-----|------|
@@ -70,15 +68,15 @@ homelab-infra の両方を直す**こと。
 | Django 管理 (マスタ CRUD) | `/admin/` | staff/superuser |
 
 > **納品ポータルは撤去済み**。本体の `delivery` app は models/urls を持たない ghost で
-> `/delivery/` は 404。実装は別リポ `icstv-delivery` (社内限定 `deliver-new.<内部ドメイン>`)
+> `/delivery/` は 404。実装は別リポ `icstv-delivery` (内部限定 `deliver-new.<内部ドメイン>`)
 > へ移管済み ([docs/delivery.md](delivery.md) は当時の設計記録として歴史的に残置)。
 >
 > 編成/運用/営業/請求/admin は **staff_member_required / login_required** で保護 (#7。
-> 以前の「編成は認証なし=社内NW前提」は解消)。さらに公開ホストではこれらのルート自体が 404。
+> 以前の「編成は認証なし=内部ネットワーク前提」は解消)。さらに公開ホストではこれらのルート自体が 404。
 > **公開ページのプレイヤー (優先順)**: ① channel 設定の **CF HLS 再生 URL** → hls.js → ② LIVE な YouTube 枠埋め込み
-> → ③ 「準備中」。本番公開 URL = `https://tv.yagamin.net/`。サムネはアプリ経由 `/t/thumbnails/<key>` 配信。
+> → ③ 「準備中」。本番公開 URL = `https://tv.<公開ドメイン>/`。サムネはアプリ経由 `/t/thumbnails/<key>` 配信。
 
-> **注 (編成タイムライン)**: 現状アプリ層の認証デコレータが無い (社内ネットワーク内アクセス前提)。
+> **注 (編成タイムライン)**: 現状アプリ層の認証デコレータが無い (内部ネットワーク内アクセス前提)。
 > 公開ホストには出さないこと。アプリ認証の付与は今後の課題。
 
 主要な操作系 URL (画面から HTMX/fetch で叩かれる。直接叩く必要は通常なし):
@@ -99,7 +97,7 @@ homelab-infra の両方を直す**こと。
 `docker compose` の web/beat/worker/normalize/grpc は `./server:/app` をバインドマウントする
 ため、イメージ内蔵の `frontend_dist`/`staticfiles` がホスト側 (未ビルドだと空) で隠れる。
 **先にフロントをビルドして `server/frontend_dist` へ配置する**こと (詳細は
-`frontend/README.md`。手順は CI (`.gitea/workflows/ci.yaml` の `e2e` job) が実行しているものと同一):
+`frontend/README.md`。手順は CI (`.github/workflows/ci.yml` の `e2e` job) が実行しているものと同一):
 
 ```bash
 cd frontend && npm ci && npm run build && cd ..
@@ -171,7 +169,7 @@ beat コンテナが下記を自動実行する (`config/settings.py` の `CELER
 
 ## 6. 送出ノード (CasparCG agent) の立ち上げ
 
-送出ノード (自宅 Proxmox LXC) の構築・検証は `deploy/playout-node/README.md`。
+送出ノード (Proxmox LXC) の構築・検証は `deploy/playout-node/README.md`。
 要点: `scripts/install.sh` で導入 → `/etc/icstv/agent-<slug>.env` (チャンネルごと。汎用の
 `/etc/icstv/agent.env` は旧世代の残骸で unit からは読まれない) に `ICSTV_AGENT_TOKEN`
 (= channel.agent_token、admin で生成) 等を設定 → `scripts/validate.sh` で Gate 1-10 を段階検証
@@ -209,26 +207,29 @@ YouTube へ即反映)。手動編集した枠は ✎ 表示になり、自動再
 - ローカルテストは `CONTRIBUTING.md` 参照:
   `docker compose --profile test run --rm test pytest -m "not grpc and not e2e"` (通常)、
   `-m e2e tests/e2e/` (Playwright)、`cd agent && .venv/bin/python -m pytest` (agent)。
-- CI = Gitea Actions (`.gitea/workflows/ci.yaml`)。`test` (ruff/mypy/pytest) 以外に
-  `frontend` (npm typecheck+build)・`e2e` (Playwright)・`pip-audit --strict`・
-  `detect-secrets` も走る。**`pull_request` イベントでは `build-push` は走らない**
-  (`push`/タグ push 限定)。Harbor へ publish されるタグと本番昇格の運用は
-  `CONTRIBUTING.md` の「デプロイ対応表」「Harbor retention」を正本とする (ここでは重複させない)。
-- push すると `build-push` job が Harbor へ push した image に **cosign 署名**を付ける
-  (`.gitea/workflows/ci.yaml` にインライン実装。共通ワークフローへの委譲ではない)。
-  repo Secret `COSIGN_KEY` / `COSIGN_PASSWORD` が未設定だと**署名ステップは exit 0 で
-  スキップされ CI は緑のまま無署名イメージが push される**ため、「CI が緑=デプロイ可能」
-  ではない。署名の有無は Harbor 側 (`crane digest` と対応する `sha256-<digest>.sig` タグ)
-  で確認する。
+- CI = GitHub Actions (`.github/workflows/ci.yml`)。**秘密を一切使わず、イメージの push や署名は行わない。**
+  `main` への push と `main` 宛ての pull request で、次の 5 ジョブが走る:
+  `test` (pre-commit のフック・Django の system check・migration の差分・OpenAPI と型の生成物の鮮度・
+  proto 生成物の server/agent 一致・SPDX ヘッダ・mypy・pytest)、`agent` (pytest)、
+  `audit` (`pip-audit --strict`)、`frontend` (typecheck・build・テスト)、`e2e` (Playwright)。
+- 以下は**開発側の配備パイプラインの記述で、このツリーの CI には含まれない**
+  (開発側の CI はコンテナレジストリへのイメージの push と署名も行う。タグと本番昇格の運用は
+  `CONTRIBUTING.md` の「デプロイ対応表」「レジストリの保持ポリシー」を参照)。
+  開発側では、push すると `build-push` job がコンテナレジストリへ push した image に
+  **イメージ署名**を付ける (開発側の CI 定義にインライン実装。共通ワークフローへの委譲ではない)。
+  署名鍵を渡す Secret が未設定だと**署名ステップは exit 0 でスキップされ CI は緑のまま
+  無署名イメージが push される**ため、「CI が緑=デプロイ可能」ではない。署名の有無は
+  レジストリ側 (`crane digest` と対応する `sha256-<digest>.sig` タグ) で確認する。
 
 ## 8. デプロイ (k8s)
 
-`deploy/k8s/` (kustomize)。本番 = `overlays/production`、dev = `overlays/dev` (ArgoCD、
-**2026-08-26 以降アプリ層停止中。§1 参照**)。機密は SealedSecret (`scripts/seal-secrets.sh`。
-生成手順・キー一覧・既知の欠落は `deploy/k8s/README.md` が正本)。dev は
-`50-seed-demo-job.yaml` が seed_demo を PostSync で流す。本番は **cosign 署名が無いと
-Kyverno に拒否される** (デプロイの必須条件。詳細は `../README.md` の「イメージ署名」節)。
-リリース昇格の runbook (Harbor 判定基準・imagePullPolicy の含意) は
+k8s へ載せるためのマニフェスト一式は**導入者の配備基盤側 (このリポジトリの範囲外)**。
+本番と検証環境をオーバーレイで分け、GitOps コントローラで同期する構成を前提に書いている
+(**検証環境を止めたときの挙動は §1 参照**)。機密は Secret として配る (キー一覧の正本は
+`server/.env.example`。方針は `CONTRIBUTING.md` の「環境変数 (.env) の共用」節)。検証環境では
+同期後のフックで `seed_demo` を流すとデモデータ入りで立ち上がる。**イメージ署名が無いと
+ポリシーエンジンに拒否される**構成を採る場合の注意は `../README.md` の「イメージ署名」節。
+リリース昇格の runbook (レジストリ側の判定基準・imagePullPolicy の含意) は
 [operations.md](operations.md) の「リリース昇格 runbook」節を参照。
 
 ## 9. トラブルシュート
@@ -237,7 +238,9 @@ Kyverno に拒否される** (デプロイの必須条件。詳細は `../README
   `icstv-delivery` (本体の `DeliveryAccount` は撤去済み)。
 - **編成変更が送出に反映されない**: resolve は 5 分周期。即時反映は編集 API が `resolve_channel_now`
   を発火するが、agent への伝搬は SubscribeEvents (5s polling) 経由。
-- **CI の build-push が落ちる**: Harbor/ランナーの一過性が多い。Gitea UI で当該 run を **Re-run**
-  (test が success なら build-push のみ再実行で復旧)。Gitea 自体の 503/pack 破損は GC/再起動で復旧。
+- **CI の build-push が落ちる** (開発側の CI の記述。このツリーの CI に `build-push` は無い):
+  コンテナレジストリやランナーの一過性の失敗が多い。開発側の CI で当該 run を **Re-run**
+  (test が success なら build-push のみ再実行で復旧)。Git ホスティング側の 503 や pack 破損は、
+  そちらの GC・再起動で復旧する。
 - **YouTube 枠が「準備中」**: `youtube_slot` 未生成 or error。`/admin-ui/ch/<slug>/youtube/slots/`
   で状態確認、OAuth 連携 (`/admin-ui/ch/<slug>/youtube/connect/`) と永続 liveStream を確認。

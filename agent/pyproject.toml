@@ -2,6 +2,7 @@
 name = "icstv-agent"
 version = "0.1.0"
 description = "ICS-TV playout agent — クラウド送出ノードでローカル AMCP(CasparCG) を駆動"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
     "grpcio>=1.66",

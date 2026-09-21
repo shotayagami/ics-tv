@@ -1,5 +1,6 @@
 {
   "name": "icstv-frontend",
+  "license": "AGPL-3.0-or-later",
   "version": "0.0.0",
   "private": true,
   "description": "ICS-TV frontend (React/TS). Phase 0 foundation: 共有 UI トークン + web アプリシェル + ninja API 型クライアント。",

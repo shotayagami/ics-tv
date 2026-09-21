@@ -35,7 +35,7 @@ python manage.py runserver
 | worker | `celery -A config worker -Q default -l INFO` |
 | normalize | `celery -A config worker -Q normalize -l INFO` |
 
-k8s マニフェストは [../deploy/k8s/](../deploy/k8s/)。
+各ワークロードの配備 (Deployment 相当) は導入者の配備基盤側で用意する (このリポジトリの範囲外)。
 
 ## テスト
 

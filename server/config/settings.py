@@ -31,7 +31,7 @@ ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # 外部 https オリジンからの POST (admin/編成/会員) を CSRF 許可する。空なら内部のみ。
 # ⚠ 会員フォームは公開ホスト (tv.*) 初の POST。本番は公開オリジンを必ず含めること
-#   (例: https://tv.yagamin.net)。含めないと CF Tunnel 経由の会員 POST が 403 になる。
+#   (例: https://tv.example.com)。含めないと CF Tunnel 経由の会員 POST が 403 になる。
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 # 本番 (DEBUG=False) は会員資格情報がセッションに乗るため secure cookie を強制
 # (edge は CF/ingress で TLS 終端、Pod へ X-Forwarded-Proto: https)。dev は False。
@@ -139,7 +139,7 @@ ICSTV_FILL_CONSTRAINT_PROVIDER = env(
 )
 
 # 機密フィールドの DB at-rest 暗号化鍵 (#3 / core.fields.EncryptedTextField)。Fernet 鍵
-# (urlsafe base64 32B)。env → sealed icstv-secret 由来。空なら平文保管 (dev のみ)。
+# (urlsafe base64 32B)。env → 配備基盤側の Secret 由来。空なら平文保管 (dev のみ)。
 # 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ICSTV_FIELD_ENCRYPTION_KEY = env("ICSTV_FIELD_ENCRYPTION_KEY", default="")
 
@@ -168,7 +168,7 @@ except (TypeError, ValueError):
         ) from None
     raise
 
-# 公開サイトの絶対ベース URL (例 https://tv.yagamin.net)。管理ホストから公開ページへのリンク、
+# 公開サイトの絶対ベース URL (例 https://tv.example.com)。管理ホストから公開ページへのリンク、
 # および公開テンプレのナビを必ず公開ホストへ向けるために使う。未設定はローカル相対パス。
 ICSTV_PUBLIC_BASE_URL = env("ICSTV_PUBLIC_BASE_URL", default="")
 
@@ -360,7 +360,7 @@ STATICFILES_DIRS = [("web", FRONTEND_DIST)] if FRONTEND_DIST.is_dir() else []
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Logging (構造化 JSON 1 行/ログ。Loki/Zabbix 取込前提) ---
+# --- Logging (構造化 JSON 1 行/ログ。ログ基盤/Zabbix 取込前提) ---
 # python-json-logger 等の外部依存を増やさず、標準 logging で JSON 形式を最小実装する。
 LOGGING = {
     "version": 1,
@@ -373,7 +373,7 @@ LOGGING = {
             ),
         },
         # icstv.security 専用 (#sec §3)。core.security_log.emit の message は必ず妥当な JSON
-        # オブジェクトなので %(message)s で素通しし、msg をネスト JSON にする (Loki | json で抽出可)。
+        # オブジェクトなので %(message)s で素通しし、msg をネスト JSON にする (ログ基盤側で JSON 展開可)。
         "security_json": {
             "()": "logging.Formatter",
             "format": (
@@ -432,14 +432,14 @@ CELERY_TASK_ROUTES = {
     "medialib.tasks.transcribe_*": {"queue": "captions"},
     # 正規化オフロードの振り分け/取り込みは専用 queue へ (default queue の締切系ビート=weather 取り込み
     # や resolver と競合させない・docs/normalize-offload.md / レビュー #4/#10)。軽い判定と I/O 待ちの
-    # copy が主で CPU は使わないため小さな専任 worker (56-offload) で捌く。
+    # copy が主で CPU は使わないため小さな専任 worker (offload queue 専任) で捌く。
     "medialib.tasks.dispatch_normalize": {"queue": "offload"},
     "medialib.tasks.reconcile_normalize_offload": {"queue": "offload"},
     # 職員 upload の検証 (multipart 完了後の全体 download + SHA256 + ffprobe) は専任 queue へ
     # (所有者決定G)。normalize は concurrency=1 で encode に実測 17-40 分塞がるため、同じ queue に
     # 積むと encode 中は verify が待たされ、verify 中は正規化が進まない直列競合になる。
     # dispatch_normalize を offload queue へ分けた理由 (軽い/別種の処理を重い処理に相乗りさせない)
-    # と同じ論理。専任 worker は deploy/k8s/base/57-verify.yaml。
+    # と同じ論理。専任 worker は verify queue 専任のものを配備基盤側に置く。
     "medialib.tasks.verify_asset_upload": {"queue": "verify"},
 }
 
@@ -508,7 +508,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     # スレート固着: 1 分ごとに「放送中なのにスレートが継続」を検出して通知する。本線が正常でも
     # スレート層が被れば視聴者には停波と同じだが、送出イベントは成功し続けるため既存の死活/
-    # 送出失敗監視には掛からない (2026-07-21 の 2h21m 固着は誰も気付かなかった)。
+    # 送出失敗監視には掛からない (誰も見ていなければ固着したまま何時間も続きうる)。
     "playout-check-stuck-slate": {
         "task": "playout.tasks.check_stuck_slate",
         "schedule": 60.0,
@@ -620,7 +620,7 @@ ICSTV_TOTP_FAIL_WINDOW = env.int("ICSTV_TOTP_FAIL_WINDOW", default=900)  # ウ�
 ICSTV_CLIENT_IP_HEADER = env("ICSTV_CLIENT_IP_HEADER", default="HTTP_X_FORWARDED_FOR")
 
 # ---- Stripe (視聴者サブスク課金。サブスク) ----
-# 機密 (secret/webhook secret) は sealed icstv-secret 由来。publishable は非機密。空なら課金は無効状態
+# 機密 (secret/webhook secret) は配備基盤側の Secret 由来。publishable は非機密。空なら課金は無効状態
 # (ページは出るが Checkout で 503)。Stripe ダッシュボードで Products/Prices(松竹梅)・Webhook を設定する。
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")
@@ -637,7 +637,7 @@ STRIPE_CONNECT_APPLICATION_FEE_PERCENT = env.float(
 )
 
 # ---- 本番 fail-closed 設定ガード (#sec M-5/M-6/I-4) ----
-# deploy が base configmap で ICSTV_REQUIRE_SECRETS=true を設定する。SECRET_KEY / 暗号鍵 /
+# 本番は配備基盤側の ConfigMap 相当で ICSTV_REQUIRE_SECRETS=true を設定する。SECRET_KEY / 暗号鍵 /
 # DB 資格情報が既定値 (=未設定) のまま起動しようとしたら ImproperlyConfigured で止める。
 # テスト/ローカル/CI は既定 False で不介入 (これらは既定値のまま DEBUG=False で走るため)。
 if env.bool("ICSTV_REQUIRE_SECRETS", default=False):
@@ -683,7 +683,7 @@ if env.bool("ICSTV_REQUIRE_OPERATOR_INFO", default=False):
 # 検証する。配送しない backend (console/locmem/dummy/filebased) は dev/test/CI の既定なので
 # 影響を受けない。配送する backend で送信元が空ならメール送信時に失敗するので、起動時に
 # 止めるのはその失敗を前倒しで検出することにあたる。
-# 本番は base configmap で DJANGO_EMAIL_BACKEND と DJANGO_DEFAULT_FROM_EMAIL の両方を設定する。
+# 本番は配備基盤側の ConfigMap 相当で DJANGO_EMAIL_BACKEND と DJANGO_DEFAULT_FROM_EMAIL の両方を設定する。
 from config.checks import enforce_mail_config  # noqa: E402
 
 enforce_mail_config(email_backend=EMAIL_BACKEND, default_from_email=DEFAULT_FROM_EMAIL)

@@ -1,9 +1,9 @@
 # 納品サブシステム分離 — ICS-DELIVERY（別リポ Node/TS ＋ 別DB）
 
-> ステータス: **実装完了・本番稼働**（icstv-delivery **v0.5.3**・deliver-new.<内部ドメイン>・
-> ArgoCD app `icstv-delivery`。本体 delivery app の撤去 = 2.10 も Stage G/H で完了・§11）。
+> ステータス: **実装完了・本番稼働**（icstv-delivery **v0.5.3**・deliver-new.<内部ドメイン>。
+> 本体 delivery app の撤去 = 2.10 も Stage G/H で完了・§11）。
 > 初版 2026-06-25。studio リファクタ Phase 2（[refactor-service-split.md](refactor-service-split.md) §7③・決定②=完全分離）の詳細設計。
-> 目的: 納品（B2B 業者ポータル＋アップロード＋QC＋正規化＋進行表）を ICS-TV 本体から**別リポジトリ `icstv-delivery`（Node/TS・専用 Postgres）**へ完全分離する。ICS-WEATHER / ICS-EARTHQUAKE と同方針（別リポ・独自 admin・k8s/ArgoCD・harbor image）だが、規模は遥かに大きい（深く結合した ~2000 行の Django app の作り直し）。
+> 目的: 納品（B2B 業者ポータル＋アップロード＋QC＋正規化＋進行表）を ICS-TV 本体から**別リポジトリ `icstv-delivery`（Node/TS・専用 Postgres）**へ完全分離する。ICS-WEATHER / ICS-EARTHQUAKE と同方針（別リポ・独自 admin・k8s・コンテナレジストリのイメージ）だが、規模は遥かに大きい（深く結合した ~2000 行の Django app の作り直し）。
 > 関連: [refactor-service-split.md](refactor-service-split.md)（方針・§7③）, [delivery.md](delivery.md)（ICS-TV 同居時代の納品仕様＝**歴史的記録**）, 別リポ icstv-earthquake（分離の前例）, [datamodel.md](datamodel.md)（Asset/Episode/Program）, [overview.md](overview.md) §3.2（正規化 mezzanine）。
 > ユーザー判断（2026-06-25）: **分離形態 = 別リポ Node/TS 書換**、**データ = 別DBへ移管**（最も分離度の高い形・積極分離方針と一貫）。
 
@@ -40,12 +40,12 @@
 ## 3. 目標アーキテクチャ（ICS-DELIVERY 別リポ）
 
 ```
-┌─ icstv-delivery (別リポ・Node/TS・専用 Postgres・harbor icstv/delivery) ──────┐
+┌─ icstv-delivery (別リポ・Node/TS・専用 Postgres・コンテナレジストリ) ─────────┐
 │  deliver.* ホスト: 業者ポータル(Google OAuth) + staff 審査UI + 業者/招待 admin │
 │  upload → R2(quarantine) → QC(ffprobe/loudnorm) → 正規化(ffmpeg mezzanine)    │
 │  → 完成 asset(R2 mezzanine) → ICS-TV へ登録                                    │
 │  専用 Postgres: ProductionCompany/Account/Invitation/Delivery/File/Qc/Sheet  │
-│  k8s: Deployment(web)+Worker(ffmpeg・別ノード)+Ingress(deliver.*)+PVC+ArgoCD  │
+│  k8s: Deployment(web)+Worker(ffmpeg・別ノード)+Ingress(deliver.*)+PVC         │
 └──────────────────────────┬───────────────────────────────────────────────────┘
                            │ 内部 API（X-Internal-Token・weather/earthquake と同型）
                            ▼
@@ -73,10 +73,9 @@ weather（`/internal/weather-import`）・earthquake（`/internal/breaking-telop
 - ~~ICS-TV → DELIVERY 方向の API は基本不要（DELIVERY が主導）。納品状況を studio で見たい場合のみ将来 read API を検討。~~
   → **読み取り seam は Phase 3.9 で実装済み**（上表の `GET /api/internal/deliveries`・`/vendors`）。
 
-> **運用状態（2026-09-02 更新）**: `DELIVERY_REGISTER_TOKEN` は **2026-09-02 に本番投入済み**
-> （SealedSecret 24 キー化）。`/internal/delivery-asset`・`/delivery-refs` と ICS-TV→DELIVERY
-> 読み seam は稼働状態になった。ローテーション手順は [operations.md](operations.md)
-> 「分離サブシステム seam トークン」参照。
+> **運用状態**: `DELIVERY_REGISTER_TOKEN` を導入者の配備基盤側の Secret として配って初めて、
+> `/internal/delivery-asset`・`/delivery-refs` と ICS-TV→DELIVERY 読み seam が稼働状態になる。
+> ローテーション手順は [operations.md](operations.md)「分離サブシステム seam トークン」参照。
 
 ## 5. データ移行（別DB）
 
@@ -95,7 +94,7 @@ weather（`/internal/weather-import`）・earthquake（`/internal/breaking-telop
 - **R2**（aws-sdk S3 互換）= quarantine + mezzanine。ICS-TV と同じバケット規約。
 - **Google OAuth**（業者サインイン・現行 delivery.auth と同等。bind_identity/招待）。
 - **ffmpeg/ffprobe**（QC + 正規化）= Node から spawn。現行 Python の `run_qc`/`normalize_asset` のロジックを忠実移植（technical/loudnorm/mezzanine 1080p60 loudnorm 2-pass・長尺 passthrough・原本バッジ相当）。
-- **k8s**: Deployment(web) + Worker(ffmpeg・**別ノード/CPU 確保**) + Ingress(deliver.*) + PVC(作業領域) + ArgoCD app `icstv-delivery` + harbor `icstv/delivery`。
+- **k8s**: Deployment(web) + Worker(ffmpeg・**別ノード/CPU 確保**) + Ingress(deliver.*) + PVC(作業領域)。イメージはコンテナレジストリから配備する。
 
 ## 7. QC / 正規化の移植（最大の作り込み）
 
@@ -119,7 +118,7 @@ ICS-EARTHQUAKE の cutover（組込 disable → 別リポ単独）に倣うが�
 > 撤去（Phase 3.9）後は **ICS-TV 公開サイト（urls_public）へフォールバックする死んだルート**になって
 > いる（`DJANGO_DELIVERY_HOSTS` を読むコードも無い）。deliver.* を ICS-DELIVERY へ向けるか
 > ingress ルールごと撤去するかは**ユーザ判断**（外部 CF Tunnel 設定と連動。configmap/ingress の
-> マニフェスト変更は ArgoCD 反映を伴うためリリース手順で扱う）。
+> マニフェスト変更は配備基盤の同期を伴うためリリース手順で扱う）。
 
 ## 9. サブフェーズ分解（独立 PR / 各々検証）
 
@@ -127,7 +126,7 @@ ICS-EARTHQUAKE の cutover（組込 disable → 別リポ単独）に倣うが�
 |---|---|---|---|
 | **2.0** | 本設計ドキュメント（青写真・seam 契約・移行計画） | ICS-TV docs | ← 今ここ |
 | **2.1** | **ICS-TV seam API**（`/internal/delivery-asset` + `/internal/delivery-refs` + token）。本体に先に用意（DELIVERY が叩く先） | ICS-TV | 中 |
-| **2.2** | `icstv-delivery` リポ scaffold（Node/TS・Postgres・R2・k8s/ArgoCD・harbor・最小 web） | 新リポ | 中 |
+| **2.2** | `icstv-delivery` リポ scaffold（Node/TS・Postgres・R2・k8s・コンテナレジストリ・最小 web） | 新リポ | 中 |
 | **2.3** | Google OAuth + 業者/招待 admin（delivery.auth/admin_portal 相当） | 新リポ | 中 |
 | **2.4** | 納品ポータル + アップロード（R2 quarantine・DeliveryFile） | 新リポ | 大 |
 | **2.5** | QC パイプライン（ffprobe/loudnorm 移植） | 新リポ | 大 |
@@ -149,7 +148,7 @@ ICS-EARTHQUAKE の cutover（組込 disable → 別リポ単独）に倣うが�
 
 ## 11. 実装状況と 2.10 の顛末（完了記録・2026-09-02 更新）
 
-新リポ `~/icstv-delivery` 側は 2026-06-26 時点で **2.2〜2.9 まで実装完了**（scaffold / 別DB / OAuth+admin / ポータル+R2 アップロード / 自動 QC / 正規化 worker / 承認+完成 asset 登録(seam)+記録表 / ETL スクリプト）し、その後**本番稼働に到達**（現行 **v0.5.3**・ArgoCD app `icstv-delivery`・deliver-new.<内部ドメイン>）。studio 側 delivery 面の cutover（§8 手順 1〜3 相当）は **2026-06-27 の v0.8.43** で完了した。
+新リポ `~/icstv-delivery` 側は 2026-06-26 時点で **2.2〜2.9 まで実装完了**（scaffold / 別DB / OAuth+admin / ポータル+R2 アップロード / 自動 QC / 正規化 worker / 承認+完成 asset 登録(seam)+記録表 / ETL スクリプト）し、その後**本番稼働に到達**（現行 **v0.5.3**・deliver-new.<内部ドメイン>）。studio 側 delivery 面の cutover（§8 手順 1〜3 相当）は **2026-06-27 の v0.8.43** で完了した。
 
 > 注: §9 の番号と実装の番号は 1 つずれている（実装では 2.3=別DB、2.4=OAuth+admin、2.5=ポータル+アップロード、2.6=QC、2.7=正規化、2.8=承認+登録+記録表、2.9=ETL）。正は新リポ README のサブフェーズ表。
 
@@ -166,7 +165,7 @@ main 昇格 6a5f558）で撤去、本番投入は v0.8.87**:
 - `server/delivery/` は **migration 依存のためだけの ghost app** として残置
   （現存は `__init__` / `apps` / `models` / `migrations` のみ。ビュー/タスク/テンプレは無い）。
 - seam（`/internal/delivery-asset`・`/delivery-refs`）は予定どおり撤去後も残置（§4。ただし
-  トークンは 2026-09-02 に投入済み — §4 の運用状態注記）。
+  トークンの配布は導入者側 — §4 の運用状態注記）。
 
 **日付・呼称の注意**（記録の混同防止）:
 

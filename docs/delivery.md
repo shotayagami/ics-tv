@@ -1,7 +1,7 @@
 # #5 納品ポータル（メディアブランチ相当）
 
 > ステータス: **本サブシステムは別リポ ICS-DELIVERY（`~/icstv-delivery`、Node/TS・別 Postgres・
-> deliver-new.<内部ドメイン>・harbor `icstv/delivery`）へ完全移管済み**（2026-07-08、リファクタ
+> deliver-new.<内部ドメイン>）へ完全移管済み**（2026-07-08、リファクタ
 > Phase 3.9 Stage G/H）。**本書は歴史的記録**。ICS-TV に残るのは内部 seam
 > （`/api/v1/internal/delivery-asset`・`/api/v1/internal/delivery-refs`、`server/api/routers/internal.py`）
 > と ghost app `server/delivery`（`migrations/0006_drop_delivery_tables.py` で旧 7 テーブルを

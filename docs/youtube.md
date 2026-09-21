@@ -8,8 +8,7 @@ YouTube Data API v3 で、永続 `liveStream`（RTMPキー）の上に `liveBroa
 ## §0 事前準備 (Google Cloud) — 別環境で立ち上げる場合
 
 以下の Google Cloud 側の準備が済んでいないと、この文書のシーケンスは 1 つも動かない。
-断片は `server/.env.example` と `deploy/k8s/11-secret-template.example.yaml` のコメントにも
-あるが、まとまった手順はここを正とする。
+断片は `server/.env.example` のコメントにもあるが、まとまった手順はここを正とする。
 
 1. **GCP プロジェクト**を作成し、**YouTube Data API v3 を有効化**する
    (APIs & Services → Enable APIs)。
@@ -18,16 +17,16 @@ YouTube Data API v3 で、永続 `liveStream`（RTMPキー）の上に `liveBroa
      OAuth2 必須・API キー不可)
    - redirect URI: `https://<管理ホスト>/admin-ui/oauth/callback/`
      (route の正本は `server/core/urls.py` の `youtube_oauth_callback`。管理ホストの実値は
-     `DJANGO_ADMIN_HOSTS` — 本番は `studio.<内部ドメイン>` / `studio.yagamin.net`)
+     `DJANGO_ADMIN_HOSTS` — 導入者が設定する。例 `studio.<内部ドメイン>`)
    - client id/secret を `ICSTV_OAUTH_CLIENT_ID` / `ICSTV_OAUTH_CLIENT_SECRET` へ
-     (本番は sealed `icstv-secret`、ローカルは `server/.env`)
+     (本番は配備基盤側の Secret、ローカルは `server/.env`)
 3. **クリエイター招待サインイン用 OAuth クライアント** (#27。**配信用とは別クライアント**)
    を作成する:
    - scope: `openid` + `userinfo.email` のみ (PKCE 付き Flow。実装の正本は
      `server/fanclub/creator_oauth.py`)
    - redirect URI: `https://<クリエイターホスト>/auth/google/callback/`
-     (`server/config/urls_creator.py` の `creator_oauth_callback`。本番は
-     `creator.<内部ドメイン>` / `creator.yagamin.net`)
+     (`server/config/urls_creator.py` の `creator_oauth_callback`。ホストは
+     導入者が設定する。例 `creator.<内部ドメイン>`)
    - client id/secret を `ICSTV_CREATOR_OAUTH_CLIENT_ID` / `ICSTV_CREATOR_OAUTH_CLIENT_SECRET` へ
 4. **クォータ目安**: Data API 既定 10,000 units/日で 1ch 運用は余裕 (内訳と 4ch 時の検討は
    後述「クォータ／エラー」節)。増申請はチャンネル数を増やすまで不要。
@@ -134,14 +133,14 @@ def livestream_active(channel):  # liveStreams.list の status.streamStatus を�
 backoff 再試行 → なお不可なら **alert（YT枠が空白。ただし送出ノードの encoder 自体は tee のもう一方の
 leg＝ローカル MediaMTX への送出を継続するため、自前プレイヤー側は無影響）**。
 
-> ⚠️ **「alert」の実態（2026-09-02 実査）**：`rotate_slots` の blocked/missed は
+> ⚠️ **「alert」の実態**：`rotate_slots` の blocked/missed は
 > `logger.warning` とスロットの ERROR 化（studio コンソールの ERROR バッジ）**のみ**で、
-> `core.notify` の Notification 発報は未実装。加えて本番は `ICSTV_NOTIFY_WEBHOOK_URL`
-> 未設定で notifier 自体が no-op（[operations.md](operations.md) 監視・通知経路の盲点 2）。
-> 2026-09-01〜02 に encoder tee の YouTube 枝凍結（TCP は ESTAB のまま bytes 進行ゼロ、
-> `FIFO queue full` → 無音で死ぬ `onfail=ignore` 構成）で 4 窓連続 miss したが、
-> Notification は 0 件だった。通知経路の追加と YouTube 枝ヘルスの監視は残課題
-> （方式はユーザ判断: server 側 healthStatus ポーリング or 送出ノード側 tee 統計の Zabbix 化）。
+> `core.notify` の Notification 発報は未実装。加えて `ICSTV_NOTIFY_WEBHOOK_URL` が
+> 未設定なら notifier 自体が no-op（[operations.md](operations.md) 監視・通知経路の盲点 2）。
+> encoder tee の YouTube 枝が凍結する（TCP は ESTAB のまま bytes 進行ゼロ、
+> `FIFO queue full` → 無音で死ぬ `onfail=ignore` 構成）と、枠が連続して miss しても
+> Notification は 1 件も出ない。通知経路の追加と YouTube 枝ヘルスの監視は残課題
+> （方式はユーザ判断: server 側 healthStatus ポーリング or 送出ノード側 tee 統計の監視系への取り込み）。
 > また **missed 確定した枠の YouTube 側 broadcast は過去日時の public upcoming として
 > 残り続ける**（自動後始末なし）— 手動掃除 or rotate への後始末実装が残課題。
 
@@ -156,7 +155,7 @@ leg＝ローカル MediaMTX への送出を継続するため、自前プレイ�
 - **整合**：定期 `liveBroadcasts.list` で実状態を `youtube_slot` に同期（drift吸収）。polは低頻度（5–10分）。
 - **エラー**：401 → `refresh_token` で再取得 / `transition` 失敗（stream未active）→ backoff /
   重複 → `unique(channel, window_start)` で冪等。
-- **transition 失敗の自己回復（2026-07 追加。2026-07-06 の 503→朝枠 4h 無配信の再発防止）**：
+- **transition 失敗の自己回復**（transition の 503 を放置すると、その枠がまるごと無配信になる）：
   5xx（YouTube 側一過性）は ERROR 確定にせず status を保持し翌分の rotate が再試行（`deferred`）。
   4xx（invalidTransition 等）は `liveBroadcasts.list` で実 lifeCycleStatus を確認し、既に目的状態
   （live 化済み／complete 済み・削除済み）なら追認して正常遷移扱い。窓を live 化されずに過ぎた
@@ -210,18 +209,18 @@ leg＝ローカル MediaMTX への送出を継続するため、自前プレイ�
   合計 ≒ 151 units/枠（枠ごと各1回）。4h枠×6/日 ≒ 906/ch（2h×12 時代は 1,812/ch）。
   ライブチャットの API ピン留めは Data API 非対応のため、通常メッセージとして投稿する。
 
-## 本番 SaaS 実体の現況（2026-09-02 実査）
+## 本番運用で踏んだ SaaS 側の実態
 
 DB（`channel` / `youtube_slot`）と YouTube 側実体（liveStreams / liveBroadcasts）を
-突合した記録。rolling 枠の DB↔SaaS 整合自体は健全（ready/complete の一致・bind 先一致・
-scheduledStartTime の窓頭整列を確認）だが、次の現況を押さえておくこと。
+突合すると、rolling 枠の DB↔SaaS 整合自体は健全に保てる（ready/complete の一致・bind 先一致・
+scheduledStartTime の窓頭整列）。一方で、次の形は運用を続けると必ず出てくるので押さえておく。
 
 **同一 YouTube チャンネルに liveStream が 4 本ある**：
 
 | liveStream | 対応 | cdn 設定 |
 |---|---|---|
 | ICS-TV ch1 ingest | DB ch1 の `youtube_livestream_id`（rolling 本線） | **1080p/60fps 固定** |
-| ICS-TV ch2 ingest | DB ch2（**2026-06-22 停止・enabled=False**） | 1080p/60fps 固定 |
+| ICS-TV ch2 ingest | DB ch2（**停止済み・enabled=False**） | 1080p/60fps 固定 |
 | ICSTV | **DB 非管理**（手動作成の variable stream） | variable |
 | Default stream key | DB 非管理（2021 年作成の既定キー） | variable |
 
@@ -238,9 +237,8 @@ scheduledStartTime の窓頭整列を確認）だが、次の現況を押さえ�
   手動リソースの温存/整理はユーザ判断。
 - completed 総数の差分（SaaS 718 vs DB 446）は ICSTV 導入前の同チャンネル配信履歴等で
   乖離ではない。
-- 実査時点（2026-09-02）、encoder tee の YouTube 枝凍結により 2026-09-01 06:00 JST 以降の
-  全窓が live 化されず**実質停波中**だった（シーケンス3 の注記参照。復旧は encoder
-  restart = operator 作業）。
+- encoder tee の YouTube 枝が凍結すると、以降の全窓が live 化されず**実質停波**になる
+  （シーケンス3 の注記参照。復旧は encoder restart = operator 作業）。
 
 ## 未確定・論点
 
@@ -262,16 +260,15 @@ scheduledStartTime の窓頭整列を確認）だが、次の現況を押さえ�
 
 上記 #3 の rolling 4h 枠（チャンネルのリニア配信）は**そのまま温存**する。本節はその上に、
 **番組単位で専用の `liveBroadcast` を並行で立てる**仕組みと、Studio 配信設定を再利用する
-**配信プリセット**を足す。代表ユースケース＝生番組（例「【#VRChat】…【アイシーエス/八神翔太】」）を、
+**配信プリセット**を足す。代表ユースケース＝生番組（タイトルに企画名と出演者名を入れた単発配信）を、
 リニア枠とは別にクリーンな単独動画／専用メタデータで残す。
 
-> **現況（2026-09-02 実査）: 実装済みだが一度も使われていない（完全休眠）**。
-> preset / description template / ProgramBroadcast / `youtube_dedicated=True` の
-> Program・Series はいずれも 0 件。2 本目 liveStream（`youtube_livestream_id_2`）も未作成
-> だが、これは対象番組が出現したときだけ lazy provision する実装どおりで異常ではない
-> （beat は 5 分周期で空回り中）。代表ユースケースの VRChat 生配信は現状
-> **YouTube Studio 手動運用**（手動 stream + 手動 broadcast が SaaS 側に実在。
-> §本番 SaaS 実体の現況）。
+> **この仕組みは、対象の Program・Series を作るまで一切動かない**。preset /
+> description template / ProgramBroadcast / `youtube_dedicated=True` が 0 件のあいだは
+> beat が 5 分周期で空回りし、2 本目 liveStream（`youtube_livestream_id_2`）も作られない
+> （対象番組が出現したときだけ lazy provision する実装どおりで、異常ではない）。
+> 仕組みを使わずに YouTube Studio 側で手動配信しても、DB 非管理の stream / broadcast が
+> 増えるだけで衝突はしない（§本番運用で踏んだ SaaS 側の実態）。
 
 ## 決定事項（確定）
 
@@ -359,7 +356,7 @@ rolling 経路（generate_slots / rotate_slots）とは独立した sibling タ�
 - **当面 operator がイベント前に tee を ON、後で OFF**（常時 tee は YouTube ingest 帯域が 24h 二重に
   なるため）。agent 制御の自動 tee ON/OFF は将来。ノード上での tee 追加操作（出力を 1 本増やす）の
   具体手順は運用 runbook 側にあり、本リポジトリには含めない。
-- ⚠️ ch2 が**ノード容量壁**（4コアLXC/単一iGPU/k8s のワーカーノードと同居）で停止した前科がある。
+- ⚠️ ch2 が**ノード容量壁**（LXC・単一 iGPU・他ワークロードと同居）で停止した前科がある。
   tee はコピーで軽量想定だが、**初回は送出ノードで CPU/帯域の実機検証必須**。
 
 ## 段階リリース（commit 粒度）

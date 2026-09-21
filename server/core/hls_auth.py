@@ -7,7 +7,7 @@ manifest URL 流出で素通りになる。URL 自体に channel・期限付き�
 
 **エッジの実体は Cloudflare Worker** (`deploy/cloudflare-worker-hls/`)。本線ライブの実配信経路は
 CF Stream ではなく送出ノードの nginx (ABR ladder) を k8s ingress-nginx 経由で出したもので、
-その手前の Cloudflare に Worker を置いて `tv.yagamin.net/hls2/*` の全リクエストを検証する。
+その手前の Cloudflare に Worker を置いて `tv.example.com/hls2/*` の全リクエストを検証する。
 Worker が同じ HMAC を計算できるよう、署名鍵は `ICSTV_HLS_SIGNING_KEY` で Django と共有する
 (未設定なら SECRET_KEY にフォールバック = 従来動作)。
 

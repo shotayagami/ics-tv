@@ -108,10 +108,10 @@ def test_public_epg_cf_hls_player_preferred(http_client, channel):
 
 def test_public_epg_hls_url_drives_quality_ui(http_client, channel):
     """#Phase1: 画質切替/音声のみ UI は島が HLS levels から派生する。API は hls_url を渡すだけ。"""
-    channel.cf_playback_hls_url = "https://tv.yagamin.net/hls2/ch1/master.m3u8"
+    channel.cf_playback_hls_url = "https://tv.example.com/hls2/ch1/master.m3u8"
     channel.save(update_fields=["cf_playback_hls_url"])
     data = http_client.get(f"/api/v1/channels/{channel.slug}").json()
-    assert data["hls_url"].startswith("https://tv.yagamin.net/hls2/ch1/master.m3u8?token=")
+    assert data["hls_url"].startswith("https://tv.example.com/hls2/ch1/master.m3u8?token=")
 
 
 def test_public_epg_no_player_source_without_hls_or_slot(http_client, channel):

@@ -1,23 +1,21 @@
 # 送出ノード (playout node) — 特権 LXC + Intel iGPU 共有
 
-`deploy/k8s/README.md` の「未着手 (Phase 1 後半)」に当たる送出系3点 ＝ **CasparCG / MediaMTX /
-icstv-agent** を、homelab の **特権 LXC** に同居させる構成・手順。
+送出系3点 ＝ **CasparCG / MediaMTX / icstv-agent** を、導入者の仮想化基盤の **特権 LXC** に
+同居させる構成・手順。
 
-> **現行の稼働ノード = Proxmox ホスト `192.0.2.12` 上の送出ノード、LAN IP
-> `192.0.2.20`**。初期実証時の CT は廃止済みで、運用は現行の送出ノードへ移行している。
-> 本書の「構築手順」節は新規ノードを 1 から作る際の一般手順で、`CTID` 以外はスクリプトの既定値（`CT_HOSTNAME=icstv-playout` 等）を
-> そのまま使っており、現行ノードの再構築ではない。
-> 操作は `ssh root@192.0.2.12` (Proxmox ホスト) + `pct exec <CTID> -- <cmd>`（ノードへの直接 SSH は不可）。
+> 本書の「構築手順」節は新規ノードを 1 から作る際の一般手順で、`CTID` 以外はスクリプトの既定値
+>（`CT_HOSTNAME=icstv-playout` 等）をそのまま使っている。
+> 操作は `ssh root@<Proxmox ホスト>` + `pct exec <CTID> -- <cmd>`（ノードへの直接 SSH は不可）。
 > 本書のコマンド例の `<CTID>` は `provision-lxc.sh` で作成した CT の id を表す。
 
-> 本書内の IP (`192.0.2.x`) は RFC 5737 TEST-NET-1 の例示アドレス。自宅 LAN の実際の値は
-> 導入者ごとに異なるため、構築時は自分の環境の値に置き換えること。
+> 本書内の IP (`192.0.2.x`) は RFC 5737 TEST-NET-1 の例示アドレス。実際の値は導入者の LAN ごとに
+> 異なるため、構築時は自分の環境の値に置き換えること。
 
 ## なぜこの構成か (元設計からの逸脱点)
 
-`docs/overview.md` は送出を「クラウド GPU ノード + NVENC + WireGuard」と想定していたが、homelab には
-**NVIDIA GPU が無く Intel UHD630 (iGPU) のみ**、PVE ホストも逼迫している。ユーザー判断で homelab 内に置くため、
-現実的な構成に置き換えた:
+`docs/overview.md` は送出を「クラウド GPU ノード + NVENC + WireGuard」と想定していたが、参照構成の
+基盤には **NVIDIA GPU が無く Intel UHD630 (iGPU) のみ**、仮想化ホストの容量も逼迫していた。
+オンプレに置く前提で現実的な構成に置き換えた:
 
 - **VM 全 passthrough ではなく特権 LXC + `/dev/dri` 共有**。ホストは iGPU を保持し、複数コンシューマで共有。
 - **CasparCG の ffmpeg consumer は VAAPI HW エンコード不可** ([CasparCG #1300](https://github.com/CasparCG/server/issues/1300))。
@@ -26,13 +24,14 @@ icstv-agent** を、homelab の **特権 LXC** に同居させる構成・手順
   MediaMTX へ二重送出（[docs/casparcg.md](../../docs/casparcg.md) §6.4）。**Cloudflare Live Input はこの経路には無い**
   （studio の手動操作 / fanclub simulcast 用に別途残るのみ）。
 - **ヘッドレス(非X11)は CasparCG 2.5.0+ が必要** (EGL 化)。実機は 2.5.0 PPA を採用（保険は 2.3.3+Xvfb だが未使用）。
-- **同一 LAN** のため WireGuard 不要。agent は MetalLB の `icstv-grpc:50051` (固定 `192.0.2.91`) へ直結。
-- 目標解像度は **720p60 既定** (`ICSTV_FPS=60` / casparcg.config `720p6000` と一致)。1080p30 も可（[runbook-1080p-capacity.md](../../docs/runbook-1080p-capacity.md)）。
-- **現行は 1ch (ch1) 単独稼働**（2026-08-18、GPU/CPU 負荷削減のため casparcg.config から ch2 以降を削除）。
-  下記の構成図・マルチチャンネル節は 2ch 以上へ復活させる場合の設計として残す。
+- **同一 LAN** のため WireGuard 不要。agent は制御プレーンの gRPC エンドポイント
+  `icstv-grpc:50051` (例 `192.0.2.91`。導入者の基盤側で固定する) へ直結。
+- 目標解像度は **720p60 既定** (`ICSTV_FPS=60` / casparcg.config `720p6000` と一致)。1080p30 も可（GPU/CPU と容量の見積もりが別途必要）。
+- **既定は 1ch (ch1) 単独構成**（GPU/CPU 負荷削減のため casparcg.config から ch2 以降を外している）。
+  下記の構成図・マルチチャンネル節は 2ch 以上へ増やす場合の設計として残す。
 
 ```
-[送出ノード LXC / 192.0.2.20]                      [RKE2 control plane]      [YouTube]
+[送出ノード LXC / 192.0.2.20]                      [制御プレーン]            [YouTube]
  OBS ──RTMP→ MediaMTX(:1935) ─┐                     icstv-grpc(.91:50051)    ingest (live2)
                               ↓ (127.0.0.1)              ▲ gRPC                  ▲
  CasparCG(EGL/CEF) ─UDP:5004→ icstv-encoder@ch1 ─h264_vaapi─tee→ YouTube ingest(ch1)
@@ -60,33 +59,33 @@ icstv-agent** を、homelab の **特権 LXC** に同居させる構成・手順
 | `env/agent.env.example` | agent 環境の例 (env 契約は `agent/icstv_agent/config.py`)。本番は ch 別に `/etc/icstv/agent-<slug>.env`。exposure_policy のミラー channel 番号/案内フィラー clip も含む (既定コメントアウト) |
 | `env/encoder.env.example` | サイドカーエンコーダ環境の例 (UDP_PORT/slug/CF ingest URL/ビットレート)。本番は ch 別に `/etc/icstv/encoder-<slug>.env` |
 | `env/yt-mirror-encoder.env.example` / `env/yt-members-encoder.env.example` | exposure_policy YTミラー2種の環境の例。本番は ch 別に `/etc/icstv/yt-mirror-encoder-<slug>.env` / `yt-members-encoder-<slug>.env` |
-| `scripts/provision-lxc.sh` | Proxmox ホストへ SSH して CT 作成 + iGPU 共有 (旧記述の管理用 VM は 2026-08-11 停止済) |
+| `scripts/provision-lxc.sh` | Proxmox ホストへ SSH して CT 作成 + iGPU 共有 |
 | `scripts/install.sh` | CT 内で VAAPI/CasparCG/MediaMTX/agent 導入 + systemd 配備。**プロビジョニング専用**で apt/venv まで触るため、稼働中のノードに流してはいけない (更新は `sync-node.sh` + 個別配置) |
 | `scripts/sync-node.sh` | ノードの `/opt/icstv` を git チェックアウトとして同期し、配備済み成果物との差分を報告する。稼働サービスには触らない (fetch/checkout と差分表示のみ) |
 | `scripts/validate.sh` | 段階検証ゲート (vainfo → EGL → AMCP → agent → HLS → watchdog) |
 | `scripts/amcp-smoke.py` | AMCP 接続 + 提供 CG テンプレの ADD/PLAY/UPDATE/STOP スモーク (agent venv で実行)。`/opt/icstv/agent/.venv/bin/python …/amcp-smoke.py` |
-| `scripts/watchdog.sh` | 送出ヘルス監視 → 緊急スレート/再起動。install.sh が `/usr/local/bin/icstv-watchdog.sh` へ配置し `icstv-watchdog.timer` が 30s 周期で起動する。**単体では動かないので timer の稼働を validate.sh Gate 10 で確認すること**。YouTube 枝 bytes_sent 監視 (2026-09-02 障害対応) を含む — 後述 §送出ヘルス監視: YouTube 枝 bytes_sent |
-| `systemd/icstv-watchdog.service` / `.timer` | 上記 watchdog の周期起動 (30s)。2026-08-18 まで unit が存在せず watchdog が配備されていなかった |
+| `scripts/watchdog.sh` | 送出ヘルス監視 → 緊急スレート/再起動。install.sh が `/usr/local/bin/icstv-watchdog.sh` へ配置し `icstv-watchdog.timer` が 30s 周期で起動する。**単体では動かないので timer の稼働を validate.sh Gate 10 で確認すること**。YouTube 枝 bytes_sent 監視を含む — 後述 §送出ヘルス監視: YouTube 枝 bytes_sent |
+| `systemd/icstv-watchdog.service` / `.timer` | 上記 watchdog の周期起動 (30s)。timer を配置しないと watchdog は周期実行されない |
 
-### 監視・アラート経路の外部依存 (promtail)
+### 監視・アラート経路の外部依存 (ログ転送)
 
 watchdog.sh の検知結果は `logger -t icstv-watchdog` → journal に出るだけで、そこから先の転送は
-**ノード共通プロビジョニングの promtail**（homelab fleet 全体に 2026-07-04 一斉導入されたエージェント。
-**icstv リポジトリ外**の管理物）が journal を Loki へ送ることで初めてアラート化できる。
-この README の手順（install.sh / sync-node.sh）は promtail を配備**しない**。別環境で再構築する場合は
-promtail 相当の journal→Loki 転送を別途用意するか、この経路が無い前提で
+**ノード共通プロビジョニングのログ転送エージェント**（導入者の配備基盤側の管理物で、この
+リポジトリの範囲外）が journal をログ基盤へ送ることで初めてアラート化できる。
+この README の手順（install.sh / sync-node.sh）はログ転送エージェントを配備**しない**。
+journal→ログ基盤の転送を別途用意するか、この経路が無い前提で
 `journalctl -t icstv-watchdog` を直接見る運用にすること。
 
-### 送出ヘルス監視: YouTube 枝 bytes_sent (2026-09-02 障害対応)
+### 送出ヘルス監視: YouTube 枝 bytes_sent
 
-2026-09-02、tee の YouTube 枝だけが凍結した (ffmpeg active・ローカル MediaMTX 枝正常・
+tee の YouTube 枝だけが凍結することがある (ffmpeg active・ローカル MediaMTX 枝正常・
 HLS 鮮度正常のまま、`ss` で YouTube 宛ソケットの bytes_sent が停滞)。encoder unit の
 fifo 自動復帰は「エラーが出れば」再接続する仕組みなので、エラーにならない凍結では発火しない。
 watchdog.sh の `check_yt_bytes` がこれを検出する:
 
 - 30s tick ごとに `ss -tinp 'dport = :1935'` を見て、encoder MainPID が持つ**非 loopback 宛**
   (= YouTube ingest) ソケットの bytes_sent を前回値と比較。`YT_BYTES_STALL_SEC` (既定 300s)
-  進まなければ priority=crit で journal へ出し (promtail → Loki で `level="crit"`)、
+  進まなければ priority=crit で journal へ出し (転送先のログ基盤では重大度で絞れる)、
   `icstv-encoder@<slug>` を自動 restart する
 - **ソケット不在は正常扱い** (放送休止帯で YouTube 出力が無い形・YTミラーへのカットオーバー
   drop-in で encoder が MediaMTX 枝のみの形)。「存在するのに進まない」だけを異常とする
@@ -94,19 +93,19 @@ watchdog.sh の `check_yt_bytes` がこれを検出する:
   `YT_BYTES_STALL_SEC` 持続しないまま `YT_RESTART_MAX_ATTEMPTS` (既定 3) 回 restart したら
   諦めて CRIT ログのみ (= 原因が encoder の外にある形。手動対応)
 
-パーサ (`parse_yt_bytes`) は 2026-09-02 に実ノードで採取した ss 出力をフィクスチャにした
+パーサ (`parse_yt_bytes`) は実ノードで採取した ss 出力をフィクスチャにした
 self-test を内蔵する: `bash deploy/playout-node/scripts/watchdog.sh --self-test`
 (root 不要・システム無変更。validate.sh Gate 10 も配備済みスクリプトに対して実行する)。
 
 ## 構築手順（新規ノードを 1 から作る場合）
 
 > ⚠️ `provision-lxc.sh` は `CTID` の指定が必須（既定値なし）。その他の既定値は `CT_HOSTNAME=icstv-playout` / **`IP_CIDR=192.0.2.20/24`**
-> （`scripts/provision-lxc.sh`）。この IP は**現行稼働ノードの IP と同一**なので、既定値のまま
-> 実行すると本番送出ノードと IP が衝突する CT が生える。同一ホームラボで別ノードを試すときは必ず
+> （`scripts/provision-lxc.sh`）。**既に送出ノードを動かしている環境で既定値のまま実行すると、
+> ホスト名・IP が衝突する CT が生える**。同一の基盤で別ノードを試すときは必ず
 > `CTID` には既存と衝突しない値を指定し、`CT_HOSTNAME` / `IP_CIDR` を明示的に変えること（下記コマンド例は `CTID` 以外は既定値のまま。実行前に上書きすること）。
 
 ```bash
-# 1. Proxmox ホスト (ssh root@192.0.2.12) 上で LXC 作成 + iGPU 共有 (gid は自動実測)。
+# 1. Proxmox ホスト (ssh root@<Proxmox ホスト>) 上で LXC 作成 + iGPU 共有 (gid は自動実測)。
 #    CTID は必須。既存と衝突しない値を指定する (以下の <CTID> はこの値)
 CTID=<CTID> deploy/playout-node/scripts/provision-lxc.sh
 
@@ -128,7 +127,7 @@ pct exec <CTID> -- bash -lc 'for ch in ch1; do systemctl start icstv-encoder@$ch
 ```
 
 > 上記コマンド中の `<CTID>` は手順 1 で `provision-lxc.sh` に指定した CTID を表す。実際に作成した
-> CTID に読み替えること。**現行稼働ノード**への操作は本節ではなく
+> CTID に読み替えること。**既に稼働しているノード**への操作は本節ではなく
 > 「ノードの更新」節（下記）を参照する。
 
 ## ノードの更新 (プロビジョニング後の日常運用)
@@ -152,16 +151,16 @@ pct exec <CTID> -- bash /opt/icstv/deploy/playout-node/scripts/sync-node.sh dev 
 ```
 
 > **CG テンプレ（`casparcg/template/`）も sync-node.sh の差分レポート対象**（未配置は [差分] と同格で
-> 検出する。2026-07-04 追加の map/tsunami-corner.html が当時の検査対象外だったため 2 か月未配備のまま
-> 残り、2026-07-28 の実津波注意報で CG ADD が File not found になった事故を受けて追加）。検出後の配備は
+> 検出する。新規追加したテンプレが検査対象外のまま数か月ノードへ配備されずに残り、実運用で
+> CG ADD が File not found になった事故を受けて追加）。検出後の配備は
 > 上記 `template:` の手順で個別に行う。テンプレはノードへの手動配備が必要な成果物である、という一般則
 > として覚えておくこと（配備の自動同期はされない）。
 
-> **sync-node.sh 自体も自動実行されない**（ノードに sync 系 timer は無く、
-> `.gitea/workflows/deploy-agent.yaml` が main push で自動反映するのは agent パッケージ
+> **sync-node.sh 自体も自動実行されない**（ノードに sync 系 timer は無く、開発側 CI の
+> 自動デプロイ（このツリーには含まれない）が反映するのは agent パッケージ
 > （`update-agent.sh` の sha256 差分転送 + restart）のみで、テンプレも config も配備しない）。
 > `deploy/playout-node/` を触るリリースでは必ず手動で `sync-node.sh` を実行して差分を確認すること。
-> ドリフト検査の自動化（差分レポート専用の日次 timer で DRIFT>0 を journal→Loki へ流す案）と
+> ドリフト検査の自動化（差分レポート専用の日次 timer で DRIFT>0 を journal→ログ基盤へ流す案）と
 > テンプレ配備の自動化（workflow で sync-node.sh を回す / `update-agent.sh` 相当のテンプレ配備
 > ステップ新設）は**未決**（「断が出る操作を暗黙に走らせない」現設計との整合をユーザ判断で決める）。
 
@@ -171,7 +170,7 @@ pct exec <CTID> -- bash /opt/icstv/deploy/playout-node/scripts/sync-node.sh dev 
 実機には `agent/icstv_agent/*.bak` や `agent-code.bak*.tgz` などツリー全域に残骸があり、さらに
 git 外の `/etc/systemd/system` には旧非テンプレート unit（`icstv-agent.service` /
 `icstv-encoder.service`）や unit の `*.bak`、`/etc/icstv` には config の `*.bak` が残っている
-（2026-09-02 実査）。`sync-node.sh` は `/opt/icstv` 全ツリーの追跡外と `/etc/systemd/system` の
+（実機で確認した例）。`sync-node.sh` は `/opt/icstv` 全ツリーの追跡外と `/etc/systemd/system` の
 git 外 icstv 系 unit/`*.bak` を警告として列挙するので、`git clean -fd`（追跡外のみ削除）と
 `rm` + `systemctl daemon-reload` で掃除すること（実施の判断はオペレータ）。
 **残骸を放置すると、削除済みの古い unit を現役のソースと取り違えて配備する事故になる。**
@@ -221,17 +220,18 @@ LOADBG→PLAY 切替 → as-run `DONE` 返送。
 - **VAAPI エンコード不安定**なら encoder を **x264 veryfast / 720p** ソフトに切替 (720p 既定の理由)。
 - **容量**: `cores=3/cpulimit=3/cpuunits=50` で他 VM を侵食させない。host CPU steal / mem>30GiB /
   `intel_gpu_top` を監視。超過時は 1080p30 へ。
-- **media cache**: rootfs と別の mount (`provision-lxc.sh` の `MEDIA_STORE`、既定 `local-lvm`)。k8s のコントロールプレーンノードの
-  etcd やワーカーノードが使うディスクを避けるため、別ディスクのストレージを指定する。LRU は prefetch agent。
+- **media cache**: rootfs と別の mount (`provision-lxc.sh` の `MEDIA_STORE`、既定 `local-lvm`)。同じ
+  仮想化ホストに同居する他ゲスト (制御プレーンの etcd 等) が使うディスクを避けるため、別ディスクの
+  ストレージを指定する。LRU は prefetch agent。
 - **exposure_policy (#27) の YTミラー**: 本線 + 公開ミラーの2本で UHD630 の RCS が既に ~90% (実測)。
   メンバーミラーまで含めた3本同時稼働は専用 GPU 増設が実質前提 (`docs/site-only-broadcast.md` §5-1)。
   `ICSTV_YT_MIRROR_CHANNELS` は既定空 (opt-in) で、GPU 容量実測が終わるまで対象チャンネルへ追加しないこと。
 
 ## ノード再構築時の注意 (このリポの手順だけでは完結しない)
 
-- 再構築した CT はこのリポの手順だけでは**監視/バックアップの対象にならない**。Zabbix / Wazuh /
-  vzdump ジョブ / 共有 PostgreSQL サーバの許可リストへの登録が別途必要 (手順はリポ外 — ホームラボ側の
-  ゲスト新設チェックリスト。`infrastructure-docs` への版管理化が予定されている
-  `guest-provisioning-checklist` を参照)。
+- 再構築した CT はこのリポの手順だけでは**監視/バックアップの対象にならない**。監視エージェント
+  (同梱の `zabbix/icstv-playout.conf` は zabbix-agent2 の UserParameter として install.sh が
+  配置する) の登録・バックアップジョブの対象追加・共有 DB への接続許可リストへの登録は、導入者の配備基盤側で
+  別途必要 (手順はこのリポジトリの範囲外)。
 - `/etc/icstv/*.env` (`agent-<slug>.env` / `encoder-<slug>.env` 等の実値) は**このリポに無い**。
-  失うと復元手段は送出ノードの vzdump バックアップからのリストアのみ。
+  失うと復元手段はノードのバックアップからのリストアのみ。

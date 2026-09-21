@@ -53,7 +53,7 @@ ICS-WEATHER が別リポへ分離できたのは、**共有 DB を一切持た�
 
 ## 3. 制約条件（一人運用で破綻させないために）
 
-送出ノードは容量飽和（4 コア LXC・単一 iGPU・k8s-worker 同居で 2ch 同時すら不可。[reference: youtube_ingestion_starved]）。一人運用。この前提で「積極分離」を安全に実現するための不変条件:
+送出ノードは容量飽和（LXC・単一 iGPU・他ワークロードと同居で 2ch 同時すら不可。[reference: youtube_ingestion_starved]）。一人運用。この前提で「積極分離」を安全に実現するための不変条件:
 
 1. **「別リポ/別境界」と「別ランタイム」を分けて考える。** 月次・低トラフィックなサービス（経理/権利）は、最初は *別 Django プロジェクト＋同居デプロイ* で **API 境界だけ確定**し、Pod 分離は後回しでよい。
 2. **共有 DB を初日に割らない。** 読み取りは API / read-only から始め、**書き込み所有権の移管は各サービスの最後の工程**にする。一気に DB を割ると数ヶ月仕事になり一人では回らない。
@@ -156,7 +156,7 @@ ICS-WEATHER が別リポへ分離できたのは、**共有 DB を一切持た�
 ## 7. 各サービスの seam（結合点）詳細
 
 ### ② ICS-EARTHQUAKE（地震/EEW 速報）— 分離完了（前例）
-- 状態: **別リポ `~/icstv-earthquake`（Node20/TS・harbor icstv/earthquake・prod v0.8.30）へ分離済**。weather と同方針＝独立リポ＋独自 admin（発報履歴/ソース/配信基準/手動速報送出）＋15s poller。k8s Deployment/Service/Ingress（earthquake.<内部ドメイン>）＋ArgoCD app `icstv-earthquake`。
+- 状態: **別リポ `~/icstv-earthquake`（Node20/TS・prod v0.8.30）へ分離済**。weather と同方針＝独立リポ＋独自 admin（発報履歴/ソース/配信基準/手動速報送出）＋15s poller。k8s Deployment/Service/Ingress（earthquake.<内部ドメイン>）は導入者の配備基盤側で用意する。
 - seam（ICS-TV 側）: **内部 API 1 点のみ** — `server/api/routers/internal.py` `POST /api/v1/internal/breaking-telop`（`EarthquakeToken` 認証＝共有トークン `EARTHQUAKE_FIRE_TOKEN`）→ `core.views.fire_breaking_telop`（`server/core/views.py`） が layer40 速報テロップを全 enabled ch へ op_overlay show/(future)hide。studio 手動送出からも同経路を再利用可。
 - cutover: 組込 ingest は configmap `EARTHQUAKE_ALERT_ENABLED=false` で停止済、別リポ poller が**現行唯一の発報系**。
 - 残務（cleanup）: **✅完了（P1.5・§8）**。組込コード（`server/scheduling/earthquake.py` /

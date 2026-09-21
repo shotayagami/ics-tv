@@ -170,48 +170,48 @@ def _access_entry(
 
 
 def test_access_hosts_orders_by_volume(db):
-    _access_entry("tv.yagamin.net", "/")
-    _access_entry("studio.yagamin.net", "/studio/")
-    _access_entry("studio.yagamin.net", "/studio/channels")
-    assert stats.access_hosts() == ["studio.yagamin.net", "tv.yagamin.net"]
+    _access_entry("tv.example.com", "/")
+    _access_entry("studio.example.com", "/studio/")
+    _access_entry("studio.example.com", "/studio/channels")
+    assert stats.access_hosts() == ["studio.example.com", "tv.example.com"]
 
 
 def test_access_hourly_buckets_by_local_hour(db):
-    _access_entry("tv.yagamin.net", "/", hours_ago=0)
-    _access_entry("tv.yagamin.net", "/", hours_ago=0)
-    _access_entry("tv.yagamin.net", "/", hours_ago=5)
+    _access_entry("tv.example.com", "/", hours_ago=0)
+    _access_entry("tv.example.com", "/", hours_ago=0)
+    _access_entry("tv.example.com", "/", hours_ago=5)
     since = timezone.now() - timedelta(hours=24)
-    rows = stats.access_hourly("tv.yagamin.net", since)
+    rows = stats.access_hourly("tv.example.com", since)
     assert sum(r["count"] for r in rows) == 3
     assert len(rows) == 2  # 直近時間 と 5時間前 の2バケット
 
 
 def test_access_top_paths_and_status_breakdown(db):
-    _access_entry("tv.yagamin.net", "/ch/ch1/", status=200)
-    _access_entry("tv.yagamin.net", "/ch/ch1/", status=200)
-    _access_entry("tv.yagamin.net", "/vod/1/", status=404)
+    _access_entry("tv.example.com", "/ch/ch1/", status=200)
+    _access_entry("tv.example.com", "/ch/ch1/", status=200)
+    _access_entry("tv.example.com", "/vod/1/", status=404)
     since = timezone.now() - timedelta(hours=24)
-    top = stats.access_top_paths("tv.yagamin.net", since)
+    top = stats.access_top_paths("tv.example.com", since)
     assert top[0] == {"label": "/ch/ch1/", "count": 2}
     statuses = {
-        r["label"]: r["count"] for r in stats.access_status_breakdown("tv.yagamin.net", since)
+        r["label"]: r["count"] for r in stats.access_status_breakdown("tv.example.com", since)
     }
     assert statuses == {"2xx": 2, "4xx": 1}
 
 
 def test_access_summary_excludes_other_hosts(db):
-    _access_entry("tv.yagamin.net", "/", is_page=True)
-    _access_entry("tv.yagamin.net", "/api/v1/home", is_page=False)
-    _access_entry("studio.yagamin.net", "/studio/", is_page=True)
+    _access_entry("tv.example.com", "/", is_page=True)
+    _access_entry("tv.example.com", "/api/v1/home", is_page=False)
+    _access_entry("studio.example.com", "/studio/", is_page=True)
     since = timezone.now() - timedelta(hours=24)
-    s = stats.access_summary("tv.yagamin.net", since)
+    s = stats.access_summary("tv.example.com", since)
     assert s["total_hits"] == 2
     assert s["total_pages"] == 1
 
 
 def test_prune_access_log_removes_old_entries(db):
-    old = _access_entry("tv.yagamin.net", "/", hours_ago=40 * 24)
-    fresh = _access_entry("tv.yagamin.net", "/", hours_ago=1)
+    old = _access_entry("tv.example.com", "/", hours_ago=40 * 24)
+    fresh = _access_entry("tv.example.com", "/", hours_ago=1)
     deleted = prune_access_log(retention_days=35)
     assert deleted == 1
     remaining = set(AccessLogEntry.objects.values_list("pk", flat=True))
@@ -225,11 +225,11 @@ def test_access_stats_api_requires_staff(http_client, db):
 
 
 def test_access_stats_api_staff(staff_client, db):
-    _access_entry("tv.yagamin.net", "/", is_page=True)
-    _access_entry("tv.yagamin.net", "/api/v1/home", is_page=False)
-    res = staff_client.get("/api/v1/admin/access-stats", {"host": "tv.yagamin.net"})
+    _access_entry("tv.example.com", "/", is_page=True)
+    _access_entry("tv.example.com", "/api/v1/home", is_page=False)
+    res = staff_client.get("/api/v1/admin/access-stats", {"host": "tv.example.com"})
     assert res.status_code == 200
     body = res.json()
-    assert body["host"] == "tv.yagamin.net"
-    assert "tv.yagamin.net" in body["hosts"]
+    assert body["host"] == "tv.example.com"
+    assert "tv.example.com" in body["hosts"]
     assert body["total_hits"] >= 2

@@ -4,7 +4,7 @@
 
 notify() が core.Notification を 1 件 INSERT し、settings 登録のバックエンド列へ配送する。
 配送失敗は通知自体を壊さない (DB 行は残す。best-effort)。同一 (kind, channel) はクールダウン
-(既定 5 分) 内なら DB 記録のみ行い配送を抑止する (フラップ時の通知氾濫防止)。Zabbix sender 等は
+(既定 5 分) 内なら DB 記録のみ行い配送を抑止する (フラップ時の通知氾濫防止)。他の通知経路も
 同一インタフェース NotifyBackend で後から追加できる。
 
 settings:
@@ -55,10 +55,9 @@ class WebhookBackend(NotifyBackend):
     ICSTV_NOTIFY_WEBHOOK_MIN_SEVERITY 未満は配送しない。既定は crit で、休止帯の WARN と
     復帰の INFO は DB にだけ残る。
 
-    根拠: 2026-08-01 以降 34 日間 1 件も ack されておらず、直近 47 件の CRIT が無視されている。
-    通知量を絞らないと、実際に効く放送中の断が同じ流れの中に埋もれる。2026-09-03..04 の
-    30 時間では CRIT 4 + INFO 4 = 8 通が流れたが、この既定なら放送中の 1 通だけが立つ。
-    休止帯も Discord で見たい場合は "warn" に下げる。
+    根拠: 通知量を絞らないと、実際に効く放送中の断が同じ流れの中に埋もれ、やがて誰も ack
+    しなくなる。休止帯の WARN と復帰の INFO を落とせば、放送中の CRIT だけが webhook に立つ。
+    休止帯も webhook で受けたい場合は "warn" に下げる。
     """
 
     def send(self, n: Notification) -> None:
