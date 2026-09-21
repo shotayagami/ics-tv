@@ -72,7 +72,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           BUF_VERSION: "1.73.0"
-          BUF_SHA256: "8f2986298ad08f0cc1bf999b9797b7c383adf32d7edf0f73d6f1e1a701baeac1"
+          BUF_SHA256: "8f2986298ad08f0cc1bf999b9797b7c383adf32d7edf0f73d6f1e1a701baeac1"  # pragma: allowlist secret
         run: |
           set -eu
           curl -sSL -o "$RUNNER_TEMP/buf" "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-x86_64"
