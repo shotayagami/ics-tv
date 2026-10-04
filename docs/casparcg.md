@@ -593,7 +593,7 @@ function goto_slate(channel):
 
 > 本節（§6.1〜§6.5）は送出ノード（本番稼働中の Proxmox LXC）の実機構成を正として記述する。宣言ファイルの正本は
 > `deploy/playout-node/casparcg/casparcg.config` と `deploy/playout-node/systemd/casparcg-server.service`（配備手順は
-> [deploy/playout-node/README.md](../deploy/playout-node/README.md)）であり、本節はそれを実機の実測込みで解説する。
+> [deploy/playout-node/README.md](https://github.com/shotayagami/ics-tv/blob/main/deploy/playout-node/README.md)）であり、本節はそれを実機の実測込みで解説する。
 > 差異が出た場合は宣言ファイル側を正とする。
 
 ### 6.1 採用版とプラットフォーム前提（実機: 2.5.0 PPA / Intel UHD630 VAAPI）

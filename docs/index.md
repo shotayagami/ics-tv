@@ -48,5 +48,5 @@ Web システム。ウェザーニューズ社の仕組みを参考にした、�
 - [UI Sales](ui-sales.md) — 営放画面（冒頭の実装状況表参照）
 - [(歴史) UI Delivery](ui-delivery.md) — 納品画面（**移管済み・歴史的記録**）
 
-開発フロー ([CONTRIBUTING.md](../CONTRIBUTING.md)) は本 TechDocs の対象外
+開発フロー ([CONTRIBUTING.md](https://github.com/shotayagami/ics-tv/blob/main/CONTRIBUTING.md)) は本 TechDocs の対象外
 (nav に無い) なのでリポジトリを直接参照する。

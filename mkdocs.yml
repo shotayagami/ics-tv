@@ -15,6 +15,7 @@ nav:
       - Site-only Broadcast: site-only-broadcast.md
       - Viewing Experience: viewing-experience.md
       - Normalize Offload: normalize-offload.md
+      - R2 Direct Upload CORS: r2-direct-upload-cors.md
       - ARIB Safety Zone: arib-safety-zone.md
       - Backoffice Service Split: backoffice-service-split.md
       - Delivery Service Split: delivery-service-split.md

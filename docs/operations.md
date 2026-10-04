@@ -279,7 +279,7 @@ agent↔server の既存 TCP 接続が片方向 blackhole になった場合も�
 （10 秒）と HTTP/2 keepalive（20 秒間隔、10 秒 timeout）で検出し、再接続へ進む。
 SubscribeEvents は正常時に切れない長時間 stream のため有限 deadline は付けない。server は agent の
 keepalive 間隔を明示的に許可する。設定値と展開順序は
-[agent/README.md](../agent/README.md#grpc-の障害検出)を正本とする。
+[agent/README.md](https://github.com/shotayagami/ics-tv/blob/main/agent/README.md#grpc-の障害検出)を正本とする。
 
 `agent_offline` は、Proxmox ホスト側の自動更新と同時に送出ノードの gRPC/RTMP 通信が停滞し、
 既存 gRPC 接続が half-open のまま十数分残る、という形でも発生する。ホストも送出ノードも再起動

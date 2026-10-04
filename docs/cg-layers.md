@@ -34,7 +34,7 @@ CasparCG（送出ノード）側で行われ、配信側（encoder/MediaMTX/HLS�
 | `N-50` | 提供表示 | **HTML or 透過動画(alpha)** | plan().cg (stateless) |
 | `N-90` | 緊急スレート | FFmpeg/HTML | goto_slate |
 
-> レイヤ 37/38 は agent の固定割当（`agent/icstv_agent/amcp_planner.py` `LAYER_HAZARD_CORNER=37` / `LAYER_HAZARD_MAP=38`）にもレイヤ状態パネル（`LAYER_ROLES`、`hazard_corner`/`hazard_map`）にも組み込み済みで、上記 §B.1 の「空きレイヤ」からは除外する（[casparcg.md](casparcg.md) §1.1 に採番の正本を同期済み）。CG テンプレはノードへの手動配備が必要（自動同期されない。[README.md](../deploy/playout-node/README.md)）。
+> レイヤ 37/38 は agent の固定割当（`agent/icstv_agent/amcp_planner.py` `LAYER_HAZARD_CORNER=37` / `LAYER_HAZARD_MAP=38`）にもレイヤ状態パネル（`LAYER_ROLES`、`hazard_corner`/`hazard_map`）にも組み込み済みで、上記 §B.1 の「空きレイヤ」からは除外する（[casparcg.md](casparcg.md) §1.1 に採番の正本を同期済み）。CG テンプレはノードへの手動配備が必要（自動同期されない。[README.md](https://github.com/shotayagami/ics-tv/blob/main/deploy/playout-node/README.md)）。
 
 > 移行: 既存 agent (`amcp_planner.LAYER_PREVIEW`) を 40→**35** に変更し再デプロイ。速報(40)/フリーグラフィック(45)
 > を空ける。`N-45` は将来の二段差し込みに備え 40 と 50 の間に確保。
