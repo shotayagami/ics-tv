@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 484 484" role="img" aria-labelledby="title desc">
   <title id="title">アイシーエス dark background</title>
-  <desc id="desc">Blue outlined square and white Japanese wordmark アイシーエス for a dark background.</desc>
+  <desc id="desc">Blue outlined square and outlined Japanese wordmark アイシーエス.</desc>
   <rect width="484" height="484" rx="18" fill="#111315"/>
   <rect x="13" y="162" width="99" height="160" fill="none" stroke="#123BB8" stroke-width="18"/>
-  <text x="132" y="319" fill="#fff" font-family="851Gkktt, '851ゴチカクット', sans-serif" font-size="62" letter-spacing="-3">アイシーエス</text>
+  <g fill="#fff">
+    <path d="M676 244 734 545H92L97 605H969L900 244ZM248 20 385 471H609L472 20Z" transform="translate(132.000 319) scale(0.05859375 -0.05859375)"/> <path d="M402 20 438 447 64 380 71 456 983 620 976 544 666 488 625 20Z" transform="translate(188.000 319) scale(0.05859375 -0.05859375)"/> <path d="M106 544 111 604H423L418 544ZM420 20 723 560H979L676 20ZM86 328 91 388H403L398 328Z" transform="translate(244.000 319) scale(0.05859375 -0.05859375)"/> <path d="M74 244 79 304H939L934 244Z" transform="translate(300.000 319) scale(0.05859375 -0.05859375)"/> <path d="M143 532 148 592H920L915 532H639L599 80H916L911 20H52L57 80H376L415 532Z" transform="translate(356.000 319) scale(0.05859375 -0.05859375)"/> <path d="M48 20 639 544H98L103 604H963L634 313L900 20H660L501 195L304 20Z" transform="translate(412.000 319) scale(0.05859375 -0.05859375)"/>
+  </g>
 </svg>
