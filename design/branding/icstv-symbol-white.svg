@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-labelledby="title desc">
+  <title id="title">ICS-TV symbol white</title>
+  <desc id="desc">White geometric ICS-TV streaming platform mark.</desc>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="#fff" stroke="#fff" d="M72 55h184c12 0 20 8 20 20v35c0 10-5 17-14 22L72 238V55Z"/>
+    <path fill="#fff" stroke="#fff" d="M72 154 242 249c9 5 14 13 14 23v35c0 12-8 20-20 20H72v-79l118 66v-31L72 217v-63Z"/>
+    <path stroke="#fff" stroke-width="28" d="M288 82a104 104 0 0 1 0 196"/>
+    <path stroke="#fff" stroke-width="28" d="M270 130a58 58 0 0 1 0 100"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 240" role="img" aria-labelledby="title desc">
+  <title id="title">ICS-TV</title>
+  <desc id="desc">ICS-TV geometric streaming platform logo.</desc>
+  <g transform="translate(12 12) scale(.6)">
+    <path fill="#123BB8" d="M72 55h184c12 0 20 8 20 20v35c0 10-5 17-14 22L72 238V55Z"/>
+    <path fill="#111315" d="M72 154 242 249c9 5 14 13 14 23v35c0 12-8 20-20 20H72v-79l118 66v-31L72 217v-63Z"/>
+    <path fill="none" stroke="#123BB8" stroke-linecap="round" stroke-width="28" d="M288 82a104 104 0 0 1 0 196M270 130a58 58 0 0 1 0 100"/>
+  </g>
+  <text x="235" y="151" fill="#111315" font-family="Noto Sans, Arial, sans-serif" font-size="88" font-weight="700" letter-spacing="3">ICS-TV</text>
+</svg>
