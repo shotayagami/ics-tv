@@ -1,5 +1,9 @@
 # ICS-TV 24時間自動配信システム
 
+<p align="center">
+  <img src="design/branding/icstv-horizontal.svg" alt="ICS-TV" width="460">
+</p>
+
 ## ブランド素材
 
 ロゴは [`design/branding/`](design/branding/) にまとめています。`ICS-TV` はプロジェクトブランド、`アイシーエス` は運営・制作主体の親ブランドとして使い分けます。

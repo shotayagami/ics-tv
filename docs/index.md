@@ -1,5 +1,9 @@
 # ICS-TV
 
+<p align="center">
+  <img src="../design/branding/icstv-horizontal.svg" alt="ICS-TV" width="460">
+</p>
+
 circle-ics.com の YouTube 配信を、OBS 手動配信から 24 時間自動配信へ刷新する
 Web システム。ウェザーニューズ社の仕組みを参考にした、リニアチャンネルの
 プレイアウト自動化。詳細は各ドキュメントを参照。
