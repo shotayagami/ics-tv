@@ -10,6 +10,16 @@
 
 正式採用前の初版であり、ロゴの色、文字のアウトライン、商標・類似確認は別途行います。
 
+## ドキュメントのローカルビルド
+
+MkDocsの依存関係は [`docs/requirements.txt`](docs/requirements.txt) に固定しています。Pythonの仮想環境を用意し、次のコマンドでプレビューを起動できます。
+
+```bash
+python3 -m venv .venv-mkdocs
+.venv-mkdocs/bin/python -m pip install -r docs/requirements.txt
+.venv-mkdocs/bin/mkdocs serve
+```
+
 circle-ics.com の YouTube 配信を、OBS手動配信から **24時間自動配信** へ刷新する
 Webシステムの設計・実装プロジェクト。ウェザーニューズ社（ウェザーニュースLiVE / SOLiVE）の
 仕組みを参考にした、リニアチャンネルのプレイアウト自動化。
