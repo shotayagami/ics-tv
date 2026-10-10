@@ -36,6 +36,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# Run Django and Celery without root. Keep UID 10001 aligned with the
+# Kubernetes workload securityContext and provide a writable home for caches.
+RUN printf 'app:x:10001:10001:ICSTV runtime:/home/app:/usr/sbin/nologin\n' >> /etc/passwd \
+    && printf 'app:x:10001:\n' >> /etc/group \
+    && mkdir -p /home/app \
+    && chown 10001:10001 /home/app
+
 COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -67,9 +74,12 @@ COPY --from=frontend /fe/apps/bootstrap-admin/dist ./frontend_dist/bootstrap
 # COPY 後・collectstatic 前に置き、apt/pip 層のキャッシュを版数変更で壊さない。
 ARG ICSTV_VERSION=dev
 ENV ICSTV_VERSION=${ICSTV_VERSION}
+ENV HOME=/home/app
 
 # 静的ファイルを収集 (WhiteNoise が STATIC_ROOT から配信)。DB 不要・SECRET_KEY は default で可。
 RUN python manage.py collectstatic --noinput
+
+USER 10001:10001
 
 EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
