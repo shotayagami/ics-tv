@@ -11,10 +11,13 @@
 from __future__ import annotations
 
 from datetime import datetime, time
+from typing import Annotated
 
 from django.http import HttpRequest
 from django.utils import timezone
 from ninja import Query, Router
+from ninja.errors import HttpError
+from pydantic import Field
 
 from api.auth import staff_auth
 from api.schemas import AllocationOut
@@ -28,19 +31,29 @@ def _ms(ms: int) -> str:
 
 
 @router.get("/admin/sales/allocation", response=AllocationOut)
-def allocation(request: HttpRequest, channel: int | None = Query(None), date: str = Query("")):
+def allocation(
+    request: HttpRequest,
+    channel: int | None = Query(None),
+    # date 型にしないのは、pydantic の lax モードが "0" を UNIX 時刻の日付として受理するため。
+    # 形式は仕様 (format: date) に宣言し、検証は下の strptime で厳密に行う。
+    date: Annotated[str, Field(json_schema_extra={"format": "date"})] | None = Query(None),
+):
     from core.models import Channel
     from playout.models import PlayoutEvent, PlayoutStatus
     from sales.models import Placement
     from scheduling.models import Program
 
     channels = list(Channel.objects.order_by("id"))
-    day = date or timezone.localdate().isoformat()  # ローカル日付 (旧 view の UTC date より正確)
+    # 省略時はローカル日付 (旧 view の UTC date より正確)。空文字は省略でなく不正値 (422)
+    day = timezone.localdate().isoformat() if date is None else date
+    try:
+        d = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError as e:
+        raise HttpError(422, "date は YYYY-MM-DD 形式で指定してください。") from e
     ch = next((c for c in channels if c.id == channel), None) or (channels[0] if channels else None)
 
     rows = []
     if ch is not None:
-        d = datetime.strptime(day, "%Y-%m-%d").date()
         tz = timezone.get_current_timezone()
         start = timezone.make_aware(datetime.combine(d, time.min), tz)
         end = timezone.make_aware(datetime.combine(d, time.max), tz)

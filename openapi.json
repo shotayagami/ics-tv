@@ -12777,9 +12777,16 @@
             "name": "date",
             "required": false,
             "schema": {
-              "default": "",
-              "title": "Date",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
             }
           }
         ],

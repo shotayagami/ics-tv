@@ -8817,7 +8817,7 @@ export interface operations {
         parameters: {
             query?: {
                 channel?: number | null;
-                date?: string;
+                date?: string | null;
             };
             header?: never;
             path?: never;

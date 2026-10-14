@@ -119,3 +119,10 @@ def test_nul_in_query_is_400_not_500(db, client):
     resp = client.get("/api/v1/search?q=a%00b")
     assert resp.status_code == 400
     assert resp.json() == {"detail": "入力値が不正です。"}
+
+
+def test_sales_allocation_invalid_date_is_422_not_500(staff_client, channel):
+    # strptime の ValueError が 500 になっていた (schemathesis が検出)
+    for bad in ("not-a-date", "2026-13-45"):
+        resp = staff_client.get("/api/v1/admin/sales/allocation", {"date": bad})
+        assert resp.status_code == 422, bad
