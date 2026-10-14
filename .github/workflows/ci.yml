@@ -68,6 +68,9 @@ jobs:
           npm --prefix ../frontend ci
           npm --prefix ../frontend run gen:api
           git diff --exit-code -- ../openapi.json ../frontend/packages/api/src/schema.ts
+      - name: Validate OpenAPI spec
+        # 生成物が最新かどうか (上) とは別に、仕様として有効かを見る。
+        run: openapi-spec-validator ../openapi.json
       - name: Install buf (pinned, checksum-verified; no third-party action)
         working-directory: ${{ github.workspace }}
         env:

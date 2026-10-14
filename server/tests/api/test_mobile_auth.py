@@ -491,3 +491,16 @@ def test_last_used_at_is_not_written_on_every_request(db, http_client):
     MemberApiToken.objects.update(last_used_at=timezone.now() - timedelta(minutes=10))
     http_client.get(_ME, **_auth(token))
     assert MemberApiToken.objects.get().last_used_at > first  # 間隔を超えたら更新する
+
+
+# ---- UUID でない challenge_id は 500 でなく 401 ----
+
+
+@_PUBLIC_HOST
+def test_malformed_challenge_id_is_401_not_500(db, http_client):
+    """UUIDField への filter は不正な文字列で ValidationError を投げて 500 になっていた。
+    schemathesis (tests/api/test_openapi_conformance.py) が検出。"""
+    r = _post(http_client, _LOGIN_2FA, {"challenge_id": "not-a-uuid", "code": "123456"})
+    assert r.status_code == 401
+    r = _post(http_client, _RESEND, {"challenge_id": "not-a-uuid"})
+    assert r.status_code == 401

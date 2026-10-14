@@ -15,8 +15,7 @@ mount 分離 (#sec M-4): 公開ホスト tv.* には視聴者島 API だけを�
 (django-ninja は Router を複数 API に共有できないため API 自体を 2 つに割る)。
 """
 
-from ninja import NinjaAPI
-
+from api.openapi_errors import SpecNinjaAPI
 from api.routers.admin import router as admin_router
 from api.routers.admin_access import router as admin_access_router
 from api.routers.admin_billing import router as admin_billing_router
@@ -49,7 +48,7 @@ from api.routers.series_public import router as series_public_router
 # 強制するため、NinjaAPI 側の csrf フラグは不要 (0.x の csrf=True は廃止)。保護が要る操作には
 # 個別に auth=django_auth を付ける (Phase 0 の health は未認証 GET なので付けない)。
 # --- 公開ホスト tv.* にも出してよい視聴者島 API のみ (#sec M-4) ---
-public_api = NinjaAPI(
+public_api = SpecNinjaAPI(
     title="ICS-TV Public API",
     version="0.1.0",
     description="ICS-TV 公開フロント (視聴者島) 向け JSON API",
@@ -75,7 +74,7 @@ public_api.add_router("", mobile_auth_router)
 public_api.add_router("", fanclub_public_router)
 
 # --- 内部連携 (M2M) + 管理 SPA。公開ホストには一切マウントしない (#sec M-4) ---
-internal_admin_api = NinjaAPI(
+internal_admin_api = SpecNinjaAPI(
     title="ICS-TV Internal/Admin API",
     version="0.1.0",
     description="ICS-TV 内部連携 (X-Internal-Token) + 管理 SPA (staff 限定) 向け JSON API",
