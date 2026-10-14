@@ -16,14 +16,14 @@ routers は 94 箇所で `HttpError` を投げており、operation ごとに `r
 - `422`: 入力 (パラメータ・body) を持つ operation。`HttpError(422, ...)` も同じ 422 を使うため
   `ValidationErrorOut` と `ErrorOut` の anyOf にする
 
-DB が入力値を受け付けない `DataError` (NUL 文字など) は 400 で返す。
+DB が入力値を受け付けない `DataError` (NUL 文字など) は 400、制約違反の `IntegrityError` は 409 で返す。
 ninja に届かない 404 (パスのコンバータ不一致) と 500 は `api.error_views` が JSON で返す。
 """
 
 import logging
 from typing import Any
 
-from django.db import DataError
+from django.db import DataError, IntegrityError
 from django.http import HttpRequest, HttpResponse
 from ninja import NinjaAPI
 
@@ -87,7 +87,26 @@ class SpecNinjaAPI(NinjaAPI):
             )
             return self.create_response(request, {"detail": "入力値が不正です。"}, status=400)
 
+        def integrity_error(
+            request: HttpRequest, exc: IntegrityError | type[IntegrityError]
+        ) -> HttpResponse:
+            """入力が DB の制約 (check / unique / not null) に反したときの 409。
+
+            PositiveIntegerField の下限など、仕様に現れない制約に反する入力は 500 でなく 409 にする。
+            内部の不整合が隠れないよう、例外は警告ログに残す。
+            """
+            logger.warning(
+                "IntegrityError on %s: %s",
+                request.path,
+                exc,
+                exc_info=isinstance(exc, BaseException),
+            )
+            return self.create_response(
+                request, {"detail": "データの制約に違反しています。"}, status=409
+            )
+
         self.add_exception_handler(DataError, data_error)
+        self.add_exception_handler(IntegrityError, integrity_error)
 
     def get_openapi_schema(self, **kwargs: Any) -> Any:
         schema = super().get_openapi_schema(**kwargs)

@@ -206,6 +206,8 @@ def fire_breaking_telop(
     duration = max(10, min(600, int(duration_sec or 90)))
     now = timezone.now()
     fired: list[str] = []
+    # 同じ show/hide を結ぶ識別子。ループの前で決める (対象チャンネルが 0 件でも chime が参照する)
+    disc = f"{text[:40]}:{now.isoformat()}"
     for ch in channels:
         if op == "clear":
             insert_immediate_event(
@@ -220,7 +222,6 @@ def fire_breaking_telop(
                 discriminator="breaking_clear",
             )
         else:
-            disc = f"{text[:40]}:{now.isoformat()}"
             insert_immediate_event(
                 ch,
                 PlayoutAction.OVERLAY_OP,
@@ -258,7 +259,6 @@ def fire_breaking_telop(
             )
         fired.append(ch.slug)
     if op != "clear" and chime:
-        # disc は show ブランチで定義される (op != "clear" の保証は外側の if で済み)。
         fire_chime(channels, chime, caller_disc=disc)
     return fired
 
