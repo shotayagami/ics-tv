@@ -4,7 +4,27 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _settle_page_before_teardown(request):
+    """テストの終了前に、ページの通信が落ち着くのを待つ。
+
+    SPA は操作の後に一覧を再取得する。テストが成功表示だけを見て終わると、この再取得が
+    進行中のまま DB の初期化 (TRUNCATE) に入り、サーバー側の SELECT とロックを取り合って
+    デッドロックする ("Database test_icstv couldn't be flushed")。
+
+    page を fixture 内で取得することで、この teardown が page の破棄より前に走る。
+    待ちが失敗しても (常時通信するページなど) テストの結果は変えない。
+    """
+    page = request.getfixturevalue("page") if "page" in request.fixturenames else None
+    yield
+    if page is not None:
+        with contextlib.suppress(Exception):
+            page.wait_for_load_state("networkidle", timeout=5000)
 
 
 @pytest.fixture
