@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import uuid
 from datetime import timedelta
 
 from django.utils import timezone
@@ -112,6 +113,12 @@ def get_challenge(challenge_id):
     from members.models import MemberLoginChallenge
 
     if not challenge_id:
+        return None
+    try:
+        uuid.UUID(str(challenge_id))
+    except ValueError:
+        # UUIDField への filter は不正な文字列で ValidationError を投げ 500 になる。
+        # 形式が不正な challenge は存在しない challenge と同じ扱い (None) にする。
         return None
     return (
         MemberLoginChallenge.objects.filter(

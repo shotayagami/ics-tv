@@ -20,3 +20,9 @@ django-stubs[compatible-mypy]>=5.1,<7  # 実測 6.1.1
 detect-secrets>=1.5,<2  # 実測 1.5.0
 # 依存の既知脆弱性チェック (#sec I-3)。CI の pip-audit ステップが使う。
 pip-audit>=2.7,<3  # 実測 2.10.1
+# OpenAPI 仕様自体の妥当性検査。CI の "Validate OpenAPI spec" ステップが使う。
+openapi-spec-validator>=0.7,<1  # 実測 0.9.0
+# OpenAPI のエラー宣言と実際の応答形の突合 (tests/api/test_openapi_errors.py)。
+jsonschema>=4,<5  # 実測 4.26.0
+# 公開 API の仕様適合テスト (tests/api/test_openapi_conformance.py)。
+schemathesis>=4,<5  # 実測 4.31.0
