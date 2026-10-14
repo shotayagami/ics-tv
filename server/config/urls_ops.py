@@ -30,3 +30,7 @@ urlpatterns = [
     # → React Router が解決 (/ch1 等のディープリンクも同じシェル)。
     re_path(r"^", ops_app),
 ]
+
+# /api/ 配下の 404 / 500 を JSON (OpenAPI の default = ErrorOut) で返す。api/error_views.py 参照
+handler404 = "api.error_views.not_found"
+handler500 = "api.error_views.server_error"

@@ -44,10 +44,4 @@ def _is_public(ctx) -> bool:
 @pytest.mark.django_db
 def test_public_operation_conforms_to_spec(case):
     # テストクライアントの既定ホスト (testserver) は管理ホスト扱いで api/v1/ が解決される
-    response = case.call(headers={"Host": "testserver"})
-    # パスのコンバータ (`{int:...}`) に合わない値は、ninja に届く前に Django の URL ルーターが
-    # HTML の 404 を返す。仕様の対象外なので、ninja が返さない形式 (HTML) の 404 だけを許す。
-    # ponytail: 24 ルートの `{int:}` を外して 422 (JSON) に揃えれば、この許容は不要になる
-    if response.status_code == 404 and "text/html" in response.headers.get("content-type", [""])[0]:
-        return
-    case.validate_response(response)
+    case.call_and_validate(headers={"Host": "testserver"})

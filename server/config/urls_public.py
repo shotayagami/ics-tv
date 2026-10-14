@@ -71,3 +71,7 @@ urlpatterns = [
     # 視聴ハートビート (#ADMIN-02 視聴計測)
     path("api/beat", core_views.beat, name="beat"),
 ]
+
+# /api/ 配下の 404 / 500 を JSON (OpenAPI の default = ErrorOut) で返す。api/error_views.py 参照
+handler404 = "api.error_views.not_found"
+handler500 = "api.error_views.server_error"

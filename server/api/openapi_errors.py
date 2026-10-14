@@ -16,12 +16,18 @@ routers は 94 箇所で `HttpError` を投げており、operation ごとに `r
 - `422`: 入力 (パラメータ・body) を持つ operation。`HttpError(422, ...)` も同じ 422 を使うため
   `ValidationErrorOut` と `ErrorOut` の anyOf にする
 
-500 は Django 既定のハンドラに任せており JSON 形式を保証しない (`default` はその対象外)。
+DB が入力値を受け付けない `DataError` (NUL 文字など) は 400 で返す。
+ninja に届かない 404 (パスのコンバータ不一致) と 500 は `api.error_views` が JSON で返す。
 """
 
+import logging
 from typing import Any
 
+from django.db import DataError
+from django.http import HttpRequest, HttpResponse
 from ninja import NinjaAPI
+
+logger = logging.getLogger(__name__)
 
 _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
@@ -67,6 +73,22 @@ def _json(schema: dict[str, Any], description: str) -> dict[str, Any]:
 
 
 class SpecNinjaAPI(NinjaAPI):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        def data_error(request: HttpRequest, exc: DataError | type[DataError]) -> HttpResponse:
+            """DB が入力値を受け付けなかった (NUL 文字・範囲外の数値など) ときの 400。
+
+            入力検証をすり抜けた値が原因なので 500 でなく 400 にする。内部のデータ不整合が
+            隠れないよう、例外は警告ログに残す。
+            """
+            logger.warning(
+                "DataError on %s: %s", request.path, exc, exc_info=isinstance(exc, BaseException)
+            )
+            return self.create_response(request, {"detail": "入力値が不正です。"}, status=400)
+
+        self.add_exception_handler(DataError, data_error)
+
     def get_openapi_schema(self, **kwargs: Any) -> Any:
         schema = super().get_openapi_schema(**kwargs)
         schemas = schema.setdefault("components", {}).setdefault("schemas", {})

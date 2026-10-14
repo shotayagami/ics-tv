@@ -73,3 +73,49 @@ def test_validation_error_matches_declared_422(client, spec):
     declared = spec["paths"]["/api/v1/auth/login"]["post"]["responses"]["422"]
     schema = _inline(spec, declared["content"]["application/json"]["schema"])
     jsonschema.validate(resp.json(), schema)
+
+
+def test_api_not_found_is_json(client):
+    # `{int:...}` に合わない値は ninja に届かず URL ルーターが 404 にする
+    resp = client.get("/api/v1/program/abc")
+    assert resp.status_code == 404
+    assert resp["Content-Type"].startswith("application/json")
+    assert resp.json() == {"detail": "Not Found"}
+
+
+def test_non_api_not_found_stays_html(client):
+    resp = client.get("/no-such-page/")
+    assert resp.status_code == 404
+    assert resp["Content-Type"].startswith("text/html")
+
+
+def test_server_error_handler_is_json_only_under_api(rf):
+    from api.error_views import server_error
+
+    api = server_error(rf.get("/api/v1/health/"))
+    assert api.status_code == 500
+    assert api["Content-Type"].startswith("application/json")
+    assert server_error(rf.get("/studio/")).status_code == 500
+    assert server_error(rf.get("/studio/"))["Content-Type"].startswith("text/html")
+
+
+def test_urlconfs_wire_json_handlers():
+    import importlib
+    import importlib.util
+
+    checked = 0
+    for name in ("urls", "urls_ops", "urls_public", "urls_tenant_studio"):
+        if importlib.util.find_spec(f"config.{name}") is None:  # 配布版に無い urlconf
+            continue
+        mod = importlib.import_module(f"config.{name}")
+        assert mod.handler404 == "api.error_views.not_found", name
+        assert mod.handler500 == "api.error_views.server_error", name
+        checked += 1
+    assert checked >= 3
+
+
+def test_nul_in_query_is_400_not_500(db, client):
+    # PostgreSQL の text は NUL を保持できず DataError になる (schemathesis が検出)
+    resp = client.get("/api/v1/search?q=a%00b")
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "入力値が不正です。"}

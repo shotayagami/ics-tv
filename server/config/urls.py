@@ -41,3 +41,7 @@ urlpatterns = [
     # core/urls.py が ops/ と public/ を提供 (prefix なしで include)
     path("", include("core.urls", namespace="core")),
 ]
+
+# /api/ 配下の 404 / 500 を JSON (OpenAPI の default = ErrorOut) で返す。api/error_views.py 参照
+handler404 = "api.error_views.not_found"
+handler500 = "api.error_views.server_error"
