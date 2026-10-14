@@ -13,11 +13,15 @@
 - staff セッションで通る GET (`staff_client` のセッション cookie)
 - 会員トークンで通る GET (`api_tokens.issue` のトークン)
 
+パスパラメータ (slug / ID 系) は `seeded` fixture の実在オブジェクトに差し替え、2xx の応答形式まで
+検査する。新しい ID 系パラメータが増えたら `test_seeded_covers_every_path_parameter` が落ちる。
+
 次は未対応。トークン系 (Backoffice / Delivery / Monitor の GET)、副作用のある POST / PUT /
 DELETE (テストデータの後始末と、入力の生成範囲を決める必要がある)。
 """
 
 import contextlib
+from types import SimpleNamespace
 
 import pytest
 import schemathesis
@@ -27,6 +31,7 @@ from django.db import close_old_connections
 from django.test import override_settings
 from django.utils import timezone
 from hypothesis import HealthCheck, settings
+from schemathesis.generation import GenerationMode
 from schemathesis.specs.openapi.checks import ignored_auth
 
 from api.management.commands.dump_openapi import _merged_schema
@@ -107,15 +112,142 @@ def test_public_operation_conforms_to_spec(case):
     case.call_and_validate(headers=_HOST)
 
 
+@pytest.fixture
+def seeded(db, channel, asset_ready, staff_user):
+    """パスパラメータ (ID 系) に差し込む、実在のオブジェクト一式。
+
+    生成された ID は存在せず 404 になるだけで、2xx の応答形式を検査できない。fixture は
+    関数あたり 1 回だけ実行される (hypothesis は例ごとに関数を繰り返し呼ぶ)。
+    """
+    from datetime import date, time, timedelta
+
+    from fanclub import services as fc_services
+    from fanclub.models import Creator, CreatorSeriesLink
+    from medialib import models as medialib_models
+    from scheduling.models import (
+        AudienceForm,
+        AudienceFormKind,
+        AudienceSubmission,
+        Program,
+        ProgramType,
+        Series,
+        SeriesSlot,
+    )
+    from youtube.models import YoutubeBroadcastPreset
+
+    creator = Creator.objects.create(name="検査サークル", slug="conformance-circle")
+    fc_services.ensure_free_tier(creator)
+    series = Series.objects.create(channel=channel, title="検査シリーズ")
+    CreatorSeriesLink.objects.create(series=series, creator=creator)
+    slot = SeriesSlot.objects.create(
+        series=series,
+        dow=0,
+        start_time=time(12, 0),
+        duration_ms=30 * 60 * 1000,
+        program_type=ProgramType.RECORDED,
+        default_asset=asset_ready,
+        effective_from=date(2026, 1, 1),
+    )
+    end = timezone.now() - timedelta(hours=2)
+    program = Program.objects.create(
+        channel=channel,
+        type=ProgramType.RECORDED,
+        title="検査番組",
+        start_at=end - timedelta(hours=1),
+        end_at=end,
+        asset=asset_ready,
+    )
+    form = AudienceForm.objects.create(
+        series=series, kind=AudienceFormKind.MESSAGE, title="検査フォーム", enabled=True
+    )
+    AudienceSubmission.objects.create(form=form, payload={"message": "検査"})
+    preset = YoutubeBroadcastPreset.objects.create(name="検査プリセット")
+    upload = None
+    if hasattr(medialib_models, "AssetUpload"):  # ブラウザ upload は配布版だけにある
+        upload = medialib_models.AssetUpload.objects.create(
+            owner=staff_user,
+            kind=medialib_models.AssetKind.PROGRAM,
+            title="検査アップロード",
+            original_filename="conformance.mp4",
+            content_type="video/mp4",
+            expected_size_bytes=1,
+            expected_sha256="0" * 64,
+            staging_key="staging/conformance",
+            idempotency_key_hash="0" * 64,
+            request_fingerprint="0" * 64,
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+    return SimpleNamespace(
+        upload=upload,
+        channel=channel,
+        creator=creator,
+        series=series,
+        slot=slot,
+        program=program,
+        form=form,
+        asset=asset_ready,
+        preset=preset,
+    )
+
+
+# パスパラメータ名 → seeded から値を取り出す関数。slug / owner / owner_id は個別に扱う
+_ID_PARAMS = {
+    "creator_id": lambda s: s.creator.pk,
+    "series_id": lambda s: s.series.pk,
+    "form_id": lambda s: s.form.pk,
+    "program_id": lambda s: s.program.pk,
+    "slot_id": lambda s: s.slot.pk,
+    "asset_id": lambda s: s.asset.pk,
+    "preset_id": lambda s: s.preset.pk,
+    "upload_id": lambda s: s.upload.pk,  # 配布版だけにある AssetUpload
+}
+_BOUND_PARAMS = {*_ID_PARAMS, "slug", "owner", "owner_id"}
+
+
+def test_seeded_covers_every_path_parameter():
+    """認証付き GET のパスパラメータは、すべて seeded で差し替えられること。
+
+    新しい ID 系パラメータを持つ operation が増えたら、ここで失敗させる。放置すると生成された
+    存在しない ID が 404 になるだけで、2xx の応答形式が検査されないまま通ってしまう。
+    """
+    unbound = {
+        f"{op.label}: {name}"
+        for op in _schema.get_all_operations()
+        if (r := op.ok()) is not None
+        for op in [r]
+        if _staff_get(SimpleNamespace(operation=op)) or _member_get(SimpleNamespace(operation=op))
+        for name in (p.name for p in op.path_parameters)
+        if name not in _BOUND_PARAMS
+    }
+    assert not unbound, f"seeded fixture で扱えないパスパラメータ: {sorted(unbound)}"
+
+
+def _bind_path_params(case, seeded) -> None:
+    """生成されたパスパラメータを、実在のオブジェクトの値に差し替える。
+
+    負例 (不正な値を意図して生成したケース) は差し替えない。差し替えると有効な入力になり、
+    「不正入力が拒否されること」を期待する検査と矛盾する。
+    """
+    params = case.path_parameters
+    if not params or (case.meta and case.meta.generation.mode == GenerationMode.NEGATIVE):
+        return
+    for key, getter in _ID_PARAMS.items():
+        if key in params:
+            params[key] = getter(seeded)
+    if "owner" in params:  # graphic-cues/{owner}/{owner_id}
+        params["owner"] = "series"
+        params["owner_id"] = seeded.series.pk
+    if "slug" in params:
+        fanclub = case.operation.path.startswith("/api/v1/fc/")
+        params["slug"] = seeded.creator.slug if fanclub else seeded.channel.slug
+
+
 @_schema.include(func=_staff_get).parametrize()
 @_SETTINGS
 @pytest.mark.django_db
-def test_staff_get_conforms_to_spec(case, staff_client, channel):
+def test_staff_get_conforms_to_spec(case, staff_client, seeded):
     name = dj_settings.SESSION_COOKIE_NAME
-    # 生成した slug は存在せず 404 になるだけなので、実在のチャンネルへ差し替える
-    # (ID 系のパラメータは未対応。404 の形式だけを見る)
-    if "slug" in (case.path_parameters or {}):
-        case.path_parameters["slug"] = channel.slug
+    _bind_path_params(case, seeded)
     cookie = f"{name}={staff_client.cookies[name].value}"
     response = case.call(headers={**_HOST, _COOKIE_HEADER: cookie})
     _assert_authenticated(response)
@@ -125,7 +257,7 @@ def test_staff_get_conforms_to_spec(case, staff_client, channel):
 
 
 @pytest.fixture
-def member_token(db, request):
+def member_token(db, request, seeded):
     """会員とそのトークン。hypothesis は 1 つの関数を例ごとに繰り返し呼ぶため、
     unique 制約のある行は関数内でなく fixture (関数あたり 1 回) で作る。"""
     with contextlib.suppress(pytest.FixtureLookupError):
@@ -141,6 +273,16 @@ def member_token(db, request):
         postal_code="1000001",
         email_verified_at=timezone.now(),
     )
+    # fc/{slug}/chat は、そのクリエイターの会員だけが読める
+    from fanclub.models import CreatorMembership, CreatorTier, MembershipStatus
+
+    CreatorMembership.objects.create(
+        member=member,
+        creator=seeded.creator,
+        tier=CreatorTier.objects.filter(creator=seeded.creator).order_by("id").first(),
+        status=MembershipStatus.ACTIVE,
+        joined_at=timezone.now(),
+    )
     return api_tokens.issue(member)
 
 
@@ -148,7 +290,8 @@ def member_token(db, request):
 @_SETTINGS
 @pytest.mark.django_db
 @override_settings(ICSTV_ADMIN_HOSTS=[], ICSTV_DELIVERY_HOSTS=[])
-def test_member_get_conforms_to_spec(case, member_token):
+def test_member_get_conforms_to_spec(case, member_token, seeded):
+    _bind_path_params(case, seeded)
     response = case.call(headers={**_HOST, "Authorization": f"Bearer {member_token}"})
     _assert_authenticated(response)
     # ignored_auth は認証を外して再送する検査。認証を別名ヘッダで渡している (上記) ため
