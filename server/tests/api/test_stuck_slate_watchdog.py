@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import time, timedelta
 
 import pytest
 from django.utils import timezone
@@ -28,10 +28,32 @@ def _windows(channel):
     channel.save(update_fields=["broadcast_windows"])
 
 
+def _off_air_window(now: time) -> dict[str, str]:
+    """`now` (ローカル時刻) とその前後数分を含まない 1 分間の窓。
+
+    固定の 00:00-00:01 では、0 時台 (日付境界) に実行された CI で窓の内側になり、「休止中」の
+    つもりが放送中と判定されて落ちる。日付境界の近くだけ、正午の窓へ避ける。
+    """
+    near_midnight = now < time(0, 5) or now >= time(23, 55)
+    if near_midnight:
+        return {"start": "12:00", "end": "12:01"}
+    return {"start": "00:00", "end": "00:01"}
+
+
 def _off_air_windows(channel):
     """現在時刻が確実に窓外 (休止中) になる窓を組む。"""
-    channel.broadcast_windows = [{"start": "00:00", "end": "00:01"}]
+    channel.broadcast_windows = [_off_air_window(timezone.localtime().time())]
     channel.save(update_fields=["broadcast_windows"])
+
+
+@pytest.mark.parametrize(
+    "now", [time(0, 0, 3), time(0, 4), time(23, 56), time(3, 0), time(12, 0, 30), time(18, 0)]
+)
+def test_off_air_window_never_contains_now(now):
+    window = _off_air_window(now)
+    start = time.fromisoformat(window["start"])
+    end = time.fromisoformat(window["end"])
+    assert not (start <= now < end)
 
 
 def _status(channel, *, slate_active=True, feed_state="idle"):
