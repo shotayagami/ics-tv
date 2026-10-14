@@ -399,7 +399,12 @@ def _contract_out(sc: SlotContract) -> dict:
 def _parse_date(s: str):
     from datetime import date
 
-    return date.fromisoformat(s) if s else None
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError as e:  # 不正な文字列は 500 でなく 422 (全呼び出し元がここを通る)
+        raise HttpError(422, "日付は YYYY-MM-DD 形式で指定してください。") from e
 
 
 @router.get("/admin/fanclub/creators/{creator_id}/contracts", response=list[SlotContractOut])

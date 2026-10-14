@@ -1946,10 +1946,14 @@
             "type": "boolean"
           },
           "month": {
+            "maximum": 12,
+            "minimum": 1,
             "title": "Month",
             "type": "integer"
           },
           "year": {
+            "maximum": 2100,
+            "minimum": 2000,
             "title": "Year",
             "type": "integer"
           }
@@ -7380,6 +7384,8 @@
           "fc_required_level": {
             "anyOf": [
               {
+                "maximum": 32767,
+                "minimum": 0,
                 "type": "integer"
               },
               {

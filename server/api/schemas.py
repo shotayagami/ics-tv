@@ -4,6 +4,7 @@
 フロントの TS クライアント生成元になる。"""
 
 from ninja import Schema
+from pydantic import Field
 
 
 class HealthOut(Schema):
@@ -528,8 +529,9 @@ class BillingOut(Schema):
 
 
 class CloseMonthIn(Schema):
-    year: int
-    month: int
+    # 範囲外の月は calendar.IllegalMonthError (ValueError) で 500 になっていた
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
     force: bool = False
 
 
@@ -1686,7 +1688,7 @@ class SeriesPostIn(Schema):
     campaign_start: str = ""
     campaign_end: str = ""
     is_published: bool = False
-    fc_required_level: int | None = None
+    fc_required_level: int | None = Field(None, ge=0, le=32767)  # smallint の正の範囲
 
 
 # --- ネイティブアプリ トークン認証 (#MOBILE-01) ---

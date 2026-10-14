@@ -554,7 +554,12 @@ def _parse_dt(s: str):
 
     if not s:
         return None
-    dt = parse_datetime(s)
+    try:
+        dt = parse_datetime(s)
+    except (
+        ValueError
+    ) as e:  # 形式は正しいが日付として不正 (2026-13-45T00:00 など)。全呼び出し元がここを通る
+        raise HttpError(422, "日時は ISO 8601 形式で指定してください。") from e
     if dt is not None and timezone.is_naive(dt):
         dt = timezone.make_aware(dt)
     return dt

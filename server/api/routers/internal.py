@@ -264,7 +264,7 @@ def _resolve_delivery_episode(payload: DeliveryAssetIn):
     series_id も episode_id も無ければ None (= 本編 Episode を持たない登録)。"""
     from ninja.errors import HttpError
 
-    from scheduling.models import Episode
+    from scheduling.models import Episode, Series
 
     if payload.episode_id:
         ep = Episode.objects.select_related("series").filter(pk=payload.episode_id).first()
@@ -273,6 +273,9 @@ def _resolve_delivery_episode(payload: DeliveryAssetIn):
         return ep
     if not payload.series_id:
         return None
+    # 実在しない series_id で Episode を作ろうとすると FK 違反 (または直後の取得で DoesNotExist) になる
+    if not Series.objects.filter(pk=payload.series_id).exists():
+        raise HttpError(400, "指定の series が見つかりません")
     air = _parse_iso_date(payload.air_date)
     if payload.episode_no is None and air is None:
         raise HttpError(400, "回の特定に episode_no か air_date が必要です")
