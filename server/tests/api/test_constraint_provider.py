@@ -127,8 +127,11 @@ def test_band_match_places_contract_cm(channel, asset_ready):
     cm = _cm("cmB")
     _link(cm, adv)
     so = _spot_order(channel, adv)
-    # 全時間帯・全曜日の band
-    SpotOrderBand.objects.create(spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59")
+    # 全時間帯・全曜日の band。end_time は排他的なので "23:59" だと UTC 23:59 台の 1 分間が窓の外に
+    # なり、その時刻に実行された CI だけ落ちる。1 日の最後の瞬間まで含める。
+    SpotOrderBand.objects.create(
+        spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59:59.999999"
+    )
     SpotOrderMaterial.objects.create(spot_order=so, seq=0, cm_asset=cm)
 
     pairs = fill_break(br, _now(), provider=ContractConstraintProvider())
@@ -166,7 +169,7 @@ def test_industry_conflict_same_break(channel, asset_ready):
     so2 = _spot_order(channel, adv2)
     for so, cm in ((so1, cm1), (so2, cm2)):
         SpotOrderBand.objects.create(
-            spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59"
+            spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59:59.999999"
         )
         SpotOrderMaterial.objects.create(spot_order=so, seq=0, cm_asset=cm)
 
@@ -182,7 +185,9 @@ def test_remaining_caps_total(channel, asset_ready):
     cm = _cm("cap")
     _link(cm, adv)
     so = _spot_order(channel, adv, target=1)  # 残本数 1
-    SpotOrderBand.objects.create(spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59")
+    SpotOrderBand.objects.create(
+        spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59:59.999999"
+    )
     SpotOrderMaterial.objects.create(spot_order=so, seq=0, cm_asset=cm)
 
     pairs = fill_break(br, _now(), provider=ContractConstraintProvider())
