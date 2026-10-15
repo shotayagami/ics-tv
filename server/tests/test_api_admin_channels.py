@@ -66,10 +66,11 @@ def test_update_name_short_tint_enabled(staff_client, channel, db):
     assert channel.tint == "#1982c4" and channel.enabled is False
 
 
-def test_update_empty_name_400(staff_client, channel, db):
-    assert (
-        _post(staff_client, channel.slug, {"name": "  ", "slug": channel.slug}).status_code == 400
-    )
+def test_update_empty_name_422(staff_client, channel, db):
+    # 空白だけの表示名は、仕様 (pattern) と実行時の検証で 422 にする
+    r = _post(staff_client, channel.slug, {"name": "  ", "slug": channel.slug})
+    assert r.status_code == 422
+    assert r.json()["detail"].startswith("name ")
 
 
 def test_update_bad_tint_400(staff_client, channel, db):

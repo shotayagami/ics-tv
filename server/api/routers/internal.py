@@ -15,7 +15,9 @@ import secrets
 from django.conf import settings
 from ninja import Router, Schema
 from ninja.security import APIKeyHeader
+from pydantic import StrictBool
 
+from api.schemas import JsonFloat, JsonInt
 from core.security_log import emit as security_emit
 from medialib.models import Asset, AssetKind, NormalizeStatus
 
@@ -114,7 +116,7 @@ def weather_import(request, payload: WeatherImportIn):
 class BreakingTelopIn(Schema):
     text: str | None = None
     op: str | None = "show"  # show | clear
-    duration_sec: int | None = None
+    duration_sec: JsonInt | None = None
     channel_slug: str | None = None  # 空=全 enabled ch
     chime: str | None = None  # eew | weather | general (層41で音を併発)。未指定=無音(従来互換)
 
@@ -155,7 +157,7 @@ class HazardMapIn(Schema):
     data: dict | None = (
         None  # 地図描画データ (予報区別 grade/到達/高さ・観測点 latlon/震度・EEW地域名 等)
     )
-    duration_sec: int | None = None
+    duration_sec: JsonInt | None = None
     channel_slug: str | None = None  # 空=全 enabled ch
 
 
@@ -201,19 +203,19 @@ class DeliveryAssetIn(Schema):
     r2_key: str  # DELIVERY 側で正規化済み (mezzanine) の R2 キー
     title: str
     kind: str | None = "program"
-    duration_ms: int
-    width: int | None = None
-    height: int | None = None
-    fps: float | None = None
+    duration_ms: JsonInt
+    width: JsonInt | None = None
+    height: JsonInt | None = None
+    fps: JsonFloat | None = None
     vcodec: str | None = None
     acodec: str | None = None
     checksum: str | None = None
-    passthrough: bool = False  # 長尺 passthrough (映像 copy + 音声 loudnorm) 素材
+    passthrough: StrictBool = False  # 長尺 passthrough (映像 copy + 音声 loudnorm) 素材
     thumbnail_url: str | None = None
     # Episode 特定 (series_episode 納品の本編)。無指定なら asset 登録のみ (backfill しない)。
-    series_id: int | None = None
-    episode_id: int | None = None
-    episode_no: int | None = None
+    series_id: JsonInt | None = None
+    episode_id: JsonInt | None = None
+    episode_no: JsonInt | None = None
     air_date: str | None = None  # YYYY-MM-DD
 
 
@@ -595,9 +597,9 @@ def addon_capabilities(request):
 class AddonGiftRedeemIn(Schema):
     external_reference: str  # 追加側の引換コード等。冪等キー (addon_name, external_reference)
     creator_slug: str
-    tier_level: int
+    tier_level: JsonInt
     member_email: str
-    months: int
+    months: JsonInt
 
 
 class AddonGiftRedeemOut(Schema):

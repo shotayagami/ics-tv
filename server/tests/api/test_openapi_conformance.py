@@ -21,8 +21,8 @@
 ネットワークへの接続はテスト中に禁止する (オブジェクトストレージは `_FakeS3` に差し替え)。
 外へ出る経路があれば 5xx として検出される。
 
-書き込み系・トークン系では `positive_data_acceptance` と `negative_data_rejection` を除外する
-(理由は `_LAX_CHECKS`)。5xx・応答の形・宣言外のステータスは検査する。
+書き込み系・トークン系では `positive_data_acceptance` を除外する (理由は `_LAX_CHECKS`)。
+5xx・応答の形・宣言外のステータス・不正入力の拒否は検査する。
 """
 
 import contextlib
@@ -39,11 +39,7 @@ from django.test import override_settings
 from django.utils import timezone
 from hypothesis import HealthCheck, settings
 from schemathesis.generation import GenerationMode
-from schemathesis.specs.openapi.checks import (
-    ignored_auth,
-    negative_data_rejection,
-    positive_data_acceptance,
-)
+from schemathesis.specs.openapi.checks import ignored_auth, positive_data_acceptance
 
 from api.management.commands.dump_openapi import _merged_schema
 from config.wsgi import application
@@ -450,11 +446,14 @@ def _fake_object_storage(monkeypatch):
     monkeypatch.setattr("core.r2.bucket", lambda: "conformance-bucket")
 
 
-# 書き込み系・トークン系で除外するチェック。いずれも仕様が表現しない意味的な検証・型変換で、
-# 実装の欠陥ではなく仕様の粒度の問題として現れる。5xx・応答の形・宣言外のステータスは検査する。
-# - positive_data_acceptance: 日付の範囲や業務ルールなど、仕様に無い検証で 400/422 を返す
-# - negative_data_rejection: pydantic の lax モードが "12" → 12 のように型を変換して受理する
-_LAX_CHECKS = [ignored_auth, positive_data_acceptance, negative_data_rejection]
+# 書き込み系・トークン系で除外するチェック。
+# - positive_data_acceptance: 仕様に合う入力でも 4xx を返すのが正しい操作が多い。参照先が存在しない
+#   ("納品が見つかりません")、状態が合わない ("無料ティアは常設のため作成できません")、項目間の
+#   規則 ("有料ティアには price_minor が必要") などで、OpenAPI では表現できない。空白だけの必須
+#   テキストや型は仕様 (pattern / 厳密な型) に載せ、実行時にも検証している。
+# negative_data_rejection は除外しない。pydantic の lax モードが false → 0 のように型を変換して
+# 受理していた箇所 (金額、強制フラグ、回番号) は、厳密な型にして解消した。
+_LAX_CHECKS = [ignored_auth, positive_data_acceptance]
 
 
 def _unsendable(case) -> bool:
