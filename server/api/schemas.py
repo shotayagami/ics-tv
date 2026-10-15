@@ -3,8 +3,26 @@
 """API 共有スキーマ。ninja.Schema = Pydantic。OpenAPI に型として出力され、
 フロントの TS クライアント生成元になる。"""
 
+from typing import Annotated
+
 from ninja import Schema
-from pydantic import Field
+from pydantic import BeforeValidator, Field, StrictBool
+
+# 空白だけの文字列を受け付けない必須テキスト。以前はハンドラが strip() 後の空を 422 にしていた。
+# 同じ規則を仕様 (pattern) と実行時の検証に持たせ、外部クライアントが仕様から読めるようにする。
+NonBlank = Annotated[str, Field(pattern=r"\S")]
+
+
+def _reject_bool(value):
+    """JSON の true / false を整数として受理しない (pydantic の lax モードは false → 0 にする)。"""
+    if isinstance(value, bool):
+        raise ValueError("bool は整数として受け付けません")
+    return value
+
+
+# 整数・実数。数値文字列 ("12") は従来どおり受理し、bool だけを拒否する。
+JsonInt = Annotated[int, BeforeValidator(_reject_bool)]
+JsonFloat = Annotated[float, BeforeValidator(_reject_bool)]
 
 
 class HealthOut(Schema):
@@ -102,7 +120,7 @@ class CommentListOut(Schema):
 
 
 class CommentCreateIn(Schema):
-    body: str
+    body: NonBlank
 
 
 class PinOut(Schema):
@@ -327,17 +345,17 @@ class AudienceFormFieldIn(Schema):
     key: str
     label: str
     type: str
-    required: bool = False
+    required: StrictBool = False
     options: list[str] = []
     help: str = ""
 
 
 class AudienceFormIn(Schema):
     kind: str = "message"
-    title: str
+    title: NonBlank
     description: str = ""
-    enabled: bool = False
-    requires_login: bool = False
+    enabled: StrictBool = False
+    requires_login: StrictBool = False
     fields: list[AudienceFormFieldIn] = []
     success_message: str = "送信しました。ありがとうございました。"
     notify_email: str = ""
@@ -421,12 +439,12 @@ class MediaUploadStartIn(Schema):
     title: str
     original_filename: str
     content_type: str
-    expected_size_bytes: int
+    expected_size_bytes: JsonInt
     expected_sha256: str
 
 
 class MediaUploadPartIn(Schema):
-    part_number: int
+    part_number: JsonInt
     etag: str
 
 
@@ -530,9 +548,9 @@ class BillingOut(Schema):
 
 class CloseMonthIn(Schema):
     # 範囲外の月は calendar.IllegalMonthError (ValueError) で 500 になっていた
-    year: int = Field(ge=2000, le=2100)
-    month: int = Field(ge=1, le=12)
-    force: bool = False
+    year: JsonInt = Field(ge=2000, le=2100)
+    month: JsonInt = Field(ge=1, le=12)
+    force: StrictBool = False
 
 
 class CloseMonthOut(Schema):
@@ -542,7 +560,7 @@ class CloseMonthOut(Schema):
 
 
 class InvoicePayIn(Schema):
-    paid_amount: int
+    paid_amount: JsonInt
     method: str = ""
 
 
@@ -619,7 +637,7 @@ class WeekOut(Schema):
 
 
 class SeriesCreateIn(Schema):
-    title: str
+    title: NonBlank
 
 
 class SeriesCreated(Schema):
@@ -642,11 +660,11 @@ class AdminChannel(Schema):
 
 
 class ChannelUpdateIn(Schema):
-    name: str
+    name: NonBlank
     slug: str
     short: str = ""
     tint: str = ""
-    enabled: bool = True
+    enabled: StrictBool = True
 
 
 # --- studio 管理 SPA: チャンネル詳細設定 (#Phase2e-4) ---
@@ -717,7 +735,7 @@ class ClockPresetOut(Schema):
 class ClockPresetIn(Schema):
     """時計スタイルプリセット登録/更新。"""
 
-    name: str
+    name: NonBlank
     style: dict
 
 
@@ -964,7 +982,7 @@ class SeriesFormOut(Schema):
 
 
 class SeriesFullIn(Schema):
-    title: str
+    title: NonBlank
     slug: str = ""
     genre: str = ""
     rating: str = ""
@@ -974,12 +992,12 @@ class SeriesFullIn(Schema):
     thumbnail_url: str = ""
     x_handle: str = ""
     x_hashtag: str = ""
-    is_active: bool = True
-    clock_hidden: bool = False
-    lbar_hidden: bool = False
+    is_active: StrictBool = True
+    clock_hidden: StrictBool = False
+    lbar_hidden: StrictBool = False
     clock_style_override: dict | None = None
-    youtube_dedicated: bool = False
-    youtube_preset_id: int | None = None
+    youtube_dedicated: StrictBool = False
+    youtube_preset_id: JsonInt | None = None
 
 
 class SlotInitial(Schema):
@@ -1011,12 +1029,12 @@ class ThumbnailOut(Schema):
 
 
 class SlotIn(Schema):
-    dow: int
+    dow: JsonInt
     start_time: str  # "HH:MM"
-    duration_min: int
+    duration_min: JsonInt
     program_type: str  # recorded | live
-    default_asset_id: int | None = None
-    live_source_id: int | None = None
+    default_asset_id: JsonInt | None = None
+    live_source_id: JsonInt | None = None
     effective_from: str  # "YYYY-MM-DD"
     effective_to: str = ""
     recurrence_kind: str = "weekly"
@@ -1037,7 +1055,7 @@ class EpisodeOut(Schema):
 
 
 class EpisodeIn(Schema):
-    episode_no: int | None = None
+    episode_no: JsonInt | None = None
     air_date: str = ""  # "YYYY-MM-DD" or 空
     title: str = ""
     status: str = "planned"  # asset は受け付けない (delivery seam が確定)
@@ -1088,10 +1106,10 @@ class YtRollingConfigIn(Schema):
     title_template: str = "{channel} {date} {start}-{end}"
     description_template: str = ""
     privacy: str = "public"
-    enable_monitor: bool = False
-    rolling_hours: int = 24
-    slot_minutes: int = 240
-    nudge_lead_minutes: int = 10
+    enable_monitor: StrictBool = False
+    rolling_hours: JsonInt = 24
+    slot_minutes: JsonInt = 240
+    nudge_lead_minutes: JsonInt = 10
     nudge_template: str = ""
     nudge_ended_template: str = ""
 
@@ -1331,7 +1349,7 @@ class PresetFormMeta(Schema):
 class ChecklistItemDef(Schema):
     key: str
     label: str
-    default: bool
+    default: StrictBool
 
 
 class PresetDetail(Schema):
@@ -1360,25 +1378,25 @@ class PresetDetail(Schema):
 
 
 class PresetIn(Schema):
-    name: str
-    channel_id: int | None = None
+    name: NonBlank
+    channel_id: JsonInt | None = None
     title_template: str = ""
     description_template: str = ""
-    category_id: int | None = None
+    category_id: JsonInt | None = None
     tags: list[str] = []
     privacy: str = "public"
-    made_for_kids: bool = False
+    made_for_kids: StrictBool = False
     default_language: str = ""
     default_audio_language: str = ""
     latency: str = "low"
-    enable_dvr: bool = True
-    enable_embed: bool = True
-    enable_auto_start: bool = False
-    enable_auto_stop: bool = False
-    record_from_start: bool = True
+    enable_dvr: StrictBool = True
+    enable_embed: StrictBool = True
+    enable_auto_start: StrictBool = False
+    enable_auto_stop: StrictBool = False
+    record_from_start: StrictBool = True
     license: str = "youtube"
-    public_stats_viewable: bool = True
-    thumbnail_id: int | None = None
+    public_stats_viewable: StrictBool = True
+    thumbnail_id: JsonInt | None = None
     playlist_id: str = ""
     manual_checklist: list[ChecklistItemDef] = []
 
@@ -1484,20 +1502,20 @@ class ProgramFormOut(Schema):
 
 
 class ProgramIn(Schema):
-    title: str
+    title: NonBlank
     type: str  # recorded | live
     genre: str = ""
     exposure_policy: str = ""
     start_at: str
     end_at: str
-    asset_id: int | None = None
-    live_source_id: int | None = None
+    asset_id: JsonInt | None = None
+    live_source_id: JsonInt | None = None
     cast: str = ""
     description: str = ""
-    public_visible: bool = True
+    public_visible: StrictBool = True
     vod_visibility: str = "off"
     clock_style_override: dict | None = None
-    record_live: bool = False  # type=live のときのみ意味を持つ (自動録画→見逃し配信化)
+    record_live: StrictBool = False  # type=live のときのみ意味を持つ (自動録画→見逃し配信化)
 
 
 # --- ファンクラブ (#27 studio admin) ---
@@ -1526,17 +1544,17 @@ class CreatorAdminOut(Schema):
 
 
 class CreatorIn(Schema):
-    name: str
+    name: NonBlank
     slug: str
     description: str = ""
     status: str = "active"
     onboarding_status: str = "pending"
     legal_name: str = ""
-    is_individual: bool = True
+    is_individual: StrictBool = True
     representative_name: str = ""
     address: str = ""
     phone: str = ""
-    hide_contact_details: bool = True
+    hide_contact_details: StrictBool = True
     contact_email: str = ""
     invoice_registration_number: str = ""
 
@@ -1574,11 +1592,11 @@ class CreatorTierOut(Schema):
 
 
 class CreatorTierIn(Schema):
-    level: int
+    level: JsonInt
     name: str
     description: str = ""
-    price_minor: int | None = None
-    is_active: bool = True
+    price_minor: JsonInt | None = None
+    is_active: StrictBool = True
     stripe_price_id: str = ""
 
 
@@ -1592,7 +1610,7 @@ class CreatorInvitationOut(Schema):
 
 
 class CreatorInvitationIn(Schema):
-    email: str
+    email: NonBlank
 
 
 class SlotContractOut(Schema):
@@ -1611,8 +1629,8 @@ class SlotContractOut(Schema):
 
 
 class SlotContractIn(Schema):
-    title: str
-    monthly_fee_minor: int
+    title: NonBlank
+    monthly_fee_minor: JsonInt
     starts_on: str
     ends_on: str = ""
     status: str = "draft"
@@ -1681,14 +1699,14 @@ class SeriesPostAdminOut(Schema):
 
 class SeriesPostIn(Schema):
     kind: str = "article"
-    title: str
+    title: NonBlank
     body: str = ""
     media_url: str = ""
     form_url: str = ""
     campaign_start: str = ""
     campaign_end: str = ""
-    is_published: bool = False
-    fc_required_level: int | None = Field(None, ge=0, le=32767)  # smallint の正の範囲
+    is_published: StrictBool = False
+    fc_required_level: JsonInt | None = Field(None, ge=0, le=32767)  # smallint の正の範囲
 
 
 # --- ネイティブアプリ トークン認証 (#MOBILE-01) ---
@@ -1856,7 +1874,7 @@ class FcChatListOut(Schema):
 
 
 class FcChatCreateIn(Schema):
-    body: str
+    body: NonBlank
 
 
 class SeriesPostDetailOut(Schema):

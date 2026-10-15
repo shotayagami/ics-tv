@@ -72,10 +72,11 @@ def test_post_and_list(channel):
     assert lst["items"][0]["body"] == "こんにちは"
 
 
-def test_post_empty_400(channel):
+def test_post_empty_422(channel):
+    # 空白だけのコメントは、仕様 (pattern) と実行時の検証で 422 にする
     c = Client()
     _login(c, _member())
-    assert _post(c, "ch1", "   ").status_code == 400
+    assert _post(c, "ch1", "   ").status_code == 422
 
 
 def test_post_cooldown_429(channel):

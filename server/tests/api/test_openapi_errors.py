@@ -260,3 +260,35 @@ def test_delivery_asset_unknown_series_is_400_not_500(db, client, settings):
         HTTP_X_INTERNAL_TOKEN="t",
     )
     assert resp.status_code == 400
+
+
+def test_validation_error_detail_is_a_string_with_errors(client):
+    # SPA は detail を文字列として画面に出す。配列にすると描画エラーになるため文字列で返し、
+    # 機械可読な詳細は errors に載せる
+    resp = client.post("/api/v1/auth/login", data={}, content_type="application/json")
+    assert resp.status_code == 422
+    body = resp.json()
+    assert isinstance(body["detail"], str) and body["detail"]
+    assert isinstance(body["errors"], list) and body["errors"]
+    assert "は必須です" in body["detail"]  # 日本語に整形される
+
+
+def test_blank_required_text_is_rejected_with_a_readable_message(staff_client, channel):
+    resp = staff_client.post(
+        f"/api/v1/admin/scheduling/{channel.slug}/series",
+        {"title": "   "},
+        content_type="application/json",
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"].startswith("title ")
+
+
+def test_bool_is_not_accepted_as_a_number(staff_client):
+    _skip_unless_route("/api/v1/admin/procurement/budgets")
+    # false が金額 0 として受理されていた (pydantic の lax モード)
+    resp = staff_client.post(
+        "/api/v1/admin/procurement/budgets",
+        {"series_id": 1, "fiscal_year": 2026, "amount": False},
+        content_type="application/json",
+    )
+    assert resp.status_code == 422

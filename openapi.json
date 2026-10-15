@@ -579,6 +579,7 @@
             "type": "string"
           },
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           }
@@ -1611,6 +1612,7 @@
             "type": "boolean"
           },
           "name": {
+            "pattern": "\\S",
             "title": "Name",
             "type": "string"
           },
@@ -1782,6 +1784,7 @@
         "description": "時計スタイルプリセット登録/更新。",
         "properties": {
           "name": {
+            "pattern": "\\S",
             "title": "Name",
             "type": "string"
           },
@@ -2017,6 +2020,7 @@
       "CommentCreateIn": {
         "properties": {
           "body": {
+            "pattern": "\\S",
             "title": "Body",
             "type": "string"
           }
@@ -2263,6 +2267,7 @@
             "type": "string"
           },
           "name": {
+            "pattern": "\\S",
             "title": "Name",
             "type": "string"
           },
@@ -2301,6 +2306,7 @@
       "CreatorInvitationIn": {
         "properties": {
           "email": {
+            "pattern": "\\S",
             "title": "Email",
             "type": "string"
           }
@@ -3226,6 +3232,7 @@
       "FcChatCreateIn": {
         "properties": {
           "body": {
+            "pattern": "\\S",
             "title": "Body",
             "type": "string"
           }
@@ -5952,6 +5959,7 @@
             "type": "array"
           },
           "name": {
+            "pattern": "\\S",
             "title": "Name",
             "type": "string"
           },
@@ -6269,6 +6277,7 @@
             "type": "string"
           },
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           },
@@ -6701,6 +6710,7 @@
       "SeriesCreateIn": {
         "properties": {
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           }
@@ -7014,6 +7024,7 @@
             "type": "string"
           },
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           },
@@ -7384,8 +7395,8 @@
           "fc_required_level": {
             "anyOf": [
               {
-                "maximum": 32767,
-                "minimum": 0,
+                "ge": 0,
+                "le": 32767,
                 "type": "integer"
               },
               {
@@ -7415,6 +7426,7 @@
             "type": "string"
           },
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           }
@@ -7583,6 +7595,7 @@
             "type": "string"
           },
           "title": {
+            "pattern": "\\S",
             "title": "Title",
             "type": "string"
           },
@@ -8399,6 +8412,10 @@
       "ValidationErrorOut": {
         "properties": {
           "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "errors": {
             "items": {
               "additionalProperties": true,
               "properties": {
@@ -8429,7 +8446,7 @@
               ],
               "type": "object"
             },
-            "title": "Detail",
+            "title": "Errors",
             "type": "array"
           }
         },
@@ -9145,14 +9162,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9219,14 +9229,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9340,14 +9343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9424,14 +9420,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9498,14 +9487,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9633,14 +9615,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9708,14 +9683,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9783,14 +9751,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9908,14 +9869,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -9983,14 +9937,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10066,14 +10013,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10189,14 +10129,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10263,14 +10196,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10345,14 +10271,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10423,14 +10342,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10505,14 +10417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10588,14 +10493,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10679,14 +10577,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10757,14 +10648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10839,14 +10723,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10922,14 +10799,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -10996,14 +10866,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11071,14 +10934,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11149,14 +11005,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11230,14 +11079,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11313,14 +11155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11388,14 +11223,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11466,14 +11294,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11548,14 +11369,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11631,14 +11445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11722,14 +11529,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11797,14 +11597,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11877,14 +11670,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -11952,14 +11738,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12084,14 +11863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12159,14 +11931,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12234,14 +11999,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12319,14 +12077,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12394,14 +12145,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12479,14 +12223,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12601,14 +12338,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12675,14 +12405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12821,14 +12544,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -12956,14 +12672,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13048,14 +12757,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13140,14 +12842,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13223,14 +12918,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13333,14 +13021,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13417,14 +13098,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13510,14 +13184,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13594,14 +13261,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13668,14 +13328,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13751,14 +13404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13842,14 +13488,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -13927,14 +13566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14021,14 +13653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14109,14 +13734,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14201,14 +13819,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14289,14 +13900,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14381,14 +13985,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14474,14 +14071,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14575,14 +14165,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14692,14 +14275,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14778,14 +14354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14889,14 +14458,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -14977,14 +14539,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15068,14 +14623,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15160,14 +14708,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15260,14 +14801,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15360,14 +14894,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15454,14 +14981,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15552,14 +15072,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15657,14 +15170,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15741,14 +15247,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15833,14 +15332,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15907,14 +15399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -15992,14 +15477,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16077,14 +15555,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16202,14 +15673,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16277,14 +15741,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16360,14 +15817,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16485,14 +15935,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16608,14 +16051,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16681,14 +16117,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16764,14 +16193,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16839,14 +16261,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -16924,14 +16339,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17009,14 +16417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17084,14 +16485,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17167,14 +16561,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17252,14 +16639,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17327,14 +16707,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17411,14 +16784,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17485,14 +16851,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17550,14 +16909,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17610,14 +16962,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17670,14 +17015,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17831,14 +17169,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17926,14 +17257,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -17985,14 +17309,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18062,14 +17379,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18148,14 +17458,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18225,14 +17528,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18293,14 +17589,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18363,14 +17652,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18449,14 +17731,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18536,14 +17811,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18614,14 +17882,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18692,14 +17953,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18770,14 +18024,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18830,14 +18077,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -18927,14 +18167,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19077,14 +18310,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19152,14 +18378,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19227,14 +18446,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19398,14 +18610,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19473,14 +18678,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19596,14 +18794,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19719,14 +18910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19835,14 +19019,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19905,14 +19082,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -19983,14 +19153,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -20051,14 +19214,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -20110,14 +19266,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -20179,14 +19328,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
@@ -20281,14 +19423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ValidationErrorOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorOut"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ValidationErrorOut"
                 }
               }
             },
