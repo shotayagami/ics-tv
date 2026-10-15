@@ -62,7 +62,9 @@ def _band_spot(channel, adv, cm):
         unit_seconds=15,
         unit_price=50000,
     )
-    SpotOrderBand.objects.create(spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59")
+    SpotOrderBand.objects.create(
+        spot_order=so, dow_mask=127, start_time="00:00", end_time="23:59:59.999999"
+    )
     SpotOrderMaterial.objects.create(spot_order=so, seq=0, cm_asset=cm)
     return so
 
