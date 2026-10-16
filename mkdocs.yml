@@ -3,6 +3,7 @@ nav:
   - Home: index.md
   - Overview: overview.md
   - Usage: usage.md
+  - API: api.md
   - Design:
       - Data Model: datamodel.md
       - Scheduler: scheduler.md
