@@ -125,9 +125,7 @@ def test_remind_toggle_rejects_unverified_members(
     response = client.post(f"/api/v1/program/{program.id}/remind", **headers)
 
     assert response.status_code == 403
-    assert Reminder.objects.filter(member=member, program=program).count() == int(
-        already_reminded
-    )
+    assert Reminder.objects.filter(member=member, program=program).count() == int(already_reminded)
 
 
 @_PUBLIC_HOST
