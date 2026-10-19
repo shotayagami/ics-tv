@@ -26,6 +26,10 @@ type DragInfo =
 type Ghost = { dow: number; topMin: number; heightMin: number; label: string };
 
 type CreateDraft = { layer: Layer; dow: number; date: string; startMin: number; endMin: number };
+type SlotUndo =
+  | { kind: "move"; slotId: number; dow: number; startTime: string }
+  | { kind: "resize"; slotId: number; durationMs: number }
+  | { kind: "delete"; slotId: number };
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -75,6 +79,11 @@ export function WeekGridPage() {
   const [modal, setModal] = useState<CreateDraft | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [loadFailure, setLoadFailure] = useState<"auth" | "forbidden" | "request" | "network" | null>(null);
+  const [loadStatus, setLoadStatus] = useState<number | null>(null);
+  const [slotUndo, setSlotUndo] = useState<SlotUndo | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
   // モーダルの選択肢 (series + asset/live)。マウント時/ch 変更時に一度取得。
   const [series, setSeries] = useState<SeriesOut["series"]>([]);
   const [opts, setOpts] = useState<{ assets: ProgramFormOut["assets"]; live: ProgramFormOut["live_sources"] }>({ assets: [], live: [] });
@@ -82,19 +91,40 @@ export function WeekGridPage() {
   const dragRef = useRef<DragInfo | null>(null);
   const ghostRef = useRef<Ghost | null>(null);
   const colRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const modalFocusDow = useRef<number | null>(null);
   const pxRef = useRef(pxPerMin);
   pxRef.current = pxPerMin;
   const slugRef = useRef(slug);
   slugRef.current = slug;
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    if (modal || modalFocusDow.current === null) return;
+    const dow = modalFocusDow.current;
+    modalFocusDow.current = null;
+    window.requestAnimationFrame(() => colRefs.current[dow]?.focus());
+  }, [modal]);
+
+  const load = useCallback(async () => {
     if (!slug) return;
-    api
-      .GET("/api/v1/admin/scheduling/{slug}/week", { params: { path: { slug }, query: weekStart ? { start: weekStart } : {} } })
-      .then(({ data, error }) => (error ? setErr("読み込み失敗 (staff 権限が必要)") : data && setD(data)))
-      .catch(() => setErr("読み込み失敗"));
+    setLoadState((current) => current === "ready" ? current : "loading");
+    setLoadFailure(null);
+    setLoadStatus(null);
+    try {
+      const result = await api.GET("/api/v1/admin/scheduling/{slug}/week", { params: { path: { slug }, query: weekStart ? { start: weekStart } : {} } });
+      if (result.error) {
+        setLoadFailure(result.response.status === 401 ? "auth" : result.response.status === 403 ? "forbidden" : "request");
+        setLoadStatus(result.response.status);
+        setLoadState("error");
+      } else if (result.data) {
+        setD(result.data);
+        setLoadState("ready");
+      } else setLoadState("empty");
+    } catch {
+      setLoadFailure("network");
+      setLoadState("error");
+    }
   }, [slug, weekStart]);
-  useEffect(load, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   // モーダル用の series + 素材/生ソース一覧 (作成時のみ使用)。
   useEffect(() => {
@@ -119,10 +149,12 @@ export function WeekGridPage() {
     return null;
   };
 
-  function startCreate(e: React.PointerEvent, dow: number) {
+  function startCreate(e: React.PointerEvent<HTMLDivElement>, dow: number) {
     if (e.target !== e.currentTarget) return; // ブロックの上では作成しない
     if (createLayer === "base" ? !showBase : !showDiff) return;
     e.preventDefault();
+    e.currentTarget.focus();
+    modalFocusDow.current = dow;
     dragRef.current = { kind: "create", layer: createLayer, dow, startClientY: e.clientY };
     const m = snap(minuteAt(e.clientY));
     ghostRef.current = { dow, topMin: m, heightMin: 0, label: "" };
@@ -172,34 +204,46 @@ export function WeekGridPage() {
       setGhost(null);
       if (!dr || !g || !d) return;
       const s = slugRef.current;
-      setErr("");
-      setMsg("");
       if (dr.kind === "create") {
         if (g.heightMin < SNAP_MIN) return; // ほぼクリック
+        setErr("");
+        setMsg("");
         setModal({ layer: dr.layer, dow: g.dow, date: d.days[g.dow], startMin: g.topMin, endMin: g.topMin + g.heightMin });
         return;
       }
       if (dr.kind === "move-prog") {
         if (g.dow === dr.dow && g.topMin === dr.origStartMin) return;
+        setErr("");
+        setMsg("");
         const startAt = new Date(localStamp(d.days[g.dow], g.topMin)).toISOString();
         const { status, data } = await postJson(`/scheduling/ch/${s}/programs/${dr.id}/move/`, { start_at: startAt });
         if (status === 200 && data?.ok) { setMsg("番組を移動しました"); load(); }
         else setErr(data?.earliest ? `重複: 最早 ${fmtMin(new Date(data.earliest).getHours() * 60 + new Date(data.earliest).getMinutes())} まで空き無し` : data?.error || "移動できません");
       } else if (dr.kind === "resize-prog") {
         if (g.heightMin === dr.origDurMin) return;
+        setErr("");
+        setMsg("");
         const endAt = new Date(localStamp(d.days[dr.dow], dr.origStartMin + g.heightMin)).toISOString();
         const { status, data } = await postJson(`/scheduling/ch/${s}/programs/${dr.id}/resize/`, { end_at: endAt });
         if (status === 200 && data?.ok) { setMsg("尺を変更しました"); load(); }
         else setErr(data?.error || "リサイズできません (録画の尺は固定)");
       } else if (dr.kind === "move-slot") {
         if (g.dow === dr.dow && g.topMin === dr.origStartMin) return;
+        if (!window.confirm("基本編成スロットの曜日・時刻変更は全週に反映されます。続けますか？")) return;
+        setErr("");
+        setMsg("");
+        setSlotUndo(null);
         const { status, data } = await postJson(`/scheduling/ch/${s}/slots/${dr.slotId}/move/`, { dow: g.dow, start_time: fmtMin(g.topMin) });
-        if (status === 200 && data?.ok) { setMsg("スロットを移動しました (全週に反映)"); load(); }
+        if (status === 200 && data?.ok) { setMsg("基本編成を移動しました。変更は全週に反映されました。"); setSlotUndo({ kind: "move", slotId: dr.slotId, dow: dr.dow, startTime: fmtMin(dr.origStartMin) }); load(); }
         else setErr(data?.error || "スロットを移動できません");
       } else if (dr.kind === "resize-slot") {
         if (g.heightMin === dr.origDurMin) return;
+        if (!window.confirm("基本編成スロットの尺変更は全週に反映されます。続けますか？")) return;
+        setErr("");
+        setMsg("");
+        setSlotUndo(null);
         const { status, data } = await postJson(`/scheduling/ch/${s}/slots/${dr.slotId}/resize/`, { duration_ms: Math.round(g.heightMin) * 60000 });
-        if (status === 200 && data?.ok) { setMsg("スロットの尺を変更しました (全週に反映)"); load(); }
+        if (status === 200 && data?.ok) { setMsg("基本編成の尺を変更しました。変更は全週に反映されました。"); setSlotUndo({ kind: "resize", slotId: dr.slotId, durationMs: Math.round(dr.origDurMin * 60000) }); load(); }
         else setErr(data?.error || "尺を変更できません");
       }
     }
@@ -211,6 +255,85 @@ export function WeekGridPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d, load]);
+
+  async function undoSlotChange() {
+    if (!slotUndo || undoBusy) return;
+    setUndoBusy(true);
+    let errorMessage = "基本編成を元に戻せませんでした";
+    let succeeded = false;
+    try {
+      if (slotUndo.kind === "delete") {
+        const result = await api.DELETE("/api/v1/admin/scheduling/{slug}/slots/{slot_id}", { params: { path: { slug, slot_id: slotUndo.slotId } } });
+        succeeded = !result.error;
+        errorMessage = "作成した基本編成を削除できませんでした";
+      } else if (slotUndo.kind === "move") {
+        const result = await postJson(`/scheduling/ch/${slug}/slots/${slotUndo.slotId}/move/`, { dow: slotUndo.dow, start_time: slotUndo.startTime });
+        succeeded = result.status === 200 && result.data?.ok;
+        errorMessage = result.data?.error || errorMessage;
+      } else {
+        const result = await postJson(`/scheduling/ch/${slug}/slots/${slotUndo.slotId}/resize/`, { duration_ms: slotUndo.durationMs });
+        succeeded = result.status === 200 && result.data?.ok;
+        errorMessage = result.data?.error || errorMessage;
+      }
+    } catch {
+      errorMessage = "基本編成を元に戻せませんでした。通信状況を確認してください";
+    } finally {
+      setUndoBusy(false);
+    }
+    if (succeeded) {
+      setSlotUndo(null);
+      setErr("");
+      setMsg(slotUndo.kind === "delete" ? "作成した基本編成を取り消しました。展開済み番組は残ります。" : "基本編成の変更を元に戻しました。");
+      load();
+    } else setErr(errorMessage);
+  }
+
+  async function adjustSlotByKeyboard(e: React.KeyboardEvent<HTMLDivElement>, sl: WeekSlotOccurrence) {
+    if (e.target !== e.currentTarget) return;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const currentStart = slotStartMin(sl);
+    const currentDuration = sl.duration_ms / 60000;
+    const resizing = e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown");
+    const nextStart = Math.max(0, Math.min(DAY_MIN - SNAP_MIN, currentStart + (e.key === "ArrowUp" ? -SNAP_MIN : e.key === "ArrowDown" ? SNAP_MIN : 0)));
+    const nextDow = Math.max(0, Math.min(6, sl.dow + (e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0)));
+    const nextDuration = Math.max(SNAP_MIN, currentDuration + (e.key === "ArrowUp" ? -SNAP_MIN : e.key === "ArrowDown" ? SNAP_MIN : 0));
+    if ((!resizing && nextStart === currentStart && nextDow === sl.dow) || (resizing && nextDuration === currentDuration)) return;
+    if (!window.confirm("基本編成スロットの変更は全週に反映されます。続けますか？")) return;
+    setSlotUndo(null);
+    setErr("");
+    setMsg("");
+    const result = resizing
+      ? await postJson(`/scheduling/ch/${slug}/slots/${sl.slot_id}/resize/`, { duration_ms: Math.round(nextDuration * 60000) })
+      : await postJson(`/scheduling/ch/${slug}/slots/${sl.slot_id}/move/`, { dow: nextDow, start_time: fmtMin(nextStart) });
+    if (result.status === 200 && result.data?.ok) {
+      setMsg("基本編成を変更しました。変更は全週に反映されました。");
+      setSlotUndo(resizing
+        ? { kind: "resize", slotId: sl.slot_id, durationMs: sl.duration_ms }
+        : { kind: "move", slotId: sl.slot_id, dow: sl.dow, startTime: sl.start_time });
+      load();
+    } else setErr(result.data?.error || "基本編成を変更できませんでした");
+  }
+
+  async function adjustProgramByKeyboard(e: React.KeyboardEvent<HTMLDivElement>, p: WeekProgram) {
+    if (e.target !== e.currentTarget || !d) return;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const currentStart = progStartMin(p);
+    const currentDuration = progDurMin(p);
+    const resizing = e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown");
+    const nextStart = Math.max(0, Math.min(DAY_MIN - SNAP_MIN, currentStart + (e.key === "ArrowUp" ? -SNAP_MIN : e.key === "ArrowDown" ? SNAP_MIN : 0)));
+    const nextDow = Math.max(0, Math.min(6, p.dow + (e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0)));
+    const nextDuration = Math.max(SNAP_MIN, currentDuration + (e.key === "ArrowUp" ? -SNAP_MIN : e.key === "ArrowDown" ? SNAP_MIN : 0));
+    if ((!resizing && nextStart === currentStart && nextDow === p.dow) || (resizing && nextDuration === currentDuration)) return;
+    setErr("");
+    setMsg("");
+    const result = resizing
+      ? await postJson(`/scheduling/ch/${slug}/programs/${p.id}/resize/`, { end_at: new Date(localStamp(d.days[p.dow], currentStart + nextDuration)).toISOString() })
+      : await postJson(`/scheduling/ch/${slug}/programs/${p.id}/move/`, { start_at: new Date(localStamp(d.days[nextDow], nextStart)).toISOString() });
+    if (result.status === 200 && result.data?.ok) { setMsg("番組を変更しました。"); load(); }
+    else setErr(result.data?.error || "番組を変更できませんでした");
+  }
 
   async function expand() {
     setErr("");
@@ -227,7 +350,19 @@ export function WeekGridPage() {
     setWeekStart(`${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`);
   }
 
-  if (err && !d) return <EmptyState loading>{err}</EmptyState>;
+  if (!d && loadState === "error") {
+    const authHref = `/studio/login/?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`;
+    return (
+      <EmptyState>
+        <div role="alert">
+          <p>{loadFailure === "auth" ? "ログインの有効期限が切れました。再ログインしてください。" : loadFailure === "forbidden" ? "週間編成を表示する権限がありません。管理者に確認してください。" : `週間編成を取得できませんでした${loadStatus ? ` (HTTP ${loadStatus})` : "。通信状況を確認してください。"}`}</p>
+          {loadFailure === "auth" ? <a href={authHref}>Studio に再ログイン</a> : null}
+          {loadFailure !== "forbidden" ? <button type="button" onClick={() => void load()}>再試行</button> : null}
+        </div>
+      </EmptyState>
+    );
+  }
+  if (!d && loadState === "empty") return <EmptyState>この週の編成データはありません。</EmptyState>;
   if (!d) return <EmptyState loading>読み込み中…</EmptyState>;
 
   const hours = Array.from({ length: 25 }, (_, h) => h);
@@ -256,7 +391,8 @@ export function WeekGridPage() {
         </>
       }
     >
-      {(msg || err) && <Notice variant={err ? "error" : "success"}>{err || msg}</Notice>}
+      {loadState === "error" ? <Notice variant="error">最新の週間編成を取得できませんでした。{loadFailure === "auth" ? <> <a href={`/studio/login/?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`}>Studio に再ログイン</a></> : <> <button type="button" onClick={() => void load()}>再試行</button></>}</Notice> : null}
+      {(msg || err) && <Notice variant={err ? "error" : "success"}>{err || msg}{slotUndo ? <> <button type="button" onClick={() => void undoSlotChange()} disabled={undoBusy}>{undoBusy ? "取消中…" : slotUndo.kind === "delete" ? "作成を取り消す" : "元に戻す"}</button></> : null}</Notice>}
 
       <div style={{ display: "flex", gap: ".8rem", alignItems: "center", flexWrap: "wrap", marginBottom: ".5rem" }}>
         <div style={{ display: "flex", gap: ".3rem", alignItems: "center" }}>
@@ -305,6 +441,8 @@ export function WeekGridPage() {
               <div
                 ref={(el) => { colRefs.current[i] = el; }}
                 data-track=""
+                tabIndex={0}
+                aria-label={`${DOW_JA[i]}曜日 ${fmtMD(date)} の週間編成`}
                 onPointerDown={(e) => startCreate(e, i)}
                 style={{ position: "relative", height: colHeight, background: "#141414", touchAction: "none", cursor: "crosshair" }}
               >
@@ -323,7 +461,11 @@ export function WeekGridPage() {
                   return (
                     <div
                       key={`s${sl.slot_id}-${sl.date}`}
-                      onPointerDown={(e) => startSlotDrag(e, sl, "move-slot")}
+                      role="group"
+                      tabIndex={0}
+                      aria-label={`${DOW_JA[i]}曜日 ${sl.start_time}、${Math.round(sl.duration_ms / 60000)}分、基本編成 ${sl.series_title}。矢印キーで曜日・時刻、Shift+上下矢印で尺を変更`}
+                      onKeyDown={(e) => void adjustSlotByKeyboard(e, sl)}
+                      onPointerDown={(e) => { e.currentTarget.focus(); startSlotDrag(e, sl, "move-slot"); }}
                       title={`基本編成: ${sl.series_title} ${sl.recurrence_label} ${sl.start_time}`}
                       style={{ position: "absolute", left: 2, right: 2, top, height, boxSizing: "border-box", borderRadius: 4, padding: "1px 4px", overflow: "hidden", cursor: "grab", color: "#f0d9a0", background: "rgba(217,177,90,.14)", border: "1px dashed #d9b15a", touchAction: "none", zIndex: 1 }}
                     >
@@ -344,7 +486,11 @@ export function WeekGridPage() {
                   return (
                     <div
                       key={p.id}
-                      onPointerDown={(e) => startProgDrag(e, p, "move-prog")}
+                      role="group"
+                      tabIndex={0}
+                      aria-label={`${DOW_JA[i]}曜日 ${fmtMin(sMin)}、${Math.round(progDurMin(p))}分、${p.title}。矢印キーで曜日・時刻、Shift+上下矢印で尺を変更`}
+                      onKeyDown={(e) => void adjustProgramByKeyboard(e, p)}
+                      onPointerDown={(e) => { e.currentTarget.focus(); startProgDrag(e, p, "move-prog"); }}
                       title={`${fmtMin(sMin)} ${p.title}`}
                       style={{ position: "absolute", left: 3, right: 3, top, height, boxSizing: "border-box", borderRadius: 4, padding: "1px 4px", overflow: "hidden", cursor: "grab", color: "#eee", background: isLive ? "rgba(90,50,40,.92)" : "rgba(40,60,90,.92)", border: `1px solid ${isLive ? "#a05a3a" : "#3a5a82"}`, touchAction: "none", zIndex: 2 }}
                     >
@@ -372,7 +518,7 @@ export function WeekGridPage() {
       </div>
 
       <p className="muted" style={{ fontSize: ".75rem", marginTop: ".6rem" }}>
-        下地(琥珀/破線)=基本編成スロット (全週に効く・ドラッグで移動/尺変更は全週へ反映)。濃いブロック=当週の実番組。
+        下地(琥珀/破線)=基本編成スロット (全週に反映)。濃いブロック=当週の実番組。ブロックにフォーカスし、矢印キーで曜日・時刻、Shift+上下矢印で尺を変更できます。基本編成のドラッグ変更前に確認し、成功後は「元に戻す」を選べます。
         空きセルをドラッグ→「作成: {createLayer === "base" ? "基本編成" : "当週"}」のモーダルで確定。基本編成の変更は「展開」で実番組に反映。
       </p>
 
@@ -383,7 +529,7 @@ export function WeekGridPage() {
           series={series}
           opts={opts}
           onClose={() => setModal(null)}
-          onDone={(m) => { setModal(null); setMsg(m); load(); }}
+          onDone={(m, slotId) => { setModal(null); setMsg(m); setSlotUndo(slotId ? { kind: "delete", slotId } : null); load(); }}
           onError={(e) => setErr(e)}
         />
       )}
@@ -407,7 +553,7 @@ function WeekCreateModal({
   series: Array<{ id: number; title: string }>;
   opts: { assets: ProgramFormOut["assets"]; live: ProgramFormOut["live_sources"] };
   onClose: () => void;
-  onDone: (msg: string) => void;
+  onDone: (msg: string, createdSlotId?: number) => void;
   onError: (err: string) => void;
 }) {
   const isBase = draft.layer === "base";
@@ -430,8 +576,16 @@ function WeekCreateModal({
   const [effFrom, setEffFrom] = useState(draft.date);
   const [effTo, setEffTo] = useState("");
   const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const selectedSeries = localSeries.find((s) => String(s.id) === seriesId);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>("[autofocus], input, select, button")?.focus();
+  }, []);
 
   async function createSeries() {
     const t = newSeriesTitle.trim();
@@ -452,6 +606,7 @@ function WeekCreateModal({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (isBase && !window.confirm("基本編成スロットは全週に適用されます。作成を続けますか？")) return;
     setBusy(true);
     if (isBase) {
       if (!seriesId) { onError("番組(シリーズ)を選択してください"); setBusy(false); return; }
@@ -463,7 +618,7 @@ function WeekCreateModal({
         effective_from: effFrom, effective_to: effTo,
       });
       setBusy(false);
-      if (status === 200 && data?.ok) onDone("基本編成スロットを作成しました (全週に反映)");
+      if (status === 200 && data?.ok) onDone("基本編成スロットを作成しました (全週に反映)", Number(data.slot_id) || undefined);
       else onError(data?.error || "スロットを作成できません");
     } else {
       const start_at = localStamp(draft.date, draft.startMin);
@@ -485,9 +640,19 @@ function WeekCreateModal({
   }
 
   return (
-    <div onPointerDown={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-      <form onSubmit={submit} onPointerDown={(e) => e.stopPropagation()} className="card" style={{ width: "min(30rem, 92vw)", maxHeight: "88vh", overflowY: "auto", background: "#1c1c1c" }}>
-        <h2 style={{ margin: "0 0 .5rem", fontSize: "1rem" }}>{isBase ? "基本編成スロットを作成" : "当週の番組を作成"}</h2>
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="week-create-title"
+      aria-modal="true"
+      onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+      style={{ position: "fixed", inset: 0, margin: "auto", border: 0, padding: 0, background: "transparent", maxWidth: "none", maxHeight: "none", overflow: "visible" }}
+    >
+      <form onSubmit={submit} className="card" style={{ width: "min(30rem, 92vw)", maxHeight: "88vh", overflowY: "auto", background: "#1c1c1c" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".5rem" }}>
+          <h2 id="week-create-title" style={{ margin: "0 0 .5rem", fontSize: "1rem" }}>{isBase ? "基本編成スロットを作成" : "当週の番組を作成"}</h2>
+          <button type="button" className="btn secondary" onClick={onClose} aria-label="作成画面を閉じる" disabled={busy}>閉じる</button>
+        </div>
         <p className="muted" style={{ fontSize: ".76rem" }}>{DOW_JA[draft.dow]} {fmtMD(draft.date)} {fmtMin(draft.startMin)}–{fmtMin(draft.endMin)}</p>
         {isBase && <Notice variant="error">基本編成スロットは全週に適用されます（この週だけではありません）。</Notice>}
 
@@ -573,6 +738,6 @@ function WeekCreateModal({
           <button className="btn" type="submit" disabled={busy}>{isBase ? "スロットを作成" : "番組を作成"}</button>
         </div>
       </form>
-    </div>
+    </dialog>
   );
 }

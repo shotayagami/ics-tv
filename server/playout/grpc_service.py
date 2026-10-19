@@ -287,8 +287,10 @@ def _fetch_auto_return(channel_slug: str) -> bool | None:
     )
 
 
-def apply_result(idempotency_key: str, status: str, actual_at, note: str) -> bool:
-    """as-run 実績を playout_event に反映。PLAY_CM の初回 DONE で aired_count を増分。
+def apply_result(
+    channel_slug: str, idempotency_key: str, status: str, actual_at, note: str
+) -> bool:
+    """認証済みchannelに属するas-run実績を反映。PLAY_CMの初回DONEでaired_countを増分。
 
     aired_count は「実送出が確定したとき」(= agent の as-run 返送時) に増やす
     (docs/scheduler.md、resolver.fill_break の均等ローテ/出稿上限が依存)。
@@ -309,7 +311,9 @@ def apply_result(idempotency_key: str, status: str, actual_at, note: str) -> boo
     """
     with transaction.atomic():
         ev = (
-            PlayoutEvent.objects.select_for_update().filter(idempotency_key=idempotency_key).first()
+            PlayoutEvent.objects.select_for_update()
+            .filter(channel__slug=channel_slug, idempotency_key=idempotency_key)
+            .first()
         )
         if ev is None:
             return False
@@ -498,13 +502,10 @@ _apply_interrupt = sync_to_async(apply_interrupt)
 def build_recording_upload(channel_slug: str, program_id: int) -> tuple[str, str] | None:
     """録画クリップの presigned PUT URL を発行 (r2_key, upload_url)。
 
-    channel_slug/program_id の実在確認のみ行う (存在しなくても致命的ではないが、agent 側の
-    誤った channel_slug 混入等を早期に検知するため軽く弾く)。r2_key は
+    channel_slug に属する番組か確認する。r2_key は
     scheduling.live_recording.INGEST_PREFIX の規約 (ingest/live_recording/<slug>/<id>.mp4) と一致させる。
     """
-    if not Channel.objects.filter(slug=channel_slug).exists():
-        return None
-    if not Program.objects.filter(pk=program_id).exists():
+    if not Program.objects.filter(pk=program_id, channel__slug=channel_slug).exists():
         return None
     r2_key = f"ingest/live_recording/{channel_slug}/{program_id}.mp4"
     from core import r2
@@ -560,6 +561,7 @@ class PlayoutAgentServicer(playout_pb2_grpc.PlayoutAgentServicer):
         # Django が JST 解釈し 9h ずれる → aware UTC で受ける (保存時に正しい instant になる)。
         actual_at = request.actual_at.ToDatetime(tzinfo=UTC) if request.actual_at.seconds else None
         ok = await _apply_result(
+            request.channel_slug,
             request.idempotency_key,
             status,
             actual_at,

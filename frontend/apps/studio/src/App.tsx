@@ -43,15 +43,45 @@ import { ClockPresetsPage } from "./pages/ClockPresetsPage";
 /** ch 単位の画面 (/scheduling, /series) の index = 先頭チャンネルへリダイレクト。 */
 function ChannelRedirect({ base }: { base: string }) {
   const [slug, setSlug] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [empty, setEmpty] = useState(false);
+  const [failure, setFailure] = useState<"auth" | "forbidden" | "request" | "network" | null>(null);
+  const [status, setStatus] = useState<number | null>(null);
+  const load = async () => {
+    setLoading(true);
+    setEmpty(false);
+    setFailure(null);
+    setStatus(null);
+    try {
+      const result = await api.GET("/api/v1/admin/scheduling/channels");
+      if (result.error) {
+        setFailure(result.response.status === 401 ? "auth" : result.response.status === 403 ? "forbidden" : "request");
+        setStatus(result.response.status);
+      } else if (result.data?.length) setSlug(result.data[0].slug);
+      else setEmpty(true);
+    } catch {
+      setFailure("network");
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    api
-      .GET("/api/v1/admin/scheduling/channels")
-      .then(({ data }) => (data && data.length ? setSlug(data[0].slug) : setEmpty(true)))
-      .catch(() => setEmpty(true));
+    void load();
   }, []);
-  if (empty) return <EmptyState loading>チャンネルがありません。</EmptyState>;
-  if (!slug) return <EmptyState loading>読み込み中…</EmptyState>;
+  if (failure) {
+    const authHref = `/studio/login/?next=${encodeURIComponent(`/${base}`)}`;
+    return (
+      <EmptyState>
+        <div role="alert">
+          <p>{failure === "auth" ? "ログインの有効期限が切れました。再ログインしてください。" : failure === "forbidden" ? "この操作を行う権限がありません。管理者に確認してください。" : `チャンネル一覧を取得できませんでした${status ? ` (HTTP ${status})` : "。通信状況を確認してください。"}`}</p>
+          {failure === "auth" ? <a href={authHref}>Studio に再ログイン</a> : null}
+          {failure !== "forbidden" ? <button type="button" onClick={() => void load()}>再試行</button> : null}
+        </div>
+      </EmptyState>
+    );
+  }
+  if (loading) return <EmptyState loading>読み込み中…</EmptyState>;
+  if (empty) return <EmptyState>チャンネルがありません。</EmptyState>;
   return <Navigate to={`/${base}/${slug}`} replace />;
 }
 

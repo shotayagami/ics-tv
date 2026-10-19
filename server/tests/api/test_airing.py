@@ -204,5 +204,7 @@ def test_apply_result_enqueues_record_airing_on_first_done(
         asset=cm.asset,
     )
     with django_capture_on_commit_callbacks(execute=True):
-        grpc_service.apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+        grpc_service.apply_result(
+            ev.channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), ""
+        )
     assert calls == [ev.id]  # 初回 DONE で record_airing を on_commit 発火

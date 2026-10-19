@@ -323,7 +323,7 @@ def test_apply_result_broadcasts_on_live_cue_aired(channel):
     ev = _as_run_event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"live_cue_id": cue.id})
     layer = _expect_broadcast(channel)
 
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     assert ok is True
     cue.refresh_from_db()
@@ -341,7 +341,7 @@ def test_apply_result_does_not_broadcast_when_cue_already_aired(channel):
     ev = _as_run_event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"live_cue_id": cue.id})
     layer = _expect_broadcast(channel)
 
-    apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     async def _receive_with_timeout():
         return await asyncio.wait_for(layer.receive("probe"), timeout=0.2)

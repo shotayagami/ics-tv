@@ -490,6 +490,9 @@ async def _prefetch_loop(
                 url = params.get("media_url")
                 if url and clip:
                     await cache.ensure(clip, url)
+                bundle_media = params.get("bundle_media")
+                if bundle_media:
+                    await _prefetch_bundle_media(cache, bundle_media)
             # standing メディア manifest (channel の filler 全件 + slate) を pre-cache+pin する。
             # 巡回先が常に手元に在る状態を作り、未キャッシュ→LOADBG 404→slate 固着 を根絶 (Phase2)。
             if manifest_json:
@@ -530,6 +533,20 @@ async def _prefetch_manifest(
     channel_media.set_slate_clip(slate_clip)
     channel_media.set_site_only_filler_clip(site_only_filler_clip)
     channel_media.set_members_filler_clip(members_filler_clip)
+
+
+async def _prefetch_bundle_media(cache: MediaCache, manifest_json: str) -> None:
+    """CM リールの世代別 clip を先読みする (standing cache ではないので pin しない)。"""
+    try:
+        items = json.loads(manifest_json)
+    except (ValueError, TypeError):
+        logger.warning("bundle prefetch manifest の JSON 解析失敗")
+        return
+    if not isinstance(items, list):
+        return
+    for item in items:
+        if isinstance(item, dict) and item.get("clip") and item.get("url"):
+            await cache.ensure(item["clip"], item["url"])
 
 
 async def _output_watchdog(

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from django.test import Client, override_settings
 from django.utils import timezone
 
@@ -101,6 +102,44 @@ def test_remind_toggle_with_bearer_token_needs_no_csrf(channel, asset_ready, db)
     assert off.status_code == 200
     assert off.json()["reminded"] is False
     assert Reminder.objects.count() == 0
+
+
+@_PUBLIC_HOST
+@pytest.mark.parametrize("auth_kind", ["session", "bearer"])
+@pytest.mark.parametrize("already_reminded", [False, True])
+def test_remind_toggle_rejects_unverified_members(
+    channel, asset_ready, db, auth_kind, already_reminded
+):
+    member = _member(verified=False)
+    program = _program(channel, asset_ready)
+    if already_reminded:
+        Reminder.objects.create(member=member, program=program)
+
+    client = Client(enforce_csrf_checks=auth_kind == "bearer")
+    headers = {}
+    if auth_kind == "bearer":
+        headers = _auth(_token_for())
+    else:
+        client.post("/members/login/", {"email": "m@example.com", "password": _PW})
+
+    response = client.post(f"/api/v1/program/{program.id}/remind", **headers)
+
+    assert response.status_code == 403
+    assert Reminder.objects.filter(member=member, program=program).count() == int(already_reminded)
+
+
+@_PUBLIC_HOST
+def test_remind_toggle_with_session_cookie_still_works(channel, asset_ready, db):
+    _member(verified=True)
+    program = _program(channel, asset_ready)
+    client = Client()
+    client.post("/members/login/", {"email": "m@example.com", "password": _PW})
+
+    response = client.post(f"/api/v1/program/{program.id}/remind")
+
+    assert response.status_code == 200
+    assert response.json()["reminded"] is True
+    assert Reminder.objects.count() == 1
 
 
 @_PUBLIC_HOST

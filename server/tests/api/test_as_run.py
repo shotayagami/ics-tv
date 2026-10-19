@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from django.utils import timezone
 
-from core.models import LiveSource
+from core.models import Channel, LiveSource
 from medialib.models import Asset, AssetKind, CmCreative, CmGrid, NormalizeStatus
 from playout.grpc_service import apply_result
 from playout.models import PlayoutAction, PlayoutEvent, PlayoutStatus
@@ -90,7 +90,7 @@ def test_play_cm_done_increments_aired_count(channel):
     cm = _cm_creative(aired=0)
     ev = _event(channel, PlayoutAction.PLAY_CM, asset=cm.asset)
 
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     assert ok is True
     ev.refresh_from_db()
@@ -105,8 +105,8 @@ def test_repeated_done_does_not_double_count(channel):
     ev = _event(channel, PlayoutAction.PLAY_CM, asset=cm.asset)
     key = str(ev.idempotency_key)
 
-    apply_result(key, PlayoutStatus.DONE, timezone.now(), "")
-    apply_result(key, PlayoutStatus.DONE, timezone.now(), "resend")
+    apply_result(channel.slug, key, PlayoutStatus.DONE, timezone.now(), "")
+    apply_result(channel.slug, key, PlayoutStatus.DONE, timezone.now(), "resend")
 
     cm.refresh_from_db()
     assert cm.aired_count == 1
@@ -116,7 +116,9 @@ def test_failed_status_does_not_increment(channel):
     cm = _cm_creative(aired=0)
     ev = _event(channel, PlayoutAction.PLAY_CM, asset=cm.asset)
 
-    apply_result(str(ev.idempotency_key), PlayoutStatus.FAILED, timezone.now(), "boom")
+    apply_result(
+        channel.slug, str(ev.idempotency_key), PlayoutStatus.FAILED, timezone.now(), "boom"
+    )
 
     cm.refresh_from_db()
     assert cm.aired_count == 0
@@ -127,7 +129,7 @@ def test_non_cm_action_does_not_touch_creatives(channel, asset_ready):
     cm = _cm_creative(aired=3)
     ev = _event(channel, PlayoutAction.PLAY_ASSET, asset=asset_ready)
 
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     assert ok is True
     cm.refresh_from_db()
@@ -135,7 +137,7 @@ def test_non_cm_action_does_not_touch_creatives(channel, asset_ready):
 
 
 def test_unknown_key_returns_false(channel):
-    ok = apply_result(str(uuid.uuid4()), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(uuid.uuid4()), PlayoutStatus.DONE, timezone.now(), "")
     assert ok is False
 
 
@@ -148,7 +150,7 @@ def test_apply_result_marks_cm_live_cue_aired_on_first_done(channel):
     cue = _live_cue(channel, LiveCueKind.CM)
     ev = _event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"live_cue_id": cue.id})
 
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     assert ok is True
     cue.refresh_from_db()
@@ -161,7 +163,7 @@ def test_apply_result_marks_vt_live_cue_aired_on_first_done(channel):
     cue = _live_cue(channel, LiveCueKind.VT)
     ev = _event(channel, PlayoutAction.PLAY_VT, params={"live_cue_id": cue.id})
 
-    apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     cue.refresh_from_db()
     assert cue.state == LiveCueState.AIRED
@@ -176,7 +178,9 @@ def test_apply_result_does_not_clobber_already_aired_live_cue(channel):
     cue = _live_cue(channel, LiveCueKind.CM, state=LiveCueState.AIRED, fired_event=manual_ev)
     stale_ev = _event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"live_cue_id": cue.id})
 
-    ok = apply_result(str(stale_ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(
+        channel.slug, str(stale_ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), ""
+    )
 
     assert ok is True
     cue.refresh_from_db()
@@ -189,7 +193,7 @@ def test_apply_result_does_not_touch_skipped_live_cue(channel):
     cue = _live_cue(channel, LiveCueKind.VT, state=LiveCueState.SKIPPED)
     ev = _event(channel, PlayoutAction.PLAY_VT, params={"live_cue_id": cue.id})
 
-    apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
 
     cue.refresh_from_db()
     assert cue.state == LiveCueState.SKIPPED
@@ -206,7 +210,9 @@ def test_apply_result_ignores_overlay_op_bumper_for_live_cue(channel):
         params={"live_cue_id": cue.id, "overlay_op": "show", "overlay_layer": "20"},
     )
 
-    ok = apply_result(str(bumper_ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(
+        channel.slug, str(bumper_ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), ""
+    )
 
     assert ok is True
     cue.refresh_from_db()
@@ -227,7 +233,9 @@ def test_apply_result_does_not_resurrect_cancelled_event(channel):
         params={"live_cue_id": cue.id},
     )
 
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "stale report")
+    ok = apply_result(
+        channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "stale report"
+    )
 
     assert ok is True  # 受信自体は accepted 扱い (ReportResult の "not found" 警告と区別)
     ev.refresh_from_db()
@@ -242,7 +250,7 @@ def test_apply_result_without_live_cue_id_does_not_error(channel):
     """live_cue_id を持たない通常イベント (手動発火や通常番組送出) の DONE 化はこれまでどおり
     何の副作用も起こさないこと (回帰なしの確認)。"""
     ev = _event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"bundle_id": 1})
-    ok = apply_result(str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+    ok = apply_result(channel.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
     assert ok is True  # 例外を投げず正常終了する
 
 
@@ -253,11 +261,27 @@ def test_repeated_done_does_not_reprocess_live_cue(channel):
     ev = _event(channel, PlayoutAction.PLAY_CM_BUNDLE, params={"live_cue_id": cue.id})
     key = str(ev.idempotency_key)
 
-    apply_result(key, PlayoutStatus.DONE, timezone.now(), "")
+    apply_result(channel.slug, key, PlayoutStatus.DONE, timezone.now(), "")
     cue.refresh_from_db()
     first_fired_event_id = cue.fired_event_id
 
-    apply_result(key, PlayoutStatus.DONE, timezone.now(), "resend")
+    apply_result(channel.slug, key, PlayoutStatus.DONE, timezone.now(), "resend")
     cue.refresh_from_db()
     assert cue.state == LiveCueState.AIRED
     assert cue.fired_event_id == first_fired_event_id == ev.id
+
+
+def test_report_result_for_another_channel_is_rejected_without_side_effects(channel):
+    other = Channel.objects.create(name="別channel", slug="as-run-other", enabled=True)
+    cm = _cm_creative(aired=0)
+    ev = _event(channel, PlayoutAction.PLAY_CM, asset=cm.asset)
+
+    ok = apply_result(other.slug, str(ev.idempotency_key), PlayoutStatus.DONE, timezone.now(), "")
+
+    assert ok is False
+    ev.refresh_from_db()
+    cm.refresh_from_db()
+    assert ev.status == PlayoutStatus.SCHEDULED
+    assert ev.actual_at is None
+    assert ev.note is None
+    assert cm.aired_count == 0
