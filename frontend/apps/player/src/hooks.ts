@@ -12,24 +12,55 @@ export type CommentListOut = components["schemas"]["CommentListOut"];
 export type ScheduleItem = components["schemas"]["ScheduleItem"];
 export type ProgramNow = components["schemas"]["ProgramNow"];
 
+export type ChannelLoadError = { kind: "auth" | "forbidden" | "request" | "network"; status?: number };
+export type ChannelRefreshResult = "updated" | "denied" | "failed";
+
 /** チャンネル詳細 + タブ一覧を取得し、60s 毎に再取得 (現在番組の繰り上がり追従)。 */
 export function useChannelData(slug: string) {
   const [detail, setDetail] = useState<ChannelDetail | null>(null);
   const [tabs, setTabs] = useState<ChannelTabData[]>([]);
-  const load = useCallback(async () => {
-    const [d, t] = await Promise.all([
-      api.GET("/api/v1/channels/{slug}", { params: { path: { slug } } }),
-      api.GET("/api/v1/channels"),
-    ]);
-    if (d.data) setDetail(d.data);
-    if (t.data) setTabs(t.data);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<ChannelLoadError | null>(null);
+  const [empty, setEmpty] = useState(false);
+  const load = useCallback(async (showLoading = true): Promise<ChannelRefreshResult> => {
+    if (showLoading) setLoading(true);
+    setError(null);
+    setEmpty(false);
+    try {
+      const d = await api.GET("/api/v1/channels/{slug}", { params: { path: { slug } } });
+      if (d.error) {
+        if (d.response.status === 404) setEmpty(true);
+        else setError({ kind: d.response.status === 401 ? "auth" : d.response.status === 403 ? "forbidden" : "request", status: d.response.status });
+        return d.response.status === 401 || d.response.status === 403 || d.response.status === 404 ? "denied" : "failed";
+      }
+      if (!d.data) {
+        setEmpty(true);
+        return "denied";
+      }
+      setDetail(d.data);
+      try {
+        const t = await api.GET("/api/v1/channels");
+        if (t.data) setTabs(t.data);
+        else if (t.error) setError({ kind: t.response.status === 401 ? "auth" : t.response.status === 403 ? "forbidden" : "request", status: t.response.status });
+      } catch {
+        setError({ kind: "network" });
+      }
+      return d.data.hls_url ? "updated" : "denied";
+    } catch {
+      setError({ kind: "network" });
+      return "failed";
+    } finally {
+      setLoading(false);
+    }
   }, [slug]);
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 60_000);
+    const id = window.setInterval(() => void load(false), 60_000);
     return () => window.clearInterval(id);
   }, [load]);
-  return { detail, tabs };
+  const retry = useCallback(() => load(), [load]);
+  const refreshHlsUrl = useCallback(() => load(false), [load]);
+  return { detail, tabs, loading, error, empty, retry, refreshHlsUrl };
 }
 
 /** 毎秒更新の epoch 秒 (進行バー/カウントダウン算出用)。使う側だけが再レンダする。 */

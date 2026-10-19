@@ -38,6 +38,22 @@ def test_ensure_skips_existing(tmp_path):
     assert len(calls) == 1  # 2 回目はローカルにあるので DL しない
 
 
+def test_clip_generations_keep_current_and_reclaim_old_pinned_cache(tmp_path):
+    cache = MediaCache(tmp_path, 8, _dl(b"1234"))
+    old_clip = "filler/7@0123456789abcdef"
+    new_clip = "filler/7@fedcba9876543210"
+    old = asyncio.run(cache.ensure_pinned(old_clip, "https://s/v1.mp4"))
+    new = asyncio.run(cache.ensure_pinned(new_clip, "https://s/v2.mp4"))
+
+    assert old != new
+    assert old.exists() and new.exists()  # 送出中の旧世代を置換しない
+    assert old not in cache._pinned and new in cache._pinned  # manifest更新時は旧pinを解除
+
+    asyncio.run(cache.ensure("other", "https://s/other.mp4"))  # LRU に旧世代を退避させる
+    assert not old.exists()
+    assert new.exists()
+
+
 def test_path_ext_from_url(tmp_path):
     cache = MediaCache(tmp_path, 10**9, _dl())
     assert cache.path_for("asset/9", "https://s/x/9.mxf?a=b") == tmp_path / "asset/9.mxf"

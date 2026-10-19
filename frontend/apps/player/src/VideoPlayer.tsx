@@ -4,14 +4,15 @@ import { memo, useEffect, useRef } from "react";
 
 import Hls from "hls.js";
 
-import { createHlsTokenLoader, hlsTokenOf, stripHlsToken } from "@icstv/api";
+import { createHlsTokenLoader, hlsTokenExpiresAt, hlsTokenOf, stripHlsToken } from "@icstv/api";
 
 import { LiveBadge } from "./atoms";
 
-import { useHeartbeat } from "./hooks";
+import { useHeartbeat, type ChannelRefreshResult } from "./hooks";
 
 interface VideoPlayerProps {
   hlsUrl: string | null;
+  refreshHlsUrl: () => Promise<ChannelRefreshResult>;
   youtubeBroadcastId: string | null;
   channelShort: string;
   channelTint: string;
@@ -54,6 +55,7 @@ const UNMUTED =
  */
 function VideoPlayerInner({
   hlsUrl,
+  refreshHlsUrl,
   youtubeBroadcastId,
   channelShort,
   channelTint,
@@ -93,6 +95,10 @@ function VideoPlayerInner({
   const hlsKey = hlsUrl ? stripHlsToken(hlsUrl) : null;
   const hlsUrlRef = useRef(hlsUrl);
   hlsUrlRef.current = hlsUrl;
+  const refreshHlsUrlRef = useRef(refreshHlsUrl);
+  refreshHlsUrlRef.current = refreshHlsUrl;
+  const nativeSrcRef = useRef<string | null>(null);
+  const nativeGenerationRef = useRef(0);
   const hlsTokenRef = useRef("");
   hlsTokenRef.current = hlsUrl ? hlsTokenOf(hlsUrl) : "";
 
@@ -100,6 +106,8 @@ function VideoPlayerInner({
     const v = videoRef.current;
     const src = hlsUrlRef.current;
     if (!v || !src) return;
+    const nativeGeneration = ++nativeGenerationRef.current;
+    const ownsNativeSource = () => nativeGeneration === nativeGenerationRef.current;
 
     const cleanups: Array<() => void> = [];
     const on = (
@@ -114,6 +122,11 @@ function VideoPlayerInner({
 
     let hls: Hls | null = null;
     let isNative = false;
+    let nativeRenewTimer: number | null = null;
+    let nativeRenewing = false;
+    let nativeErrorTriedUrl: string | null = null;
+    let pendingNativeBehindLive: number | null = null;
+    let skipNativeAutoplay = false;
 
     // --- 音量/ミュートの前回設定 (localStorage・チャンネル横断) ---
     const AUDIO_PREF = "icstv:player:audio";
@@ -165,10 +178,116 @@ function VideoPlayerInner({
       }
     };
 
+    const stopNativeSource = () => {
+      if (!ownsNativeSource()) return;
+      if (nativeRenewTimer !== null) window.clearTimeout(nativeRenewTimer);
+      nativeRenewTimer = null;
+      nativeSrcRef.current = null;
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+    };
+
+    const replaceNativeSource = (nextUrl: string) => {
+      if (!ownsNativeSource()) return;
+      if (nativeSrcRef.current === nextUrl) return;
+      let behindLive: number | null = null;
+      try {
+        if (v.seekable.length) behindLive = Math.max(0, v.seekable.end(v.seekable.length - 1) - v.currentTime);
+      } catch {
+        /* noop */
+      }
+      pendingNativeBehindLive = behindLive;
+      skipNativeAutoplay = userPaused;
+      nativeSrcRef.current = nextUrl;
+      nativeErrorTriedUrl = null;
+      v.src = nextUrl;
+      v.load();
+    };
+
+    const scheduleNativeRenewal = () => {
+      if (!ownsNativeSource()) return;
+      if (nativeRenewTimer !== null) window.clearTimeout(nativeRenewTimer);
+      const expiresAt = nativeSrcRef.current ? hlsTokenExpiresAt(nativeSrcRef.current) : null;
+      if (expiresAt === null) return;
+      const remainingMs = expiresAt * 1000 - Date.now();
+      const renewLeadMs = Math.min(60_000, Math.max(1_000, remainingMs * 0.1), remainingMs * 0.5);
+      const delay = Math.max(250, remainingMs - renewLeadMs);
+      nativeRenewTimer = window.setTimeout(() => void renewNativeSource(), delay);
+    };
+
+    const renewNativeSource = async () => {
+      if (!ownsNativeSource() || nativeRenewing) return;
+      const activeUrl = nativeSrcRef.current;
+      if (!isNative || !activeUrl) return;
+      nativeRenewing = true;
+      try {
+        const activeExpiry = hlsTokenExpiresAt(activeUrl);
+        if (activeExpiry === null) return;
+        let latestUrl = hlsUrlRef.current;
+        if (!latestUrl || stripHlsToken(latestUrl) !== hlsKey) {
+          stopNativeSource();
+          return;
+        }
+        let latestExpiry = hlsTokenExpiresAt(latestUrl);
+        if (latestExpiry === null || latestExpiry <= activeExpiry) {
+          const result = await refreshHlsUrlRef.current();
+          if (!ownsNativeSource()) return;
+          if (result === "denied") {
+            stopNativeSource();
+            return;
+          }
+          if (result === "failed") {
+            nativeRenewTimer = window.setTimeout(() => void renewNativeSource(), 10_000);
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 0));
+          if (!ownsNativeSource()) return;
+          latestUrl = hlsUrlRef.current;
+          if (!latestUrl || stripHlsToken(latestUrl) !== hlsKey) {
+            stopNativeSource();
+            return;
+          }
+          latestExpiry = hlsTokenExpiresAt(latestUrl);
+        }
+        if (latestExpiry !== null && latestExpiry > activeExpiry) {
+          replaceNativeSource(latestUrl);
+          scheduleNativeRenewal();
+        } else nativeRenewTimer = window.setTimeout(() => void renewNativeSource(), 10_000);
+      } finally {
+        nativeRenewing = false;
+      }
+    };
+
     if (v.canPlayType("application/vnd.apple.mpegurl")) {
       isNative = true;
+      nativeSrcRef.current = src;
       v.src = src;
-      on(v, "loadedmetadata", tryPlay);
+      on(v, "loadedmetadata", () => {
+        if (!ownsNativeSource()) return;
+        if (pendingNativeBehindLive !== null && v.seekable.length) {
+          try {
+            const start = v.seekable.start(0);
+            const end = v.seekable.end(v.seekable.length - 1);
+            v.currentTime = Math.max(start, end - pendingNativeBehindLive);
+          } catch {
+            /* noop */
+          }
+        }
+        pendingNativeBehindLive = null;
+        if (skipNativeAutoplay) {
+          skipNativeAutoplay = false;
+          return;
+        }
+        tryPlay();
+      });
+      on(v, "error", () => {
+        if (ownsNativeSource() && nativeSrcRef.current && nativeErrorTriedUrl !== nativeSrcRef.current) {
+          nativeErrorTriedUrl = nativeSrcRef.current;
+          void renewNativeSource();
+        }
+      });
+      scheduleNativeRenewal();
     } else if (Hls.isSupported()) {
       // minAutoBitrate: 自動 ABR が音声のみ variant を選ばないよう下限を引く (音声のみは手動選択時のみ)
       hls = new Hls({
@@ -679,6 +798,16 @@ function VideoPlayerInner({
 
     return () => {
       cleanups.forEach((fn) => fn());
+      if (nativeRenewTimer !== null) window.clearTimeout(nativeRenewTimer);
+      if (ownsNativeSource()) {
+        nativeSrcRef.current = null;
+        if (isNative) {
+          v.pause();
+          v.removeAttribute("src");
+          v.load();
+        }
+        nativeGenerationRef.current++;
+      }
       if (hls) {
         try {
           hls.destroy();

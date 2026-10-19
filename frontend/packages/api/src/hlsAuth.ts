@@ -47,6 +47,12 @@ export function hlsTokenOf(url: string): string {
   return u?.searchParams.get(TOKEN_PARAM) ?? "";
 }
 
+/** 署名トークンの Unix expiry 秒 (解析できない URL は null)。 */
+export function hlsTokenExpiresAt(url: string): number | null {
+  const expiresAt = Number(hlsTokenOf(url).split(".", 1)[0]);
+  return Number.isSafeInteger(expiresAt) && expiresAt > 0 ? expiresAt : null;
+}
+
 /** URL の token を差し替える (無ければ付ける)。token が空なら URL をそのまま返す。 */
 export function withHlsToken(url: string, token: string): string {
   if (!token) return url;
@@ -67,7 +73,9 @@ type AnyLoaderCtor = new (...args: any[]) => any;
  *
  * hls.js は manifest に書かれた URI をそのまま使い続けるため、これが無いと最初に読み込んだ
  * トークンの期限切れと同時に再生が止まる。Safari のネイティブ HLS (`<video src>`) には
- * この介入点が無く、TTL を超える連続視聴で切れる (deploy/cloudflare-worker-hls/README.md 参照)。
+ * この介入点がないため、`VideoPlayer` は期限前にチャンネル情報 API から新しい HLS URL を取得して
+ * ソースを再読み込みする。視聴権限がなくなった場合は再生を停止する
+ * (deploy/cloudflare-worker-hls/README.md 参照)。
  *
  * 使い方: `new Hls({ loader: createHlsTokenLoader(Hls.DefaultConfig.loader, () => tokenRef.current) })`
  */

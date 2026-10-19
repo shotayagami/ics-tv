@@ -58,7 +58,16 @@ def scan(limit: int = 200) -> int:
         if channel is None:
             logger.warning("live_recording scan: unknown channel slug %s in %s", channel_slug, key)
             continue
-        prog = Program.objects.filter(pk=program_id).first()
+        prog = Program.objects.filter(pk=program_id, channel=channel).first()
+        if prog is None and Program.objects.filter(pk=program_id).exists():
+            logger.warning(
+                "live_recording scan: channel mismatch key_channel=%s program_id=%d key=%s; "
+                "leaving R2 object for investigation",
+                channel_slug,
+                program_id,
+                key,
+            )
+            continue
         try:
             with transaction.atomic():
                 if prog is None:
@@ -112,6 +121,16 @@ def bind() -> dict[str, int]:
         if prog is None:
             _fail(ri, "program が消失")
             stats["failed"] += 1
+            continue
+        if prog.channel_id != ri.channel_id:
+            _fail(ri, "channel/program の所属不一致。R2キーと取込行を保持し要調査")
+            stats["failed"] += 1
+            logger.warning(
+                "live_recording bind: ownership mismatch ingest_id=%d key=%s; "
+                "retaining ingest row and R2 object",
+                ri.pk,
+                ri.source_key,
+            )
             continue
         if prog.recording_asset_id is None:
             prog.recording_asset = asset

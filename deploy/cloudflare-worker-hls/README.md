@@ -104,9 +104,9 @@ curl -s -X POST -H "Authorization: Bearer $CF_WORKERS_API_TOKEN" \
 
 ## 既知の限界
 
-- **Safari のネイティブ HLS** (`<video src>` 直指定) はリクエスト URL に介入できないため、
-  再生中に token を差し替えられない。TTL を超える連続視聴はそこで切れる (hls.js を使う
-  ブラウザは `@icstv/api` の `createHlsTokenLoader` が差し替えるため影響を受けない)。
-  TTL を短縮する際はこの点を考慮すること
+- **Safari のネイティブ HLS** (`<video src>` 直指定) は個々のリクエスト URL に介入できない。
+  プレイヤーは署名 token の期限前にチャンネル情報 API から新しい HLS URL を取得し、
+  再生位置を保って master playlist を読み直す。視聴権限がなくなった場合は再生を停止する。
+  hls.js を使うブラウザでは `@icstv/api` の `createHlsTokenLoader` が各リクエストの token を差し替える。
 - トークンは視聴者を識別しない。URL の共有・転売そのものは防げない (TTL 内に限られる)
 - `/hls` (MediaMTX) 経路は対象外

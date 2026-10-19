@@ -9,13 +9,29 @@ import { ProgramInfo } from "./ProgramInfo";
 import { VideoPlayer } from "./VideoPlayer";
 
 export function PlayerPage({ slug, homeBase }: { slug: string; homeBase: string }) {
-  const { detail, tabs } = useChannelData(slug);
+  const { detail, tabs, loading, error, empty, retry, refreshHlsUrl } = useChannelData(slug);
 
   if (!detail) {
+    const loginHref = `${homeBase}/members/login/?next=${encodeURIComponent(`/ch/${slug}/`)}`;
+    const message = error?.kind === "auth"
+      ? "視聴情報を取得できません。ログイン状態を確認してください。"
+      : error?.kind === "forbidden"
+        ? "このチャンネルを表示する権限がありません。"
+      : error
+        ? "チャンネル情報を取得できませんでした。通信状況を確認して再試行してください。"
+        : empty
+          ? "このチャンネルは見つかりませんでした。"
+          : loading ? "読み込み中…" : "チャンネル情報を取得できませんでした。";
     return (
       <section className="player-page">
         <div className="player">
-          <div className="placeholder">読み込み中…</div>
+          <div className="placeholder" role={error ? "alert" : "status"}>
+            <div style={{ display: "grid", justifyItems: "center", gap: ".75rem", padding: "1rem", textAlign: "center" }}>
+              <span>{message}</span>
+              {error?.kind === "auth" ? <a href={loginHref}>ログインし直す</a> : null}
+              {error ? <button type="button" onClick={retry}>再試行</button> : null}
+            </div>
+          </div>
         </div>
       </section>
     );
@@ -47,6 +63,11 @@ export function PlayerPage({ slug, homeBase }: { slug: string; homeBase: string 
   return (
     <ToastProvider>
     <section className="player-page">
+      {error ? (
+        <div role="alert" style={{ padding: ".6rem 1rem", textAlign: "center" }}>
+          {error.kind === "auth" ? <>視聴情報の確認に失敗しました。<a href={`${homeBase}/members/login/?next=${encodeURIComponent(`/ch/${slug}/`)}`}>ログインし直す</a>か、<button type="button" onClick={retry}>再試行</button>してください。</> : error.kind === "forbidden" ? <>このチャンネルの一覧を表示する権限がありません。<button type="button" onClick={retry}>再試行</button></> : <>チャンネル一覧を取得できませんでした。<button type="button" onClick={retry}>再試行</button></>}
+        </div>
+      ) : null}
       <ChannelTabs items={tabItems} homeHref={`${homeBase}/`} />
       <div className="player-body">
         <div className="player-main">
@@ -58,6 +79,7 @@ export function PlayerPage({ slug, homeBase }: { slug: string; homeBase: string 
             channelName={detail.name}
             slug={slug}
             paused={detail.paused ?? false}
+            refreshHlsUrl={refreshHlsUrl}
             nextOnAir={detail.next_on_air ?? null}
             gateReason={detail.gate_reason || null}
             homeBase={homeBase}

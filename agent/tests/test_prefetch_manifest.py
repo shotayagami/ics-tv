@@ -111,3 +111,15 @@ def test_prefetch_manifest_skips_items_missing_fields(tmp_path):
     asyncio.run(main._prefetch_manifest(cache, manifest, cm))
     assert (tmp_path / "filler/2.mp4").exists()
     assert not (tmp_path / "filler/3.mp4").exists()
+
+
+def test_bundle_prefetch_uses_generation_clip_without_pinning(tmp_path):
+    cache = MediaCache(tmp_path, 10**9, _dl(b"bundle"))
+    clip = "cm/9@0123456789abcdef"
+    manifest = json.dumps([{"clip": clip, "url": "https://s/v1.mp4"}])
+
+    asyncio.run(main._prefetch_bundle_media(cache, manifest))
+
+    path = tmp_path / "cm/9@0123456789abcdef.mp4"
+    assert path.read_bytes() == b"bundle"
+    assert path not in cache._pinned

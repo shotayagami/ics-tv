@@ -3,8 +3,9 @@
 """prefetch 媒体キャッシュ (overview 3.2)。
 
 R2 の mezzanine を CasparCG のローカル媒体フォルダへ先読みし、容量超過分を LRU で退避する。
-LOADBG は clip 名 (例 "asset/42") を媒体フォルダ相対で解決するため、ダウンロード先は
-media_dir/<clip><ext> とする。download は注入式 (テストで差し替え可能、本番は httpx ストリーム)。
+LOADBG は clip 名 (例 "asset/42@<generation>") を媒体フォルダ相対で解決するため、世代ごとに
+別ファイルを使い送出中の素材を差し替えない。旧世代は LRU で退避する。
+download は注入式 (テストで差し替え可能、本番は httpx ストリーム)。
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ class MediaCache:
         # pin した path は LRU 退避の対象外 (常駐)。channel の standing メディア
         # = filler playlist 全件 / slate を確実に手元へ残し、巡回先の cache-miss(404) を防ぐ。
         self._pinned: set[Path] = set()
+        self._pinned_by_clip: dict[str, Path] = {}
 
     def _ext(self, url: str) -> str:
         return Path(urlparse(url).path).suffix or ".mp4"
@@ -36,12 +38,15 @@ class MediaCache:
     def path_for(self, clip: str, url: str) -> Path:
         return self.media_dir / (clip + self._ext(url))
 
-    async def ensure(self, clip: str, url: str) -> Path | None:
+    async def ensure(self, clip: str, url: str, *, pin: bool = False) -> Path | None:
         """clip がローカルに無ければ url から取得。既存なら mtime を更新 (LRU の最近使用印)。"""
         path = self.path_for(clip, url)
         if path.exists():
             with contextlib.suppress(OSError):
                 os.utime(path, None)  # LRU: 直近アクセスを記録
+            if pin:
+                self.pin(path)
+                self._evict()
             return path
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + ".part")
@@ -55,19 +60,34 @@ class MediaCache:
             # HTTP status / TLS / DNS の切り分けができず prefetch 不達の原因が不可視になる。
             logger.warning("prefetch 失敗 clip=%s: %r", clip, e)
             return None
+        if pin:
+            self.pin(path)
         self._evict()
         return path
 
     def pin(self, path: Path) -> None:
-        """path を LRU 退避の対象外にする (standing メディア: filler セット / slate)。"""
+        """standing メディアを pin。新世代が来たら同clipの旧世代はLRUへ戻す。"""
+        try:
+            clip = str(path.relative_to(self.media_dir).with_suffix(""))
+        except ValueError:
+            clip = str(path)
+        base, sep, version = clip.rpartition("@")
+        if sep and len(version) == 16:
+            try:
+                int(version, 16)
+            except ValueError:
+                pass
+            else:
+                clip = base
+        old = self._pinned_by_clip.get(clip)
+        if old is not None and old != path:
+            self._pinned.discard(old)
+        self._pinned_by_clip[clip] = path
         self._pinned.add(path)
 
     async def ensure_pinned(self, clip: str, url: str) -> Path | None:
         """ensure して成功したら pin する (常駐させる standing メディア用)。"""
-        path = await self.ensure(clip, url)
-        if path is not None:
-            self.pin(path)
-        return path
+        return await self.ensure(clip, url, pin=True)
 
     def _evict(self) -> None:
         """総容量が上限超なら mtime 昇順 (古い順) に削除する。"""

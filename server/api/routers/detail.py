@@ -140,6 +140,10 @@ def toggle_reminder(request: HttpRequest, program_id: int):
 
     member = getattr(request, "member", None)
     assert member is not None  # auth が非ログインを 401 で弾く
+    if not member.is_verified:
+        from ninja.errors import HttpError
+
+        raise HttpError(403, "リマインドには会員の本人確認が必要です")
     program = get_object_or_404(Program, pk=program_id, public_visible=True)
     rem = Reminder.objects.filter(member=member, program=program).first()
     if rem:
