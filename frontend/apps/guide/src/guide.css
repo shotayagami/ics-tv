@@ -19,6 +19,17 @@
   font-size: 24px;
   font-weight: 800;
 }
+.guide-error { color: var(--danger-text); }
+.guide-retry {
+  min-height: var(--tap);
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
 /* SegmentedNav (.segnav) は public_base.html(共有層)に集約済(guide/discover 共用)。 */
 .guide-head .dlabel {
   color: var(--dim);
@@ -46,8 +57,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  height: 28px;
+  min-width: var(--tap);
+  min-height: var(--tap);
   padding: 0 8px;
   border: none;
   background: transparent;

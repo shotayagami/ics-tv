@@ -108,6 +108,18 @@
   padding: 36px 0;
   text-align: center;
 }
+.discover-error { color: var(--danger-text); }
+.discover-error button,
+.discover-retry {
+  min-height: var(--tap);
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
 
 /* ===== ブラウズ (browse) ===== */
 .br {

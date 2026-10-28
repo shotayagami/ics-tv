@@ -53,23 +53,33 @@ function VodCard({ c, href }: { c: CardItem; href: string }) {
 function SearchView({ homeBase, initialQ }: { homeBase: string; initialQ: string }) {
   const [q, setQ] = useState(initialQ);
   const [data, setData] = useState<SearchOut | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    let alive = true;
+    setData(null);
+    setLoadError(false);
     const h = window.setTimeout(() => {
       api
         .GET("/api/v1/search", { params: { query: { q } } })
-        .then(({ data }) => {
-          if (data) setData(data);
+        .then((result) => {
+          if (!alive) return;
+          if (result.error) setLoadError(true);
+          else if (result.data) setData(result.data);
         })
-        .catch(() => {});
+        .catch(() => alive && setLoadError(true));
       history.replaceState(
         null,
         "",
         q.trim() ? `${location.pathname}?q=${encodeURIComponent(q)}` : location.pathname,
       );
     }, 250);
-    return () => window.clearTimeout(h);
-  }, [q]);
+    return () => {
+      alive = false;
+      window.clearTimeout(h);
+    };
+  }, [q, retryCount]);
 
   const trimmed = q.trim();
   return (
@@ -84,8 +94,13 @@ function SearchView({ homeBase, initialQ }: { homeBase: string; initialQ: string
       />
       {!trimmed ? (
         <p className="lead">番組名・あらすじ・出演者・ジャンルから検索できます。</p>
+      ) : loadError ? (
+        <div className="discover-error" role="alert" aria-live="assertive">
+          <p>検索結果を取得できませんでした。通信状況を確認して再試行してください。</p>
+          <button type="button" onClick={() => setRetryCount((n) => n + 1)}>再試行</button>
+        </div>
       ) : !data ? (
-        <p className="lead">検索中…</p>
+        <p className="lead" role="status" aria-live="polite">検索中…</p>
       ) : (
         <>
           <p className="lead">
@@ -120,7 +135,7 @@ function SearchView({ homeBase, initialQ }: { homeBase: string; initialQ: string
               />
             </>
           ) : data.channels.length === 0 ? (
-            <div className="sr-empty">
+            <div className="sr-empty" role="status">
               「{trimmed}」に一致する番組・チャンネルは見つかりませんでした。
             </div>
           ) : null}
@@ -134,26 +149,50 @@ function SearchView({ homeBase, initialQ }: { homeBase: string; initialQ: string
 function BrowseView({ homeBase, initialGenre }: { homeBase: string; initialGenre: string }) {
   const [genre, setGenre] = useState(initialGenre);
   const [data, setData] = useState<BrowseOut | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    const onPop = () => setGenre(new URLSearchParams(location.search).get("genre") ?? "");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    setLoadError(false);
     api
       .GET("/api/v1/browse", { params: { query: { genre } } })
-      .then(({ data }) => {
-        if (data) setData(data);
+      .then((result) => {
+        if (!alive) return;
+        if (result.error) setLoadError(true);
+        else if (result.data) setData(result.data);
       })
-      .catch(() => {});
-  }, [genre]);
+      .catch(() => alive && setLoadError(true));
+    return () => { alive = false; };
+  }, [genre, retryCount]);
 
   function pick(g: string) {
     setGenre(g);
     history.pushState(null, "", `${location.pathname}?genre=${encodeURIComponent(g)}`);
   }
 
+  if (!data && loadError) {
+    return (
+      <section className="br">
+        <h1>ジャンルから探す</h1>
+        <p className="lead">ジャンル情報を取得できませんでした。通信状況を確認して再試行してください。</p>
+        <button type="button" className="discover-retry" onClick={() => setRetryCount((n) => n + 1)}>再試行</button>
+      </section>
+    );
+  }
   if (!data) {
     return (
       <section className="br">
         <h1>ジャンルから探す</h1>
         <p className="lead">放送予定・放送済みの番組をジャンル別に一覧できます。</p>
+        <p className="lead" role="status" aria-live="polite">ジャンルを読み込み中…</p>
         <div className="sk-chips" aria-hidden="true">
           {Array.from({ length: 5 }, (_, i) => (
             <div className="sk sk-chip" key={i} />
@@ -195,12 +234,12 @@ function BrowseView({ homeBase, initialGenre }: { homeBase: string; initialGenre
             ))}
           </div>
         ) : (
-          <div className="br-empty">「{data.genre}」の番組は見つかりませんでした。</div>
+          <div className="br-empty" role="status">「{data.genre}」の番組は見つかりませんでした。</div>
         )
       ) : data.genres.length === 0 ? (
-        <div className="br-empty">ジャンルの付いた公開番組がまだありません。</div>
+        <div className="br-empty" role="status">ジャンルの付いた公開番組がまだありません。</div>
       ) : (
-        <div className="br-empty">上のジャンルを選んでください。</div>
+        <div className="br-empty" role="status">上のジャンルを選んでください。</div>
       )}
     </section>
   );
@@ -233,20 +272,27 @@ function FeaturedVodHero({ c, homeBase }: { c: CardItem; homeBase: string }) {
 /** 見逃し一覧: /api/v1/vod (録画 + YouTube アーカイブ)。 */
 function VodView({ homeBase }: { homeBase: string }) {
   const [data, setData] = useState<VodOut | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
+    let alive = true;
+    setLoadError(false);
     api
       .GET("/api/v1/vod")
-      .then(({ data }) => {
-        if (data) setData(data);
+      .then((result) => {
+        if (!alive) return;
+        if (result.error) setLoadError(true);
+        else if (result.data) setData(result.data);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => alive && setLoadError(true));
+    return () => { alive = false; };
+  }, [retryCount]);
 
   return (
     <section className="vod">
       <h1>見逃し配信</h1>
       <p className="lead">放送が終わった番組をオンデマンドで視聴できます。</p>
-      {!data && <SkelGrid />}
+      {!data && (loadError ? <div className="discover-error" role="alert" aria-live="assertive"><p>見逃し配信を取得できませんでした。通信状況を確認して再試行してください。</p><button type="button" onClick={() => setRetryCount((n) => n + 1)}>再試行</button></div> : <><p className="lead" role="status" aria-live="polite">見逃し配信を読み込み中…</p><SkelGrid /></>)}
       {data?.featured && <FeaturedVodHero c={data.featured} homeBase={homeBase} />}
       {data && (
         <>
@@ -268,7 +314,7 @@ function VodView({ homeBase }: { homeBase: string }) {
             </>
           )}
           {data.items.length === 0 && data.live_archives.length === 0 && (
-            <div className="vod-empty">現在、見逃し配信できる番組はありません。</div>
+            <div className="vod-empty" role="status">現在、見逃し配信できる番組はありません。</div>
           )}
         </>
       )}
