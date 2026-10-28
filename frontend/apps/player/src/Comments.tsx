@@ -14,6 +14,9 @@ export function Comments({ slug, homeBase }: { slug: string; homeBase: string })
   const [items, setItems] = useState<CommentItem[]>([]);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [deleteError, setDeleteError] = useState(false);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const seen = useRef<Set<number>>(new Set());
 
@@ -26,17 +29,19 @@ export function Comments({ slug, homeBase }: { slug: string; homeBase: string })
   // 初期一覧 (新しい順) + ゲート状態
   useEffect(() => {
     let alive = true;
+    setLoadError(false);
     void api
       .GET("/api/v1/channels/{slug}/comments", { params: { path: { slug } } })
       .then(({ data }) => {
-        if (!alive || !data) return;
+        if (!alive) return;
+        if (!data) { setLoadError(true); return; }
         setMeta(data);
         data.items.forEach((it) => addItem(it, false));
-      });
+      }).catch(() => { if (alive) setLoadError(true); });
     return () => {
       alive = false;
     };
-  }, [slug, addItem]);
+  }, [slug, addItem, retryCount]);
 
   // WebSocket 受信 (#COMM-01)。切断時は自動再接続。
   useEffect(() => {
@@ -76,27 +81,31 @@ export function Comments({ slug, homeBase }: { slug: string; homeBase: string })
     e.preventDefault();
     const text = body.trim();
     if (!text) return;
-    const { data, error: err, response } = await api.POST("/api/v1/channels/{slug}/comments", {
-      params: { path: { slug } },
-      body: { body: text },
-    });
-    if (response.ok && data) {
-      addItem(data, true);
-      setBody("");
-      setError(null);
-    } else {
-      setError((err as { detail?: string } | undefined)?.detail ?? "投稿に失敗しました。");
+    try {
+      const { data, error: err, response } = await api.POST("/api/v1/channels/{slug}/comments", {
+        params: { path: { slug } },
+        body: { body: text },
+      });
+      if (response.ok && data) {
+        addItem(data, true);
+        setBody("");
+        setError(null);
+      } else setError((err as { detail?: string } | undefined)?.detail ?? "投稿に失敗しました。");
+    } catch {
+      setError("投稿できませんでした。通信状況を確認して再試行してください。");
     }
   }
 
   async function del(id: number) {
-    const { response } = await api.DELETE("/api/v1/channels/{slug}/comments/{cid}", {
-      params: { path: { slug, cid: id } },
-    });
-    if (response.ok) {
+    setDeleteError(false);
+    try {
+      const { response } = await api.DELETE("/api/v1/channels/{slug}/comments/{cid}", {
+        params: { path: { slug, cid: id } },
+      });
+      if (!response.ok) { setDeleteError(true); return; }
       seen.current.delete(id);
       setItems((prev) => prev.filter((c) => c.id !== id));
-    }
+    } catch { setDeleteError(true); }
   }
 
   const gate = meta?.gate ?? "login";
@@ -108,7 +117,9 @@ export function Comments({ slug, homeBase }: { slug: string; homeBase: string })
         コメント <span className="muted">({items.length})</span>
       </h2>
 
-      {gate === "ok" ? (
+      {loadError && <p role="alert">コメントを取得できませんでした。<button type="button" onClick={() => setRetryCount((n) => n + 1)}>再試行</button></p>}
+      {deleteError && <p role="alert">コメントを削除できませんでした。もう一度お試しください。</p>}
+      {meta && (gate === "ok" ? (
         <form className="comment-form" onSubmit={submit}>
           <TextField
             multiline
@@ -133,11 +144,13 @@ export function Comments({ slug, homeBase }: { slug: string; homeBase: string })
           コメントするには <a href={`${homeBase}/members/login/?next=/ch/${slug}/`}>ログイン</a> または{" "}
           <a href={`${homeBase}/members/register/`}>会員登録</a> が必要です。
         </div>
-      )}
+      ))}
 
       <div className="comments-list">
-        {items.length === 0 ? (
-          <div className="comments-empty">まだコメントはありません。</div>
+        {items.length === 0 && !loadError ? (
+          <div className="comments-empty" role="status" aria-live="polite">
+            {meta ? "まだコメントはありません。" : "コメントを読み込み中…"}
+          </div>
         ) : (
           items.map((c) => (
             <div className="comment" key={c.id} data-cid={c.id}>

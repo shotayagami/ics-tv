@@ -656,6 +656,8 @@ function VideoPlayerInner({
           const b = document.createElement("button");
           b.className = "opt" + (o.key === curKey ? " sel" : "");
           b.setAttribute("role", "menuitemradio");
+          b.setAttribute("aria-checked", String(o.key === curKey));
+          b.tabIndex = -1;
           b.innerHTML =
             '<svg class="ck" width="14" height="14" viewBox="0 0 14 14"><path d="M2 7.5 L6 11 L12 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>' +
             "<span>" +
@@ -666,6 +668,8 @@ function VideoPlayerInner({
             select(o.key);
             saveQuality(o);
             panel.hidden = true;
+            gear.setAttribute("aria-expanded", "false");
+            gear.focus();
           });
           panel.appendChild(b);
         });
@@ -772,12 +776,39 @@ function VideoPlayerInner({
       on(gear, "click", (e) => {
         e.stopPropagation();
         panel.hidden = !panel.hidden;
+        gear.setAttribute("aria-expanded", String(!panel.hidden));
+        if (!panel.hidden) panel.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+      });
+      on(panel, "keydown", (event) => {
+        const e = event as KeyboardEvent;
+        if (e.key === "Escape") {
+          e.preventDefault();
+          panel.hidden = true;
+          gear.setAttribute("aria-expanded", "false");
+          gear.focus();
+          return;
+        }
+        if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+        const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+        if (!buttons.length) return;
+        e.preventDefault();
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1
+          : (current + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].focus();
+      });
+      on(panel, "focusout", (event) => {
+        const next = (event as FocusEvent).relatedTarget as Node | null;
+        if (next && (panel.contains(next) || gear.contains(next))) return;
+        panel.hidden = true;
+        gear.setAttribute("aria-expanded", "false");
       });
       on(document, "click", (e) => {
         if (panel.hidden) return;
         const tgt = e.target as Node;
         if (panel.contains(tgt) || gear.contains(tgt)) return;
         panel.hidden = true;
+        gear.setAttribute("aria-expanded", "false");
       });
 
       if (isNative) buildFromNative();
@@ -832,6 +863,7 @@ function VideoPlayerInner({
       const v = videoRef.current;
       if (panel && !panel.hidden) return; // 設定パネル展開中は維持
       if (v && v.paused) return; // 一時停止中は維持
+      if (box.contains(document.activeElement)) return;
       box.classList.add("controls-hidden");
     };
     const schedule = () => {
@@ -851,6 +883,8 @@ function VideoPlayerInner({
     box.addEventListener("pointermove", show);
     box.addEventListener("pointerdown", show);
     box.addEventListener("pointerleave", onLeave);
+    box.addEventListener("focusin", show);
+    box.addEventListener("focusout", schedule);
     if (v) v.addEventListener("play", schedule); // 再生開始で無操作カウントダウン開始
     schedule();
     return () => {
@@ -858,6 +892,8 @@ function VideoPlayerInner({
       box.removeEventListener("pointermove", show);
       box.removeEventListener("pointerdown", show);
       box.removeEventListener("pointerleave", onLeave);
+      box.removeEventListener("focusin", show);
+      box.removeEventListener("focusout", schedule);
       if (v) v.removeEventListener("play", schedule);
     };
   }, [hlsKey]);
@@ -965,7 +1001,7 @@ function VideoPlayerInner({
               <span className="hd js-qlabel" ref={qlabelRef}>
                 HD
               </span>
-              <button ref={gearRef} type="button" aria-label="設定" aria-haspopup="true" hidden>
+              <button ref={gearRef} type="button" aria-label="設定" aria-haspopup="menu" aria-expanded="false" hidden>
                 <svg width="19" height="19" viewBox="0 0 20 20">
                   <path d="M10 7a3 3 0 100 6 3 3 0 000-6z" fill="none" stroke="#fff" strokeWidth="1.5" />
                   <path

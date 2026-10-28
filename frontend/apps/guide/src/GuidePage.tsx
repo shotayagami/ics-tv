@@ -71,19 +71,25 @@ export function GuidePage({ homeBase }: { homeBase: string }) {
   // ?date= が無ければ空文字で取得してサーバの当日 (today) を採用するため、常に当日で開く (#2)。
   const [date, setDate] = useState(() => new URLSearchParams(location.search).get("date") ?? "");
   const [data, setData] = useState<GuideOut | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [ppm, setPpmState] = useState<number | null>(loadPpm);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolledRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
-    api.GET("/api/v1/guide", { params: { query: { date } } }).then(({ data }) => {
-      if (alive && data) setData(data);
-    });
+    setData(null);
+    setLoadError(false);
+    api.GET("/api/v1/guide", { params: { query: { date } } }).then((result) => {
+      if (!alive) return;
+      if (result.error) setLoadError(true);
+      else if (result.data) setData(result.data);
+    }).catch(() => alive && setLoadError(true));
     return () => {
       alive = false;
     };
-  }, [date]);
+  }, [date, retryCount]);
 
   // 戻る/進むで ?date= が変わったら追従
   useEffect(() => {
@@ -129,7 +135,14 @@ export function GuidePage({ homeBase }: { homeBase: string }) {
         <div className="guide-head">
           <h1>番組表</h1>
         </div>
-        <div className="sk sk-guide" aria-hidden="true" />
+        {loadError ? (
+          <div role="alert" aria-live="assertive" className="guide-error">
+            <p>番組表を取得できませんでした。通信状況を確認して再試行してください。</p>
+            <button type="button" className="guide-retry" onClick={() => setRetryCount((n) => n + 1)}>再試行</button>
+          </div>
+        ) : (
+          <div className="sk sk-guide" aria-hidden="true" />
+        )}
       </section>
     );
   }
@@ -157,7 +170,7 @@ export function GuidePage({ homeBase }: { homeBase: string }) {
             {
               key: "today",
               label: "今日",
-              selected: true,
+              selected: data.is_today,
               href: `?date=${data.today}`,
               onClick: (e) => (e.preventDefault(), nav(data.today)),
             },
@@ -212,7 +225,9 @@ export function GuidePage({ homeBase }: { homeBase: string }) {
         </div>
       </div>
 
-      <div className="grid">
+      {data.cols.length === 0 ? (
+        <p role="status" className="guide-empty">この日の番組表を表示できるチャンネルはありません。</p>
+      ) : <div className="grid">
         <div className="grid-cols">
           <div className="axis-sp" />
           {data.cols.map((col, i) => (
@@ -287,7 +302,7 @@ export function GuidePage({ homeBase }: { homeBase: string }) {
             )}
           </div>
         </div>
-      </div>
+      </div>}
     </section>
   );
 }
