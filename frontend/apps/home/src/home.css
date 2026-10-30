@@ -30,11 +30,26 @@
   margin: 40px 0 16px;
 }
 .sec-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
   color: var(--dim);
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
 }
+.home-retry {
+  min-height: var(--tap);
+  margin-left: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+.home-error { color: var(--danger-text); }
 
 /* ===== チャンネルカード ===== */
 .ch-grid {

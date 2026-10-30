@@ -9,19 +9,26 @@ export type HomeCard = components["schemas"]["HomeCard"];
 export type HomeOut = components["schemas"]["HomeOut"];
 
 /** /api/v1/home を初回取得 + 12s 毎ポーリング (リロード無し更新)。タブ非表示中は休止。 */
-export function useHomeData(): HomeOut | null {
+export function useHomeData(): { data: HomeOut | null; error: boolean; retry: () => void } {
   const [data, setData] = useState<HomeOut | null>(null);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
     let alive = true;
-    const load = () => {
-      api
-        .GET("/api/v1/home")
-        .then(({ data }) => {
-          if (alive && data) setData(data);
-        })
-        .catch(() => {});
+    const load = async () => {
+      try {
+        const result = await api.GET("/api/v1/home");
+        if (!alive) return;
+        if (result.error) setError(true);
+        else if (result.data) {
+          setData(result.data);
+          setError(false);
+        }
+      } catch {
+        if (alive) setError(true);
+      }
     };
-    load();
+    void load();
     const id = window.setInterval(() => {
       if (!document.hidden) load();
     }, 12_000);
@@ -34,8 +41,8 @@ export function useHomeData(): HomeOut | null {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
-  return data;
+  }, [retryCount]);
+  return { data, error, retry: () => setRetryCount((n) => n + 1) };
 }
 
 /** 毎秒更新の epoch 秒。進行バー/カウントダウンの独立 leaf でだけ使い、カード/動画は再レンダさせない。 */

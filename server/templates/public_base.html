@@ -36,13 +36,13 @@
     </a>
 
     {# デスクトップ: プライマリナビリンク (md 以上で main row に表示) #}
-    <div class="pub-nav-links d-none d-md-flex align-items-center gap-1 me-auto">
-      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}">ホーム</a>
-      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}">番組表</a>
-      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}">週間</a>
-      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}">見逃し</a>
-      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}">ジャンル</a>
-    </div>
+    <nav class="pub-nav-links d-none d-md-flex align-items-center gap-1 me-auto" aria-label="メイン">
+      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_home' %} aria-current="page"{% endif %}>ホーム</a>
+      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_guide' %} aria-current="page"{% endif %}>番組表</a>
+      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_guide_week' %} aria-current="page"{% endif %}>週間</a>
+      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} aria-current="page"{% endif %}>見逃し</a>
+      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_browse' %} aria-current="page"{% endif %}>ジャンル</a>
+    </nav>
 
     {# 右ツールバー #}
     <div class="d-flex align-items-center gap-2 ms-auto">
@@ -70,13 +70,13 @@
     </div>
 
     {# モバイル 2 行目: プライマリナビリンク (pub-nav-links の @media で order:10/width:100% に) #}
-    <div class="pub-nav-links d-flex d-md-none align-items-center gap-1">
-      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}">ホーム</a>
-      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}">番組表</a>
-      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}">週間</a>
-      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}">見逃し</a>
-      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}">ジャンル</a>
-    </div>
+    <nav class="pub-nav-links d-flex d-md-none align-items-center gap-1" aria-label="メイン">
+      <a href="{{ public_base_url }}/" class="nav-link{% if request.resolver_match.url_name == 'public_home' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_home' %} aria-current="page"{% endif %}>ホーム</a>
+      <a href="{{ public_base_url }}/guide/" class="nav-link{% if request.resolver_match.url_name == 'public_guide' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_guide' %} aria-current="page"{% endif %}>番組表</a>
+      <a href="{{ public_base_url }}/guide/week/" class="nav-link{% if request.resolver_match.url_name == 'public_guide_week' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_guide_week' %} aria-current="page"{% endif %}>週間</a>
+      <a href="{{ public_base_url }}/vod/" class="nav-link{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_vod' or request.resolver_match.url_name == 'public_vod_detail' %} aria-current="page"{% endif %}>見逃し</a>
+      <a href="{{ public_base_url }}/browse/" class="nav-link{% if request.resolver_match.url_name == 'public_browse' %} active{% endif %}"{% if request.resolver_match.url_name == 'public_browse' %} aria-current="page"{% endif %}>ジャンル</a>
+    </nav>
   </div>
 </nav>
 

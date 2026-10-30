@@ -175,11 +175,12 @@ a { color: inherit; }
 // ── Navbar ────────────────────────────────────────────────────────────────────
 #pub-nav { background: rgba(8,9,18,.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom-color: var(--line-chrome) !important; }
 .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); flex: none; display: inline-flex; align-items: center; justify-content: center; }
-.pub-nav-links .nav-link { position: relative; color: var(--bright); font-size: 14px; font-weight: 700; padding: 8px 12px; border-radius: 8px; text-decoration: none; }
+.pub-nav-links .nav-link { position: relative; display: inline-flex; align-items: center; min-height: var(--tap); color: var(--bright); font-size: 14px; font-weight: 700; padding: 8px 12px; border-radius: 8px; text-decoration: none; white-space: nowrap; }
 .pub-nav-links .nav-link.active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; border-radius: 2px; background: var(--accent); }
-.nav-burger { flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 42px; height: 42px; background: none; border: 1px solid var(--line-chrome); border-radius: 9px; cursor: pointer; padding: 0; flex: none; }
+.nav-burger { flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: var(--tap); height: var(--tap); background: none; border: 1px solid var(--line-chrome); border-radius: 9px; cursor: pointer; padding: 0; flex: none; }
 .nav-burger .nb-bar { width: 18px; height: 2px; background: var(--bright); border-radius: 2px; }
-.search { display: flex; align-items: center; gap: 8px; background: #11172b; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--faint); max-width: 280px; flex: 0 1 240px; }
+.search { display: flex; align-items: center; gap: 8px; min-height: var(--tap); background: #11172b; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--faint); max-width: 280px; flex: 0 1 240px; }
+.search:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .search input { background: none; border: none; outline: none; color: var(--fg); font-family: inherit; font-size: 13px; width: 100%; min-width: 0; }
 .search input::placeholder { color: var(--faint); }
 .live-pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(230,57,70,.14); border: 1px solid rgba(230,57,70,.4); color: var(--live-text); font-weight: 800; font-size: 12px; padding: 7px 12px; border-radius: 999px; flex: none; }
