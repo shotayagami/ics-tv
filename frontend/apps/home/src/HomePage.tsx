@@ -122,11 +122,19 @@ function Card({ c }: { c: HomeCard }) {
 }
 
 export function HomePage({ homeBase }: { homeBase: string }) {
-  const data = useHomeData();
-  if (!data) return null; // 初期ロード中は何も出さない (下部 SSR セクションは表示済み)
+  const { data, error, retry } = useHomeData();
+  if (!data) {
+    return (
+      <p role={error ? "alert" : "status"} aria-live={error ? "assertive" : "polite"}>
+        {error ? "ライブ情報を取得できませんでした。通信状況を確認して再試行してください。" : "ライブ情報を読み込み中…"}
+        {error && <button type="button" className="home-retry" onClick={retry}>再試行</button>}
+      </p>
+    );
+  }
 
   return (
     <>
+      {error && <p role="alert" className="home-error">ライブ情報を更新できません。表示中の情報は前回取得時のものです。</p>}
       {data.featured && <FeaturedHero c={data.featured} homeBase={homeBase} />}
       <div className="sec-head">
         <h2>チャンネル</h2>
@@ -139,7 +147,7 @@ export function HomePage({ homeBase }: { homeBase: string }) {
           ))}
         </div>
       ) : (
-        <p className="muted">公開中のチャンネルがありません。</p>
+        <p className="muted" role="status">公開中のチャンネルがありません。</p>
       )}
     </>
   );
