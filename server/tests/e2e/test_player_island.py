@@ -21,6 +21,8 @@ H.264/AAC が無いため検証しない (UI/データ層のみ)。WS リアル�
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.core.management import call_command
 from django.test import override_settings
@@ -78,6 +80,8 @@ def test_island_mounts_and_renders(live_server, page, player_demo):
     assert page.locator("#player-island .ctrl input.seek").count() == 1
     assert page.locator("#player-island .ctrl button[aria-label='ライブに戻る']").count() == 1
     # API 駆動: チャンネルタブ + 本日の番組 + コメント欄
+    # タブ一覧は詳細を描画したあとに取得するので、video の出現だけでは揃っていない
+    page.wait_for_selector("#player-island .tabs a.tab", timeout=10000)
     assert page.locator("#player-island .tabs a.tab").count() >= 1
     assert "本日の番組" in page.content()
     assert page.locator("#player-island #comments").count() == 1
@@ -283,3 +287,69 @@ def test_verified_member_posts_comment(live_server, page, player_demo):
     from members.models import Comment
 
     assert Comment.objects.filter(body="E2Eからこんにちは").exists()
+
+
+# #483: チャンネル詳細とタブ一覧の失敗を、原因に合わせて案内する。
+_DETAIL_API = re.compile(r".*/api/v1/channels/demo1/?(\?.*)?$")
+_LIST_API = re.compile(r".*/api/v1/channels/?(\?.*)?$")
+
+
+def _fail(status):
+    def handler(route):
+        if status is None:
+            route.abort()
+        else:
+            route.fulfill(status=status, json={"detail": "e2e"})
+
+    return handler
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "login", "retry"),
+    [
+        (401, "ログイン状態を確認してください", True, True),
+        (403, "このチャンネルを表示する権限がありません", False, True),
+        (404, "このチャンネルは見つかりませんでした", False, False),
+        (500, "チャンネル情報を取得できませんでした", False, True),
+        (None, "チャンネル情報を取得できませんでした", False, True),
+    ],
+)
+def test_initial_detail_failure_shows_cause(
+    live_server, page, player_demo, status, message, login, retry
+):
+    page.route(_DETAIL_API, _fail(status))
+    page.goto(f"{live_server.url}/public/ch/demo1/")
+    box = page.locator("#player-island .placeholder")
+    box.get_by_text(message).wait_for(timeout=10000)
+    assert box.get_by_role("link", name="ログインし直す").count() == (1 if login else 0)
+    assert box.get_by_role("button", name="再試行").count() == (1 if retry else 0)
+
+
+def _banner_after_refresh(page, live_server, status):
+    page.clock.install()
+    page.goto(f"{live_server.url}/public/ch/demo1/")
+    page.wait_for_selector("#player-island .player video", timeout=15000)
+    page.route(_DETAIL_API, _fail(status))
+    page.clock.run_for(61_000)  # 60s 毎の再取得を 1 回走らせる
+    banner = page.locator("#player-island .player-page > [role=alert]")
+    banner.wait_for(timeout=10000)
+    return banner.inner_text()
+
+
+def test_refresh_failure_is_reported_as_detail_not_list(live_server, page, player_demo):
+    text = _banner_after_refresh(page, live_server, 500)
+    assert "チャンネル情報を更新できませんでした" in text
+    assert "一覧" not in text
+
+
+def test_refresh_not_found_is_reported(live_server, page, player_demo):
+    assert "このチャンネルは見つかりませんでした" in _banner_after_refresh(page, live_server, 404)
+
+
+def test_tab_list_failure_is_reported_as_list(live_server, page, player_demo):
+    page.route(_LIST_API, _fail(500))
+    page.goto(f"{live_server.url}/public/ch/demo1/")
+    banner = page.locator("#player-island .player-page > [role=alert]")
+    banner.wait_for(timeout=15000)
+    assert "チャンネル一覧を取得できませんでした" in banner.inner_text()
+    assert page.locator("#player-island .player video").count() == 1

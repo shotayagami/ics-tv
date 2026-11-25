@@ -9,7 +9,7 @@ import { ProgramInfo } from "./ProgramInfo";
 import { VideoPlayer } from "./VideoPlayer";
 
 export function PlayerPage({ slug, homeBase }: { slug: string; homeBase: string }) {
-  const { detail, tabs, loading, error, empty, retry, refreshHlsUrl } = useChannelData(slug);
+  const { detail, tabs, loading, error, tabsError, empty, retry, refreshHlsUrl } = useChannelData(slug);
 
   if (!detail) {
     const loginHref = `${homeBase}/members/login/?next=${encodeURIComponent(`/ch/${slug}/`)}`;
@@ -60,12 +60,29 @@ export function PlayerPage({ slug, homeBase }: { slug: string; homeBase: string 
     href: p.is_rerun ? undefined : `${homeBase}/program/${p.id}/`,
   }));
 
+  // 表示中の再取得 (60s 毎) の失敗は詳細の失敗を優先して案内し、一覧の失敗と取り違えない (#483)
+  const loginLink = <a href={`${homeBase}/members/login/?next=${encodeURIComponent(`/ch/${slug}/`)}`}>ログインし直す</a>;
+  const retryButton = <button type="button" onClick={retry}>再試行</button>;
+  const banner = error?.kind === "auth" || (!error && !empty && tabsError?.kind === "auth")
+    ? <>視聴情報の確認に失敗しました。{loginLink}か、{retryButton}してください。</>
+    : error?.kind === "forbidden"
+      ? <>このチャンネルを表示する権限がなくなりました。{retryButton}</>
+    : error
+      ? <>チャンネル情報を更新できませんでした。{retryButton}</>
+    : empty
+      ? <>このチャンネルは見つかりませんでした。</>
+    : tabsError?.kind === "forbidden"
+      ? <>チャンネル一覧を表示する権限がありません。{retryButton}</>
+    : tabsError
+      ? <>チャンネル一覧を取得できませんでした。{retryButton}</>
+      : null;
+
   return (
     <ToastProvider>
     <section className="player-page">
-      {error ? (
+      {banner ? (
         <div role="alert" style={{ padding: ".6rem 1rem", textAlign: "center" }}>
-          {error.kind === "auth" ? <>視聴情報の確認に失敗しました。<a href={`${homeBase}/members/login/?next=${encodeURIComponent(`/ch/${slug}/`)}`}>ログインし直す</a>か、<button type="button" onClick={retry}>再試行</button>してください。</> : error.kind === "forbidden" ? <>このチャンネルの一覧を表示する権限がありません。<button type="button" onClick={retry}>再試行</button></> : <>チャンネル一覧を取得できませんでした。<button type="button" onClick={retry}>再試行</button></>}
+          {banner}
         </div>
       ) : null}
       <ChannelTabs items={tabItems} homeHref={`${homeBase}/`} />
