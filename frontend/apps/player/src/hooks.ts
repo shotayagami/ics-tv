@@ -20,11 +20,14 @@ export function useChannelData(slug: string) {
   const [detail, setDetail] = useState<ChannelDetail | null>(null);
   const [tabs, setTabs] = useState<ChannelTabData[]>([]);
   const [loading, setLoading] = useState(true);
+  // 詳細の失敗 (error / empty) とタブ一覧の失敗 (tabsError) は、案内する文言が違うので分けて持つ
   const [error, setError] = useState<ChannelLoadError | null>(null);
+  const [tabsError, setTabsError] = useState<ChannelLoadError | null>(null);
   const [empty, setEmpty] = useState(false);
   const load = useCallback(async (showLoading = true): Promise<ChannelRefreshResult> => {
     if (showLoading) setLoading(true);
     setError(null);
+    setTabsError(null);
     setEmpty(false);
     try {
       const d = await api.GET("/api/v1/channels/{slug}", { params: { path: { slug } } });
@@ -41,9 +44,9 @@ export function useChannelData(slug: string) {
       try {
         const t = await api.GET("/api/v1/channels");
         if (t.data) setTabs(t.data);
-        else if (t.error) setError({ kind: t.response.status === 401 ? "auth" : t.response.status === 403 ? "forbidden" : "request", status: t.response.status });
+        else if (t.error) setTabsError({ kind: t.response.status === 401 ? "auth" : t.response.status === 403 ? "forbidden" : "request", status: t.response.status });
       } catch {
-        setError({ kind: "network" });
+        setTabsError({ kind: "network" });
       }
       return d.data.hls_url ? "updated" : "denied";
     } catch {
@@ -60,7 +63,7 @@ export function useChannelData(slug: string) {
   }, [load]);
   const retry = useCallback(() => load(), [load]);
   const refreshHlsUrl = useCallback(() => load(false), [load]);
-  return { detail, tabs, loading, error, empty, retry, refreshHlsUrl };
+  return { detail, tabs, loading, error, tabsError, empty, retry, refreshHlsUrl };
 }
 
 /** 毎秒更新の epoch 秒 (進行バー/カウントダウン算出用)。使う側だけが再レンダする。 */
