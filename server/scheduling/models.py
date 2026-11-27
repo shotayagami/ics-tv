@@ -790,7 +790,8 @@ class LiveRecordingIngestState(models.TextChoices):
 class LiveRecordingIngest(models.Model):
     """R2 ドロップで届いた生放送録画クリップ 1 本の取り込み在庫 (#VOD 生放送録画)。
 
-    録画サブシステムが `ingest/live_recording/<channel_slug>/<program_id>.mp4` を R2 に置き、
+    録画サブシステムが `ingest/live_recording/<channel_slug>/<program_id>/<YYYYMMDDTHHMMSSZ>-<uuid4>.mp4`
+    を R2 に置く。旧形式 `ingest/live_recording/<channel_slug>/<program_id>.mp4` も取り込める。
     取り込み beat が Asset 化 → 正規化 → READY 後に該当 Program.recording_asset へ紐付ける。
     source_key 一意で二重取り込みを防ぐ (= 冪等の要)。program は source_key 中の program_id から
     解決するため、該当 Program が見つからない場合は program=NULL のまま NO_PROGRAM で保留する。

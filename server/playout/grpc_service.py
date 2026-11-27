@@ -31,7 +31,8 @@ from core.consumers import broadcast_playout_update
 from core.models import Channel, NotificationSeverity
 from medialib.models import CmCreative, FillerItem
 from playout.models import AgentStatus, PlayoutAction, PlayoutEvent, PlayoutStatus
-from scheduling.models import Program
+from scheduling import live_recording
+from scheduling.models import Program, ProgramType
 
 logger = logging.getLogger(__name__)
 
@@ -500,14 +501,21 @@ _apply_interrupt = sync_to_async(apply_interrupt)
 
 
 def build_recording_upload(channel_slug: str, program_id: int) -> tuple[str, str] | None:
-    """録画クリップの presigned PUT URL を発行 (r2_key, upload_url)。
-
-    channel_slug に属する番組か確認する。r2_key は
-    scheduling.live_recording.INGEST_PREFIX の規約 (ingest/live_recording/<slug>/<id>.mp4) と一致させる。
-    """
-    if not Program.objects.filter(pk=program_id, channel__slug=channel_slug).exists():
+    """終了済みで録画対象の生放送に presigned PUT URL を発行する。"""
+    program = Program.objects.filter(pk=program_id, channel__slug=channel_slug).first()
+    if program is None:
+        logger.warning("recording upload rejected: program does not belong to channel")
         return None
-    r2_key = f"ingest/live_recording/{channel_slug}/{program_id}.mp4"
+    if program.type != ProgramType.LIVE:
+        logger.warning("recording upload rejected: program is not live")
+        return None
+    if not program.record_live:
+        logger.warning("recording upload rejected: live recording is disabled")
+        return None
+    if timezone.now() < program.end_at:
+        logger.warning("recording upload rejected: program has not ended")
+        return None
+    r2_key = live_recording.build_key(channel_slug, program_id)
     from core import r2
 
     upload_url = r2.presign_put(r2_key, "video/mp4")
