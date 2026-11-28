@@ -547,3 +547,116 @@ def test_studio_creator_settlements_tab(live_server, page, demo):
     page.wait_for_selector("#studio-root >> text=累計送金額", timeout=15000)
     assert "¥450" in page.content()
     assert "¥500" in page.content()
+
+
+# #484: 失敗の表示と、週間編成のキーボード操作。
+def _fail(status):
+    def handler(route):
+        if status is None:
+            route.abort()
+        else:
+            route.fulfill(status=status, json={"detail": "e2e"})
+
+    return handler
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "login", "retry"),
+    [
+        (401, "最新の週間編成を取得できませんでした", True, False),
+        (403, "最新の週間編成を表示する権限がありません", False, False),
+        (500, "最新の週間編成を取得できませんでした", False, True),
+        (None, "最新の週間編成を取得できませんでした", False, True),
+    ],
+)
+def test_week_reload_failure_shows_cause(live_server, page, demo, status, message, login, retry):
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/studio/week/demo1")
+    page.wait_for_selector("#studio-root [data-track]", timeout=15000)
+    page.route("**/api/v1/admin/scheduling/demo1/week**", _fail(status))
+    page.get_by_role("button", name="翌週 ▶").click()  # 表示中のまま再読込させる
+    notice = page.locator("#studio-root").get_by_text(message)
+    notice.wait_for(timeout=10000)
+    # 公開版の Notice には role=alert が無いので、エラー表示のクラスで案内を特定する
+    box = page.locator("#studio-root .st-notice.err", has_text=message)
+    assert box.get_by_role("link", name="Studio に再ログイン").count() == (1 if login else 0)
+    assert box.get_by_role("button", name="再試行").count() == (1 if retry else 0)
+
+
+def test_week_column_keyboard_opens_create_dialog(live_server, page, demo):
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/studio/week/demo1")
+    column = page.locator("#studio-root [data-track]").first
+    column.wait_for(timeout=15000)
+    column.focus()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Shift+ArrowDown")
+    assert "01:05" in page.locator("#studio-root [data-key-cursor]").inner_text()
+    page.keyboard.press("Enter")
+    dialog = page.locator("#studio-root dialog[open]")
+    dialog.wait_for(timeout=5000)
+    assert "01:05–02:05" in dialog.inner_text()
+    page.keyboard.press("Escape")
+    # dialog を閉じると作成を始めた曜日列へフォーカスが戻る
+    page.wait_for_function(
+        "document.activeElement && document.activeElement.hasAttribute('data-track')"
+    )
+
+
+def test_week_program_keeps_focus_after_keyboard_move(live_server, page, demo):
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone
+
+    from core.models import Channel
+    from medialib.models import Asset, AssetKind, NormalizeStatus
+    from scheduling.models import Program
+
+    channel = Channel.objects.create(name="E2E週間ch", slug="e2e-week", enabled=True)
+    asset = Asset.objects.create(
+        kind=AssetKind.PROGRAM,
+        title="e2e-week-asset",
+        duration_ms=1_800_000,
+        r2_key="mezzanine/program/e2e-week.mp4",
+        normalize_status=NormalizeStatus.READY,
+        width=1920,
+        height=1080,
+        fps=60.0,
+        vcodec="h264",
+        acodec="aac",
+    )
+    today = timezone.localdate()
+    start = timezone.make_aware(datetime.combine(today, datetime.min.time())) + timedelta(hours=10)
+    program = Program.objects.create(
+        channel=channel,
+        title="キーボード移動",
+        type="recorded",
+        asset=asset,
+        start_at=start,
+        end_at=start + timedelta(minutes=30),
+    )
+
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/studio/week/e2e-week")
+    block = page.locator(f'#studio-root [data-focus-key="prog-{program.id}"]')
+    block.wait_for(timeout=15000)
+    block.focus()
+    # 曜日をまたいで動かすと、ブロックは別の曜日列の子として作り直される (同じ列の中ならフォーカスは元から残る)
+    key, days = ("ArrowLeft", -1) if today.weekday() == 6 else ("ArrowRight", 1)
+    page.keyboard.press(key)
+    target = today.weekday() + days
+    # 「番組を変更しました」は再読込の前に出るので、移動先の列にブロックが描画されるまで待ってから見る
+    moved = (
+        page.locator("#studio-root [data-track]")
+        .nth(target)
+        .locator(f'[data-focus-key="prog-{program.id}"]')
+    )
+    moved.wait_for(timeout=10000)
+    page.wait_for_function(
+        f"document.activeElement && document.activeElement.getAttribute('data-focus-key') === 'prog-{program.id}'"
+        f" && document.querySelectorAll('#studio-root [data-track]')[{target}].contains(document.activeElement)",
+        timeout=5000,
+    )
+    program.refresh_from_db()
+    assert program.start_at == start + timedelta(days=days)

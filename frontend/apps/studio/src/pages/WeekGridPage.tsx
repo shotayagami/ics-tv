@@ -84,6 +84,8 @@ export function WeekGridPage() {
   const [loadStatus, setLoadStatus] = useState<number | null>(null);
   const [slotUndo, setSlotUndo] = useState<SlotUndo | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
+  // キーボードで作成するときの位置 (フォーカス中の曜日列と開始分)。上下矢印で動かし Enter で作成する
+  const [keyCursor, setKeyCursor] = useState<{ dow: number; min: number } | null>(null);
   // モーダルの選択肢 (series + asset/live)。マウント時/ch 変更時に一度取得。
   const [series, setSeries] = useState<SeriesOut["series"]>([]);
   const [opts, setOpts] = useState<{ assets: ProgramFormOut["assets"]; live: ProgramFormOut["live_sources"] }>({ assets: [], live: [] });
@@ -92,6 +94,9 @@ export function WeekGridPage() {
   const ghostRef = useRef<Ghost | null>(null);
   const colRefs = useRef<(HTMLDivElement | null)[]>([]);
   const modalFocusDow = useRef<number | null>(null);
+  // キーボードで動かしたブロックは再読込で作り直されるので、描画後にこのキーのブロックへフォーカスを戻す
+  const pendingFocusKey = useRef<string | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const pxRef = useRef(pxPerMin);
   pxRef.current = pxPerMin;
   const slugRef = useRef(slug);
@@ -104,6 +109,17 @@ export function WeekGridPage() {
     window.requestAnimationFrame(() => colRefs.current[dow]?.focus());
   }, [modal]);
 
+  useEffect(() => {
+    const key = pendingFocusKey.current;
+    if (!d || !key) return;
+    pendingFocusKey.current = null;
+    gridRef.current?.querySelector<HTMLElement>(`[data-focus-key="${key}"]`)?.focus();
+  }, [d]);
+
+  useEffect(() => {
+    if (keyCursor) gridRef.current?.querySelector("[data-key-cursor]")?.scrollIntoView({ block: "nearest" });
+  }, [keyCursor]);
+
   const load = useCallback(async () => {
     if (!slug) return;
     setLoadState((current) => current === "ready" ? current : "loading");
@@ -112,6 +128,7 @@ export function WeekGridPage() {
     try {
       const result = await api.GET("/api/v1/admin/scheduling/{slug}/week", { params: { path: { slug }, query: weekStart ? { start: weekStart } : {} } });
       if (result.error) {
+        pendingFocusKey.current = null; // 残すと、あとで別の週を読んだときに無関係なブロックへフォーカスが移る
         setLoadFailure(result.response.status === 401 ? "auth" : result.response.status === 403 ? "forbidden" : "request");
         setLoadStatus(result.response.status);
         setLoadState("error");
@@ -120,6 +137,7 @@ export function WeekGridPage() {
         setLoadState("ready");
       } else setLoadState("empty");
     } catch {
+      pendingFocusKey.current = null;
       setLoadFailure("network");
       setLoadState("error");
     }
@@ -288,6 +306,28 @@ export function WeekGridPage() {
     } else setErr(errorMessage);
   }
 
+  // 曜日列にフォーカスした状態で上下矢印 (30 分刻み、Shift で 5 分) で開始時刻を選び、Enter で作成 dialog を開く (#484)
+  function handleColumnKey(e: React.KeyboardEvent<HTMLDivElement>, dow: number) {
+    if (e.target !== e.currentTarget || !d) return;
+    const current = keyCursor?.dow === dow ? keyCursor.min : 0;
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const step = e.shiftKey ? SNAP_MIN : 30;
+      const min = Math.max(0, Math.min(DAY_MIN - 60, current + (e.key === "ArrowUp" ? -step : step)));
+      setKeyCursor({ dow, min });
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (createLayer === "base" ? !showBase : !showDiff) return;
+      setErr("");
+      setMsg("");
+      modalFocusDow.current = dow;
+      setKeyCursor(null);
+      setModal({ layer: createLayer, dow, date: d.days[dow], startMin: current, endMin: current + 60 });
+    } else if (e.key === "Escape") {
+      setKeyCursor(null);
+    }
+  }
+
   async function adjustSlotByKeyboard(e: React.KeyboardEvent<HTMLDivElement>, sl: WeekSlotOccurrence) {
     if (e.target !== e.currentTarget) return;
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
@@ -311,6 +351,7 @@ export function WeekGridPage() {
       setSlotUndo(resizing
         ? { kind: "resize", slotId: sl.slot_id, durationMs: sl.duration_ms }
         : { kind: "move", slotId: sl.slot_id, dow: sl.dow, startTime: sl.start_time });
+      pendingFocusKey.current = `slot-${sl.slot_id}-${resizing ? sl.dow : nextDow}`;
       load();
     } else setErr(result.data?.error || "基本編成を変更できませんでした");
   }
@@ -331,7 +372,7 @@ export function WeekGridPage() {
     const result = resizing
       ? await postJson(`/scheduling/ch/${slug}/programs/${p.id}/resize/`, { end_at: new Date(localStamp(d.days[p.dow], currentStart + nextDuration)).toISOString() })
       : await postJson(`/scheduling/ch/${slug}/programs/${p.id}/move/`, { start_at: new Date(localStamp(d.days[nextDow], nextStart)).toISOString() });
-    if (result.status === 200 && result.data?.ok) { setMsg("番組を変更しました。"); load(); }
+    if (result.status === 200 && result.data?.ok) { setMsg("番組を変更しました。"); pendingFocusKey.current = `prog-${p.id}`; load(); }
     else setErr(result.data?.error || "番組を変更できませんでした");
   }
 
@@ -391,7 +432,11 @@ export function WeekGridPage() {
         </>
       }
     >
-      {loadState === "error" ? <Notice variant="error">最新の週間編成を取得できませんでした。{loadFailure === "auth" ? <> <a href={`/studio/login/?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`}>Studio に再ログイン</a></> : <> <button type="button" onClick={() => void load()}>再試行</button></>}</Notice> : null}
+      {loadState === "error" ? (
+        loadFailure === "forbidden"
+          ? <Notice variant="error">最新の週間編成を表示する権限がありません。管理者に確認してください。</Notice>
+          : <Notice variant="error">最新の週間編成を取得できませんでした。{loadFailure === "auth" ? <> <a href={`/studio/login/?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`}>Studio に再ログイン</a></> : <> <button type="button" onClick={() => void load()}>再試行</button></>}</Notice>
+      ) : null}
       {(msg || err) && <Notice variant={err ? "error" : "success"}>{err || msg}{slotUndo ? <> <button type="button" onClick={() => void undoSlotChange()} disabled={undoBusy}>{undoBusy ? "取消中…" : slotUndo.kind === "delete" ? "作成を取り消す" : "元に戻す"}</button></> : null}</Notice>}
 
       <div style={{ display: "flex", gap: ".8rem", alignItems: "center", flexWrap: "wrap", marginBottom: ".5rem" }}>
@@ -419,7 +464,7 @@ export function WeekGridPage() {
 
       {/* 外側ラッパーを scroll コンテナにして overflow-x/y 両方 auto → sticky が確実に効く。
           maxHeight でビューポート内に収め、ヘッダ/時間軸スペーサーを top:0 でピン留め。 */}
-      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100dvh - 200px)" }}>
+      <div ref={gridRef} style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100dvh - 200px)" }}>
         <div style={{ display: "flex", gap: 0, alignItems: "flex-start" }}>
         {/* 時間軸: スペーサーを sticky にしてヘッダと高さを揃え左端を固定 */}
         <div style={{ flex: "none", width: 44, position: "sticky", left: 0, zIndex: 12, background: "#111" }}>
@@ -442,8 +487,10 @@ export function WeekGridPage() {
                 ref={(el) => { colRefs.current[i] = el; }}
                 data-track=""
                 tabIndex={0}
-                aria-label={`${DOW_JA[i]}曜日 ${fmtMD(date)} の週間編成`}
+                aria-label={`${DOW_JA[i]}曜日 ${fmtMD(date)} の週間編成。上下矢印で開始時刻を選び、Enter で番組を作成`}
                 onPointerDown={(e) => startCreate(e, i)}
+                onKeyDown={(e) => handleColumnKey(e, i)}
+                onBlur={(e) => { if (e.target === e.currentTarget) setKeyCursor(null); }}
                 style={{ position: "relative", height: colHeight, background: "#141414", touchAction: "none", cursor: "crosshair" }}
               >
                 {hours.map((h) => (
@@ -461,6 +508,7 @@ export function WeekGridPage() {
                   return (
                     <div
                       key={`s${sl.slot_id}-${sl.date}`}
+                      data-focus-key={`slot-${sl.slot_id}-${sl.dow}`}
                       role="group"
                       tabIndex={0}
                       aria-label={`${DOW_JA[i]}曜日 ${sl.start_time}、${Math.round(sl.duration_ms / 60000)}分、基本編成 ${sl.series_title}。矢印キーで曜日・時刻、Shift+上下矢印で尺を変更`}
@@ -486,6 +534,7 @@ export function WeekGridPage() {
                   return (
                     <div
                       key={p.id}
+                      data-focus-key={`prog-${p.id}`}
                       role="group"
                       tabIndex={0}
                       aria-label={`${DOW_JA[i]}曜日 ${fmtMin(sMin)}、${Math.round(progDurMin(p))}分、${p.title}。矢印キーで曜日・時刻、Shift+上下矢印で尺を変更`}
@@ -504,6 +553,13 @@ export function WeekGridPage() {
                   );
                 })}
 
+                {/* キーボードで選んだ作成位置 (この列のみ) */}
+                {keyCursor && keyCursor.dow === i && (
+                  <div data-key-cursor="" style={{ position: "absolute", left: 3, right: 3, top: topPx(keyCursor.min), height: Math.max(60 * pxPerMin, 4), borderRadius: 4, pointerEvents: "none", zIndex: 5, border: "2px solid #7fffb4" }}>
+                    <span style={{ fontSize: ".64rem", color: "#7fffb4", padding: "0 3px" }}>新規 {fmtMin(keyCursor.min)}–{fmtMin(keyCursor.min + 60)} (Enter で作成)</span>
+                  </div>
+                )}
+
                 {/* ghost プレビュー (この列のみ) */}
                 {ghost && ghost.dow === i && ghost.heightMin >= 1 && (
                   <div style={{ position: "absolute", left: 3, right: 3, top: topPx(ghost.topMin), height: Math.max(ghost.heightMin * pxPerMin, 4), borderRadius: 4, pointerEvents: "none", zIndex: 5, background: "repeating-linear-gradient(45deg,rgba(127,255,180,.18),rgba(127,255,180,.18) 6px,transparent 6px,transparent 12px)", border: "1px dashed #7fffb4" }}>
@@ -519,7 +575,10 @@ export function WeekGridPage() {
 
       <p className="muted" style={{ fontSize: ".75rem", marginTop: ".6rem" }}>
         下地(琥珀/破線)=基本編成スロット (全週に反映)。濃いブロック=当週の実番組。ブロックにフォーカスし、矢印キーで曜日・時刻、Shift+上下矢印で尺を変更できます。基本編成のドラッグ変更前に確認し、成功後は「元に戻す」を選べます。
-        空きセルをドラッグ→「作成: {createLayer === "base" ? "基本編成" : "当週"}」のモーダルで確定。基本編成の変更は「展開」で実番組に反映。
+        空きセルをドラッグ→「作成: {createLayer === "base" ? "基本編成" : "当週"}」のモーダルで確定。曜日列にフォーカスし、上下矢印 (Shift で 5 分刻み) で開始時刻を選んで Enter でも作成できます。基本編成の変更は「展開」で実番組に反映。
+      </p>
+      <p role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+        {keyCursor ? `${DOW_JA[keyCursor.dow]}曜日 ${fmtMin(keyCursor.min)} から作成` : ""}
       </p>
 
       {modal && (
