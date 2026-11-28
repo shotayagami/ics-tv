@@ -3,7 +3,8 @@
 """生放送録画クリップの取り込みロジック (#VOD 生放送録画・resolver.emit_live の record_live 連携)。
 
 送出 agent 側が record_live=True の生放送を録画し、録画サブシステムが完成クリップを R2 の
-`ingest/live_recording/<channel_slug>/<program_id>.mp4` に置く。ここでは:
+`ingest/live_recording/<channel_slug>/<program_id>/<YYYYMMDDTHHMMSSZ>-<uuid4>.mp4` に置く。
+旧形式 `ingest/live_recording/<channel_slug>/<program_id>.mp4` も解析する。ここでは:
   scan() … 新規キーを Asset(kind=program) 化 (→ post_save signal が正規化を投入) し
            LiveRecordingIngest に記録
   bind() … 正規化 READY 後、対応する Program.recording_asset を差し替える (初回のみ)
@@ -16,6 +17,8 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import UTC
+from uuid import uuid4
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -28,13 +31,21 @@ from scheduling.models import LiveRecordingIngest, LiveRecordingIngestState, Pro
 logger = logging.getLogger(__name__)
 
 INGEST_PREFIX = "ingest/live_recording/"
-# ingest/live_recording/<channel_slug>/<program_id>.mp4 のみ対象
 _KEY_RE = re.compile(r"^ingest/live_recording/([^/]+)/(\d+)\.mp4$")
+_GENERATION_KEY_RE = re.compile(
+    r"^ingest/live_recording/([^/]+)/(\d+)/(\d{8}T\d{6}Z-[0-9a-f]{32})\.mp4$"
+)
+
+
+def build_key(channel_slug: str, program_id: int) -> str:
+    """世代を識別できる生放送録画の投入キーを作る。"""
+    timestamp = timezone.now().astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{INGEST_PREFIX}{channel_slug}/{program_id}/{timestamp}-{uuid4().hex}.mp4"
 
 
 def parse_key(key: str) -> tuple[str, int] | None:
     """投入キー → (channel_slug, program_id)。不正/対象外なら None。"""
-    m = _KEY_RE.match(key)
+    m = _GENERATION_KEY_RE.match(key) or _KEY_RE.match(key)
     if not m:
         return None
     return m.group(1), int(m.group(2))

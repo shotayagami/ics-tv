@@ -276,5 +276,5 @@ message RequestRecordingUploadRequest {
 
 message RequestRecordingUploadResponse {
   string upload_url = 1;  // presigned PUT URL
-  string r2_key = 2;      // ingest/live_recording/<channel_slug>/<program_id>.mp4
+  string r2_key = 2;      // ingest/live_recording/<channel_slug>/<program_id>/<YYYYMMDDTHHMMSSZ>-<uuid4 hex>.mp4
 }
